@@ -1,0 +1,214 @@
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
+import * as argon2 from "argon2";
+import { PrismaService } from "../prisma/prisma.service";
+import { orderBy, PageDto } from "../common/page.dto";
+import { CurrentUser } from "../common/current-user.decorator";
+import { CreateUserDto, UpsertSettingDto } from "./reference.dto";
+
+const ENTITY_MODEL: Record<string, string> = {
+  counterparties: "counterparty",
+  vehicles: "vehicle",
+  drivers: "driver",
+  "extraction-sites": "extractionSite",
+  warehouses: "warehouse",
+  plants: "plant",
+  "material-types": "materialType",
+  "product-types": "productType",
+  users: "user",
+  roles: "role",
+  permissions: "permission",
+  settings: "systemSetting"
+};
+
+const SEARCH_FIELDS: Record<string, string[]> = {
+  counterparties: ["name", "bin", "phone", "email"],
+  vehicles: ["plateNumber", "brand", "type"],
+  drivers: ["fullName", "phone"],
+  "extraction-sites": ["name", "location"],
+  warehouses: ["name", "address"],
+  plants: ["name", "address"],
+  "material-types": ["name"],
+  "product-types": ["name"],
+  users: ["fullName", "email", "phone"],
+  roles: ["code", "name"],
+  permissions: ["code", "name"],
+  settings: ["key"]
+};
+
+const SORT_FIELDS: Record<string, string[]> = {
+  counterparties: ["createdAt", "name", "status"],
+  vehicles: ["plateNumber", "brand", "type", "status"],
+  drivers: ["fullName", "phone"],
+  "extraction-sites": ["name", "location"],
+  warehouses: ["name", "address"],
+  plants: ["name", "address"],
+  "material-types": ["name"],
+  "product-types": ["name"],
+  users: ["createdAt", "fullName", "email", "phone"],
+  roles: ["code", "name"],
+  permissions: ["code", "name"],
+  settings: ["key"]
+};
+
+@Injectable()
+export class ReferenceService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async list(entity: string, query: PageDto, user: CurrentUser) {
+    const model = this.model(entity);
+    const where = this.orgWhere(entity, user.organizationId, query.search);
+    const [data, total] = await this.prisma.$transaction([
+      model.findMany({ where, skip: (query.page - 1) * query.pageSize, take: query.pageSize, orderBy: this.referenceOrderBy(entity, query) }),
+      model.count({ where })
+    ]);
+    return { data, total, page: query.page, pageSize: query.pageSize };
+  }
+
+  async create(entity: string, data: Record<string, unknown>, user: CurrentUser) {
+    const model = this.model(entity);
+    const payload = this.withOrg(entity, this.sanitizeReferenceData(data), user.organizationId);
+    const created: any = await this.writeWithConflict(() => model.create({ data: payload }));
+    await this.audit(user, "create", entity, created.id, null, created);
+    return created;
+  }
+
+  async createUser(dto: CreateUserDto, user: CurrentUser) {
+    if (!dto.email && !dto.phone) throw new BadRequestException("Email or phone is required");
+    const passwordHash = await argon2.hash(dto.temporaryPassword);
+    const created = await this.writeWithConflict(() => this.prisma.user.create({
+      data: {
+        organizationId: user.organizationId,
+        email: dto.email,
+        phone: dto.phone,
+        fullName: dto.fullName,
+        passwordHash,
+        mustChangePassword: true
+      }
+    }));
+    await this.audit(user, "create", "users", created.id, null, { ...created, passwordHash: "[masked]" });
+    return { ...created, passwordHash: undefined };
+  }
+
+  async assignRoles(userId: string, roleCodes: string[], actor: CurrentUser) {
+    const target = await this.prisma.user.findFirst({ where: { id: userId, organizationId: actor.organizationId } });
+    if (!target) throw new NotFoundException("User not found");
+    const roles = await this.prisma.role.findMany({ where: { code: { in: roleCodes } } });
+    if (roles.length !== roleCodes.length) throw new BadRequestException("One or more roles do not exist");
+    await this.prisma.$transaction([
+      this.prisma.userRole.deleteMany({ where: { userId } }),
+      ...roles.map((role) => this.prisma.userRole.create({ data: { userId, roleId: role.id } })),
+      this.prisma.auditLog.create({
+        data: {
+          organizationId: actor.organizationId,
+          userId: actor.id,
+          action: "users.assign-roles",
+          entity: "User",
+          entityId: userId,
+          newValue: { roleCodes }
+        }
+      })
+    ]);
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, phone: true, fullName: true, userRoles: { include: { role: true } } }
+    });
+  }
+
+  async setUserBlocked(userId: string, blocked: boolean, reason: string, actor: CurrentUser) {
+    if (!reason) throw new BadRequestException("Reason is required");
+    const target = await this.prisma.user.findFirst({ where: { id: userId, organizationId: actor.organizationId } });
+    if (!target) throw new NotFoundException("User not found");
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.user.update({ where: { id: userId }, data: { isBlocked: blocked } });
+      if (blocked) await tx.refreshToken.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      await tx.auditLog.create({
+        data: {
+          organizationId: actor.organizationId,
+          userId: actor.id,
+          action: blocked ? "users.block" : "users.unblock",
+          entity: "User",
+          entityId: userId,
+          oldValue: { isBlocked: target.isBlocked },
+          newValue: { isBlocked: blocked },
+          reason
+        }
+      });
+      return next;
+    });
+    return { ...updated, passwordHash: undefined };
+  }
+
+  async upsertSetting(dto: UpsertSettingDto, user: CurrentUser) {
+    const existing = await this.prisma.systemSetting.findUnique({
+      where: { organizationId_key: { organizationId: user.organizationId, key: dto.key } }
+    });
+    const setting = await this.prisma.systemSetting.upsert({
+      where: { organizationId_key: { organizationId: user.organizationId, key: dto.key } },
+      update: { value: dto.value as any },
+      create: { organizationId: user.organizationId, key: dto.key, value: dto.value as any }
+    });
+    await this.audit(user, "upsert", "settings", setting.id, existing, setting, dto.reason);
+    return setting;
+  }
+
+  async update(entity: string, id: string, data: Record<string, unknown>, reason: string | undefined, user: CurrentUser) {
+    const model = this.model(entity);
+    const existing = await model.findFirst({ where: { id, ...this.orgScope(entity, user.organizationId) } });
+    if (!existing) throw new NotFoundException();
+    const updated: any = await this.writeWithConflict(() => model.update({ where: { id }, data: this.sanitizeReferenceData(data) }));
+    await this.audit(user, "update", entity, id, existing, updated, reason);
+    return updated;
+  }
+
+  private model(entity: string): any {
+    const modelName = ENTITY_MODEL[entity];
+    const model = (this.prisma as any)[modelName];
+    if (!model) throw new BadRequestException(`Unknown reference entity: ${entity}`);
+    return model;
+  }
+
+  private orgScope(entity: string, organizationId: string) {
+    return ["roles", "permissions", "material-types", "product-types"].includes(entity) ? {} : { organizationId };
+  }
+
+  private orgWhere(entity: string, organizationId: string, search?: string) {
+    const where: any = this.orgScope(entity, organizationId);
+    const fields = SEARCH_FIELDS[entity] ?? [];
+    if (search && fields.length > 0) {
+      where.OR = fields.map((field) => ({ [field]: { contains: search, mode: "insensitive" } }));
+    }
+    return where;
+  }
+
+  private referenceOrderBy(entity: string, query: PageDto) {
+    const allowed = SORT_FIELDS[entity] ?? ["id"];
+    return orderBy(query, allowed, allowed[0] ?? "id");
+  }
+
+  private withOrg(entity: string, data: Record<string, unknown>, organizationId: string) {
+    return { ...data, ...this.orgScope(entity, organizationId) };
+  }
+
+  private sanitizeReferenceData(data: Record<string, unknown>) {
+    const { id, organizationId, createdAt, updatedAt, ...safe } = data;
+    return safe;
+  }
+
+  private async writeWithConflict<T>(operation: () => Promise<T>) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new ConflictException("Duplicate value");
+      }
+      throw error;
+    }
+  }
+
+  private audit(user: CurrentUser, action: string, entity: string, entityId: string, oldValue: unknown, newValue: unknown, reason?: string) {
+    return this.prisma.auditLog.create({
+      data: { organizationId: user.organizationId, userId: user.id, action: `reference.${action}`, entity, entityId, oldValue: oldValue as any, newValue: newValue as any, reason }
+    });
+  }
+}

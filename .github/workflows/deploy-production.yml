@@ -1,0 +1,88 @@
+name: deploy-production
+
+on:
+  workflow_run:
+    workflows: ["ci"]
+    branches: ["main"]
+    types: ["completed"]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit SHA or branch to deploy"
+        required: false
+        default: "main"
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.event.workflow_run.head_sha }}
+
+      - name: Resolve commit
+        id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/prod_key
+          chmod 600 ~/.ssh/prod_key
+          printf '%s\n' "${{ secrets.PROD_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Package release
+        run: |
+          tar \
+            --exclude=.git \
+            --exclude=node_modules \
+            --exclude='**/node_modules' \
+            --exclude=dist \
+            --exclude='**/dist' \
+            --exclude=.next \
+            --exclude='**/.next' \
+            --exclude=.env \
+            --exclude='.env.*' \
+            --exclude=backups \
+            -czf "bioflow-${{ steps.commit.outputs.sha }}.tgz" .
+
+      - name: Upload release
+        run: |
+          ssh -i ~/.ssh/prod_key -p "${{ secrets.PROD_SSH_PORT }}" "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}" \
+            "mkdir -p '${{ secrets.PROD_DEPLOY_PATH }}/incoming' '${{ secrets.PROD_DEPLOY_PATH }}/releases' '${{ secrets.PROD_DEPLOY_PATH }}/backups' '${{ secrets.PROD_DEPLOY_PATH }}/shared'"
+          scp -i ~/.ssh/prod_key -P "${{ secrets.PROD_SSH_PORT }}" "bioflow-${{ steps.commit.outputs.sha }}.tgz" \
+            "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}:${{ secrets.PROD_DEPLOY_PATH }}/incoming/"
+
+      - name: Deploy release
+        run: |
+          ssh -i ~/.ssh/prod_key -p "${{ secrets.PROD_SSH_PORT }}" "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          DEPLOY_PATH='${{ secrets.PROD_DEPLOY_PATH }}'
+          SHA='${{ steps.commit.outputs.sha }}'
+          RELEASE="$DEPLOY_PATH/releases/$SHA"
+          ARCHIVE="$DEPLOY_PATH/incoming/bioflow-$SHA.tgz"
+          mkdir -p "$RELEASE" "$DEPLOY_PATH/backups"
+          tar -xzf "$ARCHIVE" -C "$RELEASE"
+          test -f "$DEPLOY_PATH/shared/.env"
+          cp "$DEPLOY_PATH/shared/.env" "$RELEASE/.env"
+          if [ -L "$DEPLOY_PATH/current" ] && [ -f "$DEPLOY_PATH/current/docker-compose.yml" ]; then
+            (cd "$DEPLOY_PATH/current" && docker compose exec -T postgres pg_dump -U bioflow bioflow > "$DEPLOY_PATH/backups/bioflow-$SHA.sql") || true
+            cp "$DEPLOY_PATH/shared/.env" "$DEPLOY_PATH/backups/env-$SHA" || true
+          fi
+          ln -sfn "$RELEASE" "$DEPLOY_PATH/current"
+          cd "$DEPLOY_PATH/current"
+          docker compose --env-file .env up -d --build
+          echo "$SHA" > "$DEPLOY_PATH/current/DEPLOYED_COMMIT"
+          docker compose ps
+          REMOTE
+
+      - name: Verify health
+        run: |
+          curl --fail --retry 12 --retry-delay 5 "${{ secrets.PROD_APP_URL }}/api/v1/health"

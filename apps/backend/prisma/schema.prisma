@@ -1,0 +1,533 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MaterialState {
+  DIRTY
+  WASHED
+  FINISHED
+}
+
+enum WaybillStatus {
+  DRAFT
+  CREATED
+  LOADED
+  IN_TRANSIT
+  ARRIVED
+  ACCEPTED
+  ACCEPTED_WITH_DIFFERENCE
+  REJECTED
+  CANCELLED
+}
+
+enum InventoryMovementType {
+  RECEIPT
+  TRANSFER_OUT
+  TRANSFER_IN
+  WASH_INPUT
+  WASH_OUTPUT
+  PRODUCTION_INPUT
+  PRODUCTION_OUTPUT
+  WRITE_OFF
+  CORRECTION
+  SHIPMENT
+}
+
+enum OperationStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  bin       String?  @unique
+  createdAt DateTime @default(now())
+  users     User[]
+  counterparties Counterparty[]
+  vehicles Vehicle[]
+  drivers Driver[]
+  warehouses Warehouse[]
+  plants Plant[]
+  extractionSites ExtractionSite[]
+  waybills Waybill[]
+  inventoryMovements InventoryMovement[]
+  warehouseTransfers WarehouseTransfer[]
+  washingBatches WashingBatch[]
+  productionBatches ProductionBatch[]
+  writeOffs WriteOff[]
+  shipments Shipment[]
+  notifications Notification[]
+  auditLogs AuditLog[]
+  files File[]
+  systemSettings SystemSetting[]
+}
+
+model User {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String?  @unique
+  phone          String?  @unique
+  passwordHash   String
+  fullName       String
+  isBlocked      Boolean  @default(false)
+  mustChangePassword Boolean @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userRoles      UserRole[]
+  refreshTokens  RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  devices Device[]
+  auditLogs      AuditLog[]
+  createdWaybills Waybill[] @relation("WaybillCreatedBy")
+  acceptedWaybills Waybill[] @relation("WaybillAcceptedBy")
+  inventoryMovements InventoryMovement[] @relation("InventoryMovementCreatedBy")
+  washingBatches WashingBatch[] @relation("WashingBatchCreatedBy")
+  productionBatches ProductionBatch[] @relation("ProductionBatchCreatedBy")
+  writeOffs WriteOff[] @relation("WriteOffCreatedBy")
+  shipments Shipment[] @relation("ShipmentCreatedBy")
+  notifications Notification[]
+}
+
+model Role {
+  id          String @id @default(cuid())
+  code        String @unique
+  name        String
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model Permission {
+  id    String @id @default(cuid())
+  code  String @unique
+  name  String
+  roles RolePermission[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId String
+  permissionId String
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@id([roleId, permissionId])
+}
+
+model Counterparty {
+  id String @id @default(cuid())
+  organizationId String
+  name String
+  bin String?
+  legalAddress String?
+  contactName String?
+  phone String?
+  email String?
+  contractNumber String?
+  status String @default("ACTIVE")
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id])
+  vehicles Vehicle[]
+  drivers Driver[]
+  waybills Waybill[]
+  @@unique([organizationId, name])
+  @@index([organizationId, name])
+}
+
+model Vehicle {
+  id String @id @default(cuid())
+  organizationId String
+  counterpartyId String?
+  type String
+  brand String
+  plateNumber String @unique
+  status String @default("ACTIVE")
+  organization Organization @relation(fields: [organizationId], references: [id])
+  counterparty Counterparty? @relation(fields: [counterpartyId], references: [id])
+  waybills Waybill[]
+  @@index([organizationId, plateNumber])
+}
+
+model Driver {
+  id String @id @default(cuid())
+  organizationId String
+  counterpartyId String?
+  fullName String
+  phone String?
+  organization Organization @relation(fields: [organizationId], references: [id])
+  counterparty Counterparty? @relation(fields: [counterpartyId], references: [id])
+  waybills Waybill[]
+  @@unique([organizationId, phone])
+  @@index([organizationId, fullName])
+}
+
+model ExtractionSite {
+  id String @id @default(cuid())
+  organizationId String
+  name String
+  location String?
+  organization Organization @relation(fields: [organizationId], references: [id])
+  waybills Waybill[]
+  @@unique([organizationId, name])
+}
+
+model Warehouse {
+  id String @id @default(cuid())
+  organizationId String
+  name String
+  address String?
+  lowStockLimit Decimal? @db.Decimal(14, 3)
+  organization Organization @relation(fields: [organizationId], references: [id])
+  waybills Waybill[] @relation("DestinationWarehouse")
+  inventoryItems InventoryItem[]
+  movements InventoryMovement[]
+  washingBatches WashingBatch[]
+  productionBatches ProductionBatch[]
+  transfersFrom WarehouseTransfer[] @relation("TransferFromWarehouse")
+  transfersTo WarehouseTransfer[] @relation("TransferToWarehouse")
+  acceptances Acceptance[]
+  writeOffs WriteOff[]
+  shipments Shipment[]
+  @@unique([organizationId, name])
+}
+
+model Plant {
+  id String @id @default(cuid())
+  organizationId String
+  name String
+  address String?
+  organization Organization @relation(fields: [organizationId], references: [id])
+}
+
+model MaterialType {
+  id String @id @default(cuid())
+  name String @unique
+  waybills Waybill[]
+  inventoryItems InventoryItem[]
+  transferItems WarehouseTransferItem[]
+  inventoryMovements InventoryMovement[]
+  writeOffs WriteOff[]
+}
+
+model ProductType {
+  id String @id @default(cuid())
+  name String @unique
+  inventoryItems InventoryItem[]
+  productionBatches ProductionBatch[]
+  transferItems WarehouseTransferItem[]
+  inventoryMovements InventoryMovement[]
+  writeOffs WriteOff[]
+  shipments Shipment[]
+}
+
+model Waybill {
+  id String @id @default(cuid())
+  organizationId String
+  number String @unique
+  qrTokenHash String? @unique
+  status WaybillStatus @default(DRAFT)
+  counterpartyId String
+  extractionSiteId String
+  vehicleId String
+  driverId String
+  destinationWarehouseId String
+  materialTypeId String
+  declaredWeight Decimal @db.Decimal(14, 3)
+  actualWeight Decimal? @db.Decimal(14, 3)
+  discrepancyReason String?
+  comment String?
+  createdById String
+  acceptedById String?
+  acceptedAt DateTime?
+  version Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdBy User @relation("WaybillCreatedBy", fields: [createdById], references: [id])
+  acceptedBy User? @relation("WaybillAcceptedBy", fields: [acceptedById], references: [id])
+  counterparty Counterparty @relation(fields: [counterpartyId], references: [id])
+  extractionSite ExtractionSite @relation(fields: [extractionSiteId], references: [id])
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+  driver Driver @relation(fields: [driverId], references: [id])
+  destinationWarehouse Warehouse @relation("DestinationWarehouse", fields: [destinationWarehouseId], references: [id])
+  materialType MaterialType @relation(fields: [materialTypeId], references: [id])
+  files WaybillFile[]
+  events WaybillEvent[]
+  inventoryMovements InventoryMovement[]
+  acceptance Acceptance?
+  @@index([organizationId, status])
+}
+
+model WaybillFile {
+  id String @id @default(cuid())
+  waybillId String
+  fileId String
+  waybill Waybill @relation(fields: [waybillId], references: [id])
+  file File @relation(fields: [fileId], references: [id])
+  @@unique([waybillId, fileId])
+}
+
+model WaybillEvent {
+  id String @id @default(cuid())
+  waybillId String
+  type String
+  payload Json
+  createdAt DateTime @default(now())
+  waybill Waybill @relation(fields: [waybillId], references: [id])
+}
+
+model Acceptance {
+  id String @id @default(cuid())
+  waybillId String @unique
+  warehouseId String
+  actualWeight Decimal @db.Decimal(14, 3)
+  difference Decimal @db.Decimal(14, 3)
+  reason String?
+  idempotencyKey String @unique
+  createdAt DateTime @default(now())
+  waybill Waybill @relation(fields: [waybillId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  @@index([warehouseId, createdAt])
+}
+
+model InventoryItem {
+  id String @id @default(cuid())
+  skuKey String @unique
+  warehouseId String
+  materialTypeId String?
+  productTypeId String?
+  state MaterialState
+  quantity Decimal @default(0) @db.Decimal(14, 3)
+  updatedAt DateTime @updatedAt
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  materialType MaterialType? @relation(fields: [materialTypeId], references: [id])
+  productType ProductType? @relation(fields: [productTypeId], references: [id])
+  @@index([warehouseId, state])
+}
+
+model InventoryMovement {
+  id String @id @default(cuid())
+  organizationId String
+  warehouseId String
+  type InventoryMovementType
+  state MaterialState
+  quantity Decimal @db.Decimal(14, 3)
+  waybillId String?
+  batchId String?
+  materialTypeId String?
+  productTypeId String?
+  reason String?
+  createdById String
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  waybill Waybill? @relation(fields: [waybillId], references: [id])
+  materialType MaterialType? @relation(fields: [materialTypeId], references: [id])
+  productType ProductType? @relation(fields: [productTypeId], references: [id])
+  createdBy User @relation("InventoryMovementCreatedBy", fields: [createdById], references: [id])
+  @@index([organizationId, warehouseId, createdAt])
+  @@index([organizationId, type, createdAt])
+}
+
+model WarehouseTransfer {
+  id String @id @default(cuid())
+  organizationId String
+  fromWarehouseId String
+  toWarehouseId String
+  status OperationStatus @default(DRAFT)
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id])
+  fromWarehouse Warehouse @relation("TransferFromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouse Warehouse @relation("TransferToWarehouse", fields: [toWarehouseId], references: [id])
+  items WarehouseTransferItem[]
+  @@index([organizationId, status, createdAt])
+}
+
+model WarehouseTransferItem {
+  id String @id @default(cuid())
+  transferId String
+  materialTypeId String?
+  productTypeId String?
+  state MaterialState
+  quantity Decimal @db.Decimal(14, 3)
+  transfer WarehouseTransfer @relation(fields: [transferId], references: [id])
+  materialType MaterialType? @relation(fields: [materialTypeId], references: [id])
+  productType ProductType? @relation(fields: [productTypeId], references: [id])
+}
+
+model WashingBatch {
+  id String @id @default(cuid())
+  organizationId String
+  number String @unique
+  warehouseId String
+  inputWeight Decimal @db.Decimal(14, 3)
+  outputWeight Decimal @db.Decimal(14, 3)
+  wasteWeight Decimal @db.Decimal(14, 3)
+  lossWeight Decimal @db.Decimal(14, 3)
+  status OperationStatus @default(DRAFT)
+  createdById String
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  createdBy User @relation("WashingBatchCreatedBy", fields: [createdById], references: [id])
+  @@index([organizationId, status, createdAt])
+}
+
+model ProductionBatch {
+  id String @id @default(cuid())
+  organizationId String
+  number String @unique
+  warehouseId String
+  productTypeId String
+  inputWeight Decimal @db.Decimal(14, 3)
+  outputWeight Decimal @db.Decimal(14, 3)
+  wasteWeight Decimal @db.Decimal(14, 3)
+  lossWeight Decimal @db.Decimal(14, 3)
+  status OperationStatus @default(DRAFT)
+  createdById String
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  productType ProductType @relation(fields: [productTypeId], references: [id])
+  createdBy User @relation("ProductionBatchCreatedBy", fields: [createdById], references: [id])
+  @@index([organizationId, status, createdAt])
+}
+
+model WriteOff {
+  id String @id @default(cuid())
+  organizationId String
+  warehouseId String
+  materialTypeId String?
+  productTypeId String?
+  state MaterialState
+  quantity Decimal @db.Decimal(14, 3)
+  reason String
+  status OperationStatus @default(CONFIRMED)
+  createdById String
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  materialType MaterialType? @relation(fields: [materialTypeId], references: [id])
+  productType ProductType? @relation(fields: [productTypeId], references: [id])
+  createdBy User @relation("WriteOffCreatedBy", fields: [createdById], references: [id])
+  @@index([organizationId, status, state, createdAt])
+}
+
+model Shipment {
+  id String @id @default(cuid())
+  organizationId String
+  warehouseId String
+  productTypeId String
+  quantity Decimal @db.Decimal(14, 3)
+  recipient String
+  documentNumber String?
+  status OperationStatus @default(CONFIRMED)
+  createdById String
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  productType ProductType @relation(fields: [productTypeId], references: [id])
+  createdBy User @relation("ShipmentCreatedBy", fields: [createdById], references: [id])
+  @@index([organizationId, status, createdAt])
+}
+
+model Notification {
+  id String @id @default(cuid())
+  organizationId String
+  userId String?
+  type String
+  title String
+  body String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
+  @@index([organizationId, readAt, createdAt])
+}
+
+model Device {
+  id String @id @default(cuid())
+  userId String
+  platform String
+  pushToken String?
+  lastSeenAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id])
+  refreshTokens RefreshToken[]
+  @@index([userId, lastSeenAt])
+}
+
+model RefreshToken {
+  id String @id @default(cuid())
+  userId String
+  deviceId String?
+  tokenHash String @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id])
+  device Device? @relation(fields: [deviceId], references: [id])
+  @@index([userId, revokedAt, expiresAt])
+}
+
+model PasswordResetToken {
+  id String @id @default(cuid())
+  userId String
+  tokenHash String @unique
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id])
+  @@index([userId, usedAt, expiresAt])
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+  organizationId String
+  userId String?
+  action String
+  entity String
+  entityId String?
+  oldValue Json?
+  newValue Json?
+  reason String?
+  requestId String?
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
+  @@index([organizationId, entity, createdAt])
+  @@index([organizationId, action, createdAt])
+}
+
+model File {
+  id String @id @default(cuid())
+  organizationId String
+  key String @unique
+  fileName String
+  mimeType String
+  size Int
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id])
+  waybillFiles WaybillFile[]
+}
+
+model SystemSetting {
+  id String @id @default(cuid())
+  organizationId String
+  key String
+  value Json
+  organization Organization @relation(fields: [organizationId], references: [id])
+  @@unique([organizationId, key])
+}

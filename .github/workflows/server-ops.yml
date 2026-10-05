@@ -1,0 +1,76 @@
+name: server-ops
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Allowed operation"
+        required: true
+        type: choice
+        options:
+          - status
+          - logs
+          - restart
+          - redeploy
+          - rollback
+      release_sha:
+        description: "Required for rollback: existing release SHA"
+        required: false
+
+concurrency:
+  group: production-ops
+  cancel-in-progress: false
+
+jobs:
+  operate:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/prod_key
+          chmod 600 ~/.ssh/prod_key
+          printf '%s\n' "${{ secrets.PROD_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Run operation
+        run: |
+          ssh -i ~/.ssh/prod_key -p "${{ secrets.PROD_SSH_PORT }}" "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          DEPLOY_PATH='${{ secrets.PROD_DEPLOY_PATH }}'
+          OP='${{ inputs.operation }}'
+          RELEASE_SHA='${{ inputs.release_sha }}'
+          cd "$DEPLOY_PATH/current"
+          case "$OP" in
+            status)
+              echo "commit=$(cat DEPLOYED_COMMIT 2>/dev/null || true)"
+              docker compose ps
+              curl --fail --silent --show-error "${{ secrets.PROD_APP_URL }}/api/v1/health"
+              ;;
+            logs)
+              docker compose logs --tail=200 --no-color backend web nginx | sed -E 's/(Authorization: Bearer )[A-Za-z0-9._-]+/\1[redacted]/g; s/(password|secret|token)=([^[:space:]]+)/\1=[redacted]/Ig'
+              ;;
+            restart)
+              docker compose restart backend web nginx
+              docker compose ps
+              ;;
+            redeploy)
+              docker compose --env-file .env up -d --build
+              docker compose ps
+              ;;
+            rollback)
+              test -n "$RELEASE_SHA"
+              test -d "$DEPLOY_PATH/releases/$RELEASE_SHA"
+              ln -sfn "$DEPLOY_PATH/releases/$RELEASE_SHA" "$DEPLOY_PATH/current"
+              cd "$DEPLOY_PATH/current"
+              docker compose --env-file .env up -d --build
+              echo "$RELEASE_SHA" > DEPLOYED_COMMIT
+              docker compose ps
+              ;;
+            *)
+              echo "Unsupported operation" >&2
+              exit 2
+              ;;
+          esac
+          REMOTE

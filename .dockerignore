@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+dist
+**/dist
+.next
+**/.next
+.git
+.github
+.env
+.env.*
+!.env.example
+backups
+coverage
+*.log
+apps/web/tsconfig.tsbuildinfo
+apps/backend/coverage

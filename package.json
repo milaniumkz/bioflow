@@ -1,0 +1,30 @@
+{
+  "name": "bioflow",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "24.x",
+    "npm": "11.x"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "format": "prettier --write \"{apps,packages,docs,infrastructure}/**/*.{ts,tsx,js,json,md,css,yml,yaml}\"",
+    "dev:backend": "npm run start:dev -w @bioflow/backend",
+    "dev:web": "npm run dev -w @bioflow/web",
+    "prisma:generate": "npm run prisma:generate -w @bioflow/backend",
+    "prisma:migrate": "npm run prisma:migrate -w @bioflow/backend",
+    "prisma:deploy": "npm run prisma:deploy -w @bioflow/backend",
+    "openapi:generate": "npm run openapi:generate -w @bioflow/backend",
+    "seed": "npm run seed -w @bioflow/backend"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "typescript": "^5.9.3"
+  }
+}
