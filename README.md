@@ -97,6 +97,8 @@ Required GitHub Actions secrets:
 - `PROD_DEPLOY_PATH`
 - `PROD_APP_URL`
 
+Set repository variable `PROD_DEPLOY_ENABLED=true` only after these secrets are configured and the server has `$PROD_DEPLOY_PATH/shared/.env`.
+
 Server layout:
 
 - `$PROD_DEPLOY_PATH/shared/.env` - production env, not committed.
