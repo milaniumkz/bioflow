@@ -12,7 +12,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
+    "lint": "npm run build -w @bioflow/shared-types && npm run build -w @bioflow/api-client && npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "format": "prettier --write \"{apps,packages,docs,infrastructure}/**/*.{ts,tsx,js,json,md,css,yml,yaml}\"",
     "dev:backend": "npm run start:dev -w @bioflow/backend",
