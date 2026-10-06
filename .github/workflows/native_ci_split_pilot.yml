@@ -1,0 +1,44 @@
+name: Native CI Split Pilot
+on:
+  push:
+    branches: [codex/ci-split-pilot]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-ci-split-bioflow-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  native-node:
+    if: github.repository == 'milaniumkz/bioflow' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/codex/ci-split-pilot')
+    runs-on: [milanium-mac-arm64, repo-bioflow]
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      DATABASE_URL: ''
+      REDIS_URL: ''
+      PROMO_TEST_DATABASE_URL: ''
+      COREPACK_ENABLE_NETWORK: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Select existing Node 24
+        run: |
+          echo /opt/homebrew/bin >> "$GITHUB_PATH"
+          test "$(/opt/homebrew/bin/node -p 'process.versions.node.split(".")[0]')" = 24
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run lint
+      - run: npm test
+      - run: npm test -w @bioflow/backend -- --detectOpenHandles --runInBand
+      - name: Generate OpenAPI without a real database connection
+        run: DATABASE_URL='postgresql://bioflow:bioflow@127.0.0.1:9/bioflow?schema=public' npm run openapi:generate
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bioflow-openapi
+          path: packages/api-client/openapi
+          if-no-files-found: error
+          retention-days: 1
