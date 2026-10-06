@@ -1,33 +1,16 @@
-name: ci
-
+name: Native Mac Pilot
 on:
   push:
-    branches-ignore: [codex/mac-ci-pilot]
-  pull_request:
-
+    branches: [codex/mac-ci-pilot]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-mac-bioflow-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
-  build-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run prisma:generate
-      - run: npm run lint
-      - run: npm test
-      - run: npm test -w @bioflow/backend -- --detectOpenHandles --runInBand
-      - run: DATABASE_URL='postgresql://bioflow:bioflow@localhost:5432/bioflow?schema=public' npm run openapi:generate
-      - run: npm run build
-      - run: npm audit --omit=dev --audit-level=high
-      - run: docker compose config
-      - run: docker build -f apps/backend/Dockerfile .
-      - run: docker build -f apps/web/Dockerfile .
-
   native-node:
-    if: github.repository == 'milaniumkz/bioflow' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.repository == 'milaniumkz/bioflow' && (github.ref == 'refs/heads/codex/mac-ci-pilot' || github.ref == 'refs/heads/main')
     runs-on: [milanium-mac-arm64, repo-bioflow]
     timeout-minutes: 45
     env:
@@ -53,7 +36,7 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
   native-mobile:
     needs: native-node
-    if: github.repository == 'milaniumkz/bioflow' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.repository == 'milaniumkz/bioflow' && (github.ref == 'refs/heads/codex/mac-ci-pilot' || github.ref == 'refs/heads/main')
     runs-on: [milanium-mac-arm64, repo-bioflow]
     timeout-minutes: 30
     defaults:
