@@ -334,7 +334,7 @@ class _AcceptanceScreenState extends ConsumerState<AcceptanceScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => FutureBuilder<Response<dynamic>>(
+  Widget build(BuildContext context) => FutureBuilder<List<Response<dynamic>>>(
         future: Future.wait([
           ref.read(apiProvider).get('/warehouses'),
           ref.read(apiProvider).get('/waybills/${widget.waybillId}'),
@@ -352,7 +352,7 @@ class _AcceptanceScreenState extends ConsumerState<AcceptanceScreen> {
               Text('Статус: ${status ?? '...'}'),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: warehouseId,
+                initialValue: warehouseId,
                 decoration: const InputDecoration(labelText: 'Склад'),
                 items: rows.map((row) => DropdownMenuItem<String>(value: row['id'], child: Text('${row['name']}'))).toList(),
                 onChanged: (value) => setState(() => warehouseId = value),

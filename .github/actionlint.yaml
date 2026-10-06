@@ -1,0 +1,2 @@
+self-hosted-runner:
+  labels: [milanium-mac-arm64, repo-bioflow]
