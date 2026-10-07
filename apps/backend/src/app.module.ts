@@ -19,6 +19,7 @@ import { ShipmentsModule } from "./shipments/shipments.module";
 import { RbacGuard } from "./common/rbac.guard";
 import { JwtAuthGuard } from "./common/jwt-auth.guard";
 import { RequestIdMiddleware } from "./common/request-id.middleware";
+import { LedgerModule } from "./ledger/ledger.module";
 import { HealthController } from "./health.controller";
 
 @Module({
@@ -26,6 +27,7 @@ import { HealthController } from "./health.controller";
     ConfigModule.forRoot({ isGlobal: true }),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
+    LedgerModule,
     AuthModule,
     ReferenceModule,
     WaybillsModule,
@@ -38,14 +40,14 @@ import { HealthController } from "./health.controller";
     AuditModule,
     TransfersModule,
     WriteOffsModule,
-    ShipmentsModule
+    ShipmentsModule,
   ],
   controllers: [HealthController],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
-    { provide: APP_GUARD, useClass: RbacGuard }
-  ]
+    { provide: APP_GUARD, useClass: RbacGuard },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

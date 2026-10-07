@@ -1,0 +1,38 @@
+# Standalone production configuration: external PostgreSQL and private S3.
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    env_file: .env.production
+    restart: unless-stopped
+    expose: ["4000"]
+    volumes:
+      - ./secrets:/run/bioflow-secrets:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:4000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: /api/v1
+    restart: unless-stopped
+    expose: ["3000"]
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./infrastructure/nginx/production.conf:/etc/nginx/nginx.conf:ro
+      - ./certificates:/etc/nginx/certificates:ro
+    depends_on: [backend, web]

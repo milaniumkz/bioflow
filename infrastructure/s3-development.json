@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "bioflow-development",
+      "credentials": [
+        {
+          "accessKey": "bioflow-local",
+          "secretKey": "bioflow-local-development-only"
+        }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

@@ -17,3 +17,14 @@ apps/backend/generated
 build
 .flutter-plugins
 .flutter-plugins-dependencies
+**/android/local.properties
+**/android/.gradle
+**/android/.kotlin
+**/.cxx
+**/*.iml
+**/key.properties
+**/*.jks
+**/GeneratedPluginRegistrant.java
+backups/
+secrets/
+certificates/

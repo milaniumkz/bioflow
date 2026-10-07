@@ -1,6 +1,9 @@
 import { Body, Controller, Get, Param, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import { CurrentUser as CurrentUserDecorator, CurrentUser } from "../common/current-user.decorator";
+import {
+  CurrentUser as CurrentUserDecorator,
+  CurrentUser,
+} from "../common/current-user.decorator";
 import { AttachFileDto, CreateUploadUrlDto } from "./files.dto";
 import { FilesService } from "./files.service";
 
@@ -11,17 +14,32 @@ export class FilesController {
   constructor(private readonly files: FilesService) {}
 
   @Post("upload-url")
-  createUploadUrl(@Body() dto: CreateUploadUrlDto, @CurrentUserDecorator() user: CurrentUser) {
+  createUploadUrl(
+    @Body() dto: CreateUploadUrlDto,
+    @CurrentUserDecorator() user: CurrentUser,
+  ) {
     return this.files.createUploadUrl(dto, user);
   }
 
+  @Post(":id/complete")
+  complete(@Param("id") id: string, @CurrentUserDecorator() user: CurrentUser) {
+    return this.files.completeUpload(id, user);
+  }
+
   @Get(":id/download-url")
-  createDownloadUrl(@Param("id") id: string, @CurrentUserDecorator() user: CurrentUser) {
+  createDownloadUrl(
+    @Param("id") id: string,
+    @CurrentUserDecorator() user: CurrentUser,
+  ) {
     return this.files.createDownloadUrl(id, user);
   }
 
   @Post("waybills/:waybillId")
-  attachToWaybill(@Param("waybillId") waybillId: string, @Body() dto: AttachFileDto, @CurrentUserDecorator() user: CurrentUser) {
+  attachToWaybill(
+    @Param("waybillId") waybillId: string,
+    @Body() dto: AttachFileDto,
+    @CurrentUserDecorator() user: CurrentUser,
+  ) {
     return this.files.attachToWaybill(waybillId, dto.fileId, user);
   }
 }

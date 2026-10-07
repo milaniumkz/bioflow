@@ -1,9 +1,21 @@
 import { Body, Controller, Get, Param, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
-import { CurrentUser as CurrentUserDecorator, CurrentUser } from "../common/current-user.decorator";
+import {
+  CurrentUser as CurrentUserDecorator,
+  CurrentUser,
+} from "../common/current-user.decorator";
 import { Public } from "../common/public.decorator";
+import { Permissions } from "../common/permissions.decorator";
+import { AdminResetDto } from "./admin-reset.dto";
 import { AuthService } from "./auth.service";
-import { ChangePasswordDto, ForgotPasswordDto, LoginDto, RefreshDto, RegisterDeviceDto, ResetPasswordDto } from "./auth.dto";
+import {
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  LoginDto,
+  RefreshDto,
+  RegisterDeviceDto,
+  ResetPasswordDto,
+} from "./auth.dto";
 
 @ApiTags("auth")
 @Controller("auth")
@@ -34,10 +46,29 @@ export class AuthController {
     return this.auth.resetPassword(dto);
   }
 
+  @Permissions("users.manage")
+  @Post("users/:id/reset-password")
+  adminReset(
+    @Param("id") id: string,
+    @Body() dto: AdminResetDto,
+    @CurrentUserDecorator() actor: CurrentUser,
+  ) {
+    return this.auth.adminReset(id, dto.temporaryPassword, dto.reason, actor);
+  }
+
   @ApiBearerAuth()
   @Get("me")
   me(@CurrentUserDecorator() user: CurrentUser) {
-    return this.auth.me(user.id);
+    return this.auth
+      .me(user.id)
+      .then((profile) => ({
+        ...profile,
+        permissions: user.permissions,
+        accessAllObjects: user.accessAllObjects,
+        warehouseScopeIds: user.warehouseScopeIds,
+        extractionScopeIds: user.extractionScopeIds,
+        counterpartyScopeId: user.counterpartyScopeId,
+      }));
   }
 
   @ApiBearerAuth()
@@ -48,19 +79,28 @@ export class AuthController {
 
   @ApiBearerAuth()
   @Post("devices")
-  registerDevice(@Body() dto: RegisterDeviceDto, @CurrentUserDecorator() user: CurrentUser) {
+  registerDevice(
+    @Body() dto: RegisterDeviceDto,
+    @CurrentUserDecorator() user: CurrentUser,
+  ) {
     return this.auth.registerDevice(user.id, dto);
   }
 
   @ApiBearerAuth()
   @Post("sessions/:id/revoke")
-  revokeSession(@Param("id") id: string, @CurrentUserDecorator() user: CurrentUser) {
+  revokeSession(
+    @Param("id") id: string,
+    @CurrentUserDecorator() user: CurrentUser,
+  ) {
     return this.auth.revokeSession(user.id, id);
   }
 
   @ApiBearerAuth()
   @Post("change-password")
-  changePassword(@Body() dto: ChangePasswordDto, @CurrentUserDecorator() user: CurrentUser) {
+  changePassword(
+    @Body() dto: ChangePasswordDto,
+    @CurrentUserDecorator() user: CurrentUser,
+  ) {
     return this.auth.changePassword(user.id, dto);
   }
 

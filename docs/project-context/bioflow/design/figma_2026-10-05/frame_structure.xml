@@ -1,0 +1,780 @@
+<canvas id="0:1" name="Page 1" x="0" y="0" width="0" height="0">
+  <text id="2:2" name="BIOMATERIAL CONTROL — NAVY &amp; PLATINUM" x="0" y="30" width="636" height="34" />
+  <text id="2:3" name="Mobile app + Web control panel • Release-ready UI concept" x="0" y="70" width="400" height="17" />
+  <frame id="2:4" name="Mobile / Главная" x="0" y="120" width="390" height="844">
+    <text id="2:5" name="BIOFLOW" x="24" y="24" width="65" height="17" />
+    <text id="2:6" name="09:41" x="316" y="24" width="33" height="15" />
+    <text id="2:7" name="Главная" x="24" y="70" width="330" height="10" />
+    <text id="2:8" name="Сводка владельца и быстрые действия" x="24" y="108" width="330" height="10" />
+    <rounded-rectangle id="2:9" name="Rectangle" x="20" y="150" width="350" height="166" />
+    <text id="2:10" name="ОСТАТОК БИОМАТЕРИАЛА" x="40" y="174" width="150" height="13" />
+    <text id="2:11" name="1 284,6 т" x="40" y="207" width="168" height="46" />
+    <rounded-rectangle id="2:12" name="Rectangle" x="40" y="262" width="129" height="26" />
+    <text id="2:13" name="+12,4% за месяц" x="52" y="267" width="92" height="13" />
+    <rounded-rectangle id="2:14" name="Rectangle" x="20" y="336" width="168" height="102" />
+    <text id="2:15" name="В пути" x="38" y="352" width="39" height="15" />
+    <text id="2:16" name="86,2 т" x="38" y="379" width="79" height="31" />
+    <rounded-rectangle id="2:17" name="Rectangle" x="38" y="419" width="44" height="3" />
+    <rounded-rectangle id="2:18" name="Rectangle" x="202" y="336" width="168" height="102" />
+    <text id="2:19" name="На складах" x="220" y="352" width="68" height="15" />
+    <text id="2:20" name="1 198 т" x="220" y="379" width="87" height="31" />
+    <rounded-rectangle id="2:21" name="Rectangle" x="220" y="419" width="44" height="3" />
+    <rounded-rectangle id="2:22" name="Rectangle" x="20" y="454" width="350" height="116" />
+    <text id="2:23" name="Сканировать QR" x="42" y="478" width="158" height="23" />
+    <text id="2:24" name="Открыть транспортную накладную" x="42" y="511" width="208" height="15" />
+    <text id="2:25" name="→" x="324" y="486" width="27" height="34" />
+    <text id="2:26" name="Последние операции" x="24" y="606" width="171" height="19" />
+    <rounded-rectangle id="2:27" name="Rectangle" x="20" y="638" width="350" height="102" />
+    <text id="2:28" name="КамАЗ • 354 KZA 14" x="38" y="656" width="141" height="17" />
+    <text id="2:29" name="Озеро Акколь → Склад №2" x="38" y="683" width="160" height="15" />
+    <rounded-rectangle id="2:30" name="Rectangle" x="276" y="653" width="66" height="26" />
+    <text id="2:31" name="24,8 т" x="288" y="658" width="33" height="13" />
+    <rounded-rectangle id="2:32" name="Rectangle" x="0" y="768" width="390" height="76" />
+    <rounded-rectangle id="2:33" name="Rectangle" x="24" y="780" width="42" height="42" />
+    <text id="2:34" name="⌂" x="36" y="791" width="11" height="18" />
+    <rounded-rectangle id="2:35" name="Rectangle" x="115" y="780" width="42" height="42" />
+    <text id="2:36" name="⇄" x="127" y="791" width="16" height="18" />
+    <rounded-rectangle id="2:37" name="Rectangle" x="206" y="780" width="42" height="42" />
+    <text id="2:38" name="▣" x="218" y="791" width="13" height="18" />
+    <rounded-rectangle id="2:39" name="Rectangle" x="297" y="780" width="42" height="42" />
+    <text id="2:40" name="≡" x="309" y="791" width="9" height="18" />
+  </frame>
+  <frame id="2:41" name="Mobile / Операции" x="450" y="120" width="390" height="844">
+    <text id="2:42" name="BIOFLOW" x="24" y="24" width="65" height="17" />
+    <text id="2:43" name="09:41" x="316" y="24" width="33" height="15" />
+    <text id="2:44" name="Операции" x="24" y="70" width="330" height="10" />
+    <text id="2:45" name="Все этапы движения материала" x="24" y="108" width="330" height="10" />
+    <rounded-rectangle id="2:46" name="Rectangle" x="20" y="160" width="350" height="98" />
+    <text id="2:47" name="01" x="38" y="182" width="15" height="15" />
+    <text id="2:48" name="Добыча и загрузка" x="82" y="180" width="152" height="19" />
+    <text id="2:49" name="Создать накладную" x="82" y="211" width="117" height="15" />
+    <text id="2:50" name="›" x="336" y="190" width="9" height="29" />
+    <rounded-rectangle id="2:51" name="Rectangle" x="20" y="278" width="350" height="98" />
+    <text id="2:52" name="02" x="38" y="300" width="16" height="15" />
+    <text id="2:53" name="Приёмка на складе" x="82" y="298" width="156" height="19" />
+    <text id="2:54" name="Открыть операции" x="82" y="329" width="112" height="15" />
+    <text id="2:55" name="›" x="336" y="308" width="9" height="29" />
+    <rounded-rectangle id="2:56" name="Rectangle" x="20" y="396" width="350" height="98" />
+    <text id="2:57" name="03" x="38" y="418" width="17" height="15" />
+    <text id="2:58" name="Передача в мойку" x="82" y="416" width="147" height="19" />
+    <text id="2:59" name="Открыть операции" x="82" y="447" width="112" height="15" />
+    <text id="2:60" name="›" x="336" y="426" width="9" height="29" />
+    <rounded-rectangle id="2:61" name="Rectangle" x="20" y="514" width="350" height="98" />
+    <text id="2:62" name="04" x="38" y="536" width="17" height="15" />
+    <text id="2:63" name="Выпуск продукции" x="82" y="534" width="152" height="19" />
+    <text id="2:64" name="Открыть операции" x="82" y="565" width="112" height="15" />
+    <text id="2:65" name="›" x="336" y="544" width="9" height="29" />
+    <rounded-rectangle id="2:66" name="Rectangle" x="0" y="768" width="390" height="76" />
+    <rounded-rectangle id="2:67" name="Rectangle" x="24" y="780" width="42" height="42" />
+    <text id="2:68" name="⌂" x="36" y="791" width="11" height="18" />
+    <rounded-rectangle id="2:69" name="Rectangle" x="115" y="780" width="42" height="42" />
+    <text id="2:70" name="⇄" x="127" y="791" width="16" height="18" />
+    <rounded-rectangle id="2:71" name="Rectangle" x="206" y="780" width="42" height="42" />
+    <text id="2:72" name="▣" x="218" y="791" width="13" height="18" />
+    <rounded-rectangle id="2:73" name="Rectangle" x="297" y="780" width="42" height="42" />
+    <text id="2:74" name="≡" x="309" y="791" width="9" height="18" />
+  </frame>
+  <frame id="2:75" name="Mobile / QR-сканер" x="900" y="120" width="390" height="844">
+    <text id="2:76" name="BIOFLOW" x="24" y="24" width="65" height="17" />
+    <text id="2:77" name="09:41" x="316" y="24" width="33" height="15" />
+    <text id="2:78" name="QR-сканер" x="24" y="70" width="330" height="10" />
+    <text id="2:79" name="Сканирование транспортной накладной" x="24" y="108" width="330" height="10" />
+    <rounded-rectangle id="2:80" name="Rectangle" x="36" y="166" width="318" height="318" />
+    <rounded-rectangle id="2:81" name="Rectangle" x="64" y="194" width="262" height="262" />
+    <text id="2:82" name="⌜ ⌝" x="78" y="208" width="167" height="30" />
+    <text id="2:83" name="⌞ ⌟" x="78" y="406" width="167" height="30" />
+    <rounded-rectangle id="2:84" name="Rectangle" x="94" y="319" width="202" height="2" />
+    <text id="2:85" name="Наведите камеру на QR-код" x="83" y="510" width="212" height="18" />
+    <text id="2:86" name="Код транспортной накладной" x="92" y="538" width="175" height="15" />
+    <rounded-rectangle id="2:87" name="Rectangle" x="20" y="600" width="350" height="54" />
+    <text id="2:88" name="Ввести номер вручную" x="94" y="617" width="162" height="17" />
+    <rounded-rectangle id="2:89" name="Rectangle" x="0" y="768" width="390" height="76" />
+    <rounded-rectangle id="2:90" name="Rectangle" x="24" y="780" width="42" height="42" />
+    <text id="2:91" name="⌂" x="36" y="791" width="11" height="18" />
+    <rounded-rectangle id="2:92" name="Rectangle" x="115" y="780" width="42" height="42" />
+    <text id="2:93" name="⇄" x="127" y="791" width="16" height="18" />
+    <rounded-rectangle id="2:94" name="Rectangle" x="206" y="780" width="42" height="42" />
+    <text id="2:95" name="▣" x="218" y="791" width="13" height="18" />
+    <rounded-rectangle id="2:96" name="Rectangle" x="297" y="780" width="42" height="42" />
+    <text id="2:97" name="≡" x="309" y="791" width="9" height="18" />
+  </frame>
+  <frame id="2:98" name="Mobile / Приёмка" x="1350" y="120" width="390" height="844">
+    <text id="2:99" name="BIOFLOW" x="24" y="24" width="65" height="17" />
+    <text id="2:100" name="09:41" x="316" y="24" width="33" height="15" />
+    <text id="2:101" name="Приёмка" x="24" y="70" width="330" height="10" />
+    <text id="2:102" name="Проверка и подтверждение поставки" x="24" y="108" width="330" height="10" />
+    <rounded-rectangle id="2:103" name="Rectangle" x="20" y="152" width="350" height="84" />
+    <text id="2:104" name="НАКЛАДНАЯ № BM-260929-041" x="38" y="172" width="198" height="15" />
+    <text id="2:105" name="Статус: ожидает приёмки" x="38" y="199" width="196" height="18" />
+    <rounded-rectangle id="2:106" name="Rectangle" x="276" y="181" width="66" height="26" />
+    <text id="2:107" name="В пути" x="288" y="186" width="36" height="13" />
+    <text id="2:108" name="Контрагент" x="24" y="258" width="62" height="13" />
+    <text id="2:109" name="ТОО «Акколь Био»" x="24" y="281" width="140" height="18" />
+    <rounded-rectangle id="2:110" name="Rectangle" x="24" y="312" width="342" height="1" />
+    <text id="2:111" name="Машина" x="24" y="328" width="45" height="13" />
+    <text id="2:112" name="КамАЗ • 354 KZA 14" x="24" y="351" width="151" height="18" />
+    <rounded-rectangle id="2:113" name="Rectangle" x="24" y="382" width="342" height="1" />
+    <text id="2:114" name="Источник" x="24" y="398" width="53" height="13" />
+    <text id="2:115" name="Озеро Акколь" x="24" y="421" width="105" height="18" />
+    <rounded-rectangle id="2:116" name="Rectangle" x="24" y="452" width="342" height="1" />
+    <text id="2:117" name="Вес при загрузке" x="24" y="468" width="94" height="13" />
+    <text id="2:118" name="24 860 кг" x="24" y="491" width="72" height="18" />
+    <rounded-rectangle id="2:119" name="Rectangle" x="24" y="522" width="342" height="1" />
+    <rounded-rectangle id="2:120" name="Rectangle" x="20" y="572" width="350" height="58" />
+    <text id="2:121" name="Подтвердить приёмку" x="103" y="590" width="170" height="18" />
+    <rounded-rectangle id="2:122" name="Rectangle" x="20" y="642" width="350" height="58" />
+    <text id="2:123" name="Сообщить о расхождении" x="86" y="660" width="182" height="17" />
+    <rounded-rectangle id="2:124" name="Rectangle" x="0" y="768" width="390" height="76" />
+    <rounded-rectangle id="2:125" name="Rectangle" x="24" y="780" width="42" height="42" />
+    <text id="2:126" name="⌂" x="36" y="791" width="11" height="18" />
+    <rounded-rectangle id="2:127" name="Rectangle" x="115" y="780" width="42" height="42" />
+    <text id="2:128" name="⇄" x="127" y="791" width="16" height="18" />
+    <rounded-rectangle id="2:129" name="Rectangle" x="206" y="780" width="42" height="42" />
+    <text id="2:130" name="▣" x="218" y="791" width="13" height="18" />
+    <rounded-rectangle id="2:131" name="Rectangle" x="297" y="780" width="42" height="42" />
+    <text id="2:132" name="≡" x="309" y="791" width="9" height="18" />
+  </frame>
+  <frame id="2:133" name="Mobile / Склады" x="1800" y="120" width="390" height="844">
+    <text id="2:134" name="BIOFLOW" x="24" y="24" width="65" height="17" />
+    <text id="2:135" name="09:41" x="316" y="24" width="33" height="15" />
+    <text id="2:136" name="Склады" x="24" y="70" width="330" height="10" />
+    <text id="2:137" name="Остатки по всем площадкам" x="24" y="108" width="330" height="10" />
+    <rounded-rectangle id="2:138" name="Rectangle" x="20" y="150" width="350" height="102" />
+    <text id="2:139" name="ОБЩИЙ ОСТАТОК" x="38" y="166" width="108" height="15" />
+    <text id="2:140" name="1 198,4 т" x="38" y="193" width="112" height="31" />
+    <rounded-rectangle id="2:141" name="Rectangle" x="38" y="233" width="44" height="3" />
+    <rounded-rectangle id="2:142" name="Rectangle" x="20" y="280" width="350" height="108" />
+    <text id="2:143" name="Склад №1 • Павлодар" x="38" y="298" width="153" height="17" />
+    <text id="2:144" name="482,6 т" x="38" y="328" width="89" height="29" />
+    <rounded-rectangle id="2:145" name="Rectangle" x="286" y="322" width="66" height="26" />
+    <text id="2:146" name="40%" x="298" y="327" width="24" height="13" />
+    <rounded-rectangle id="2:147" name="Rectangle" x="38" y="368" width="292" height="5" />
+    <rounded-rectangle id="2:148" name="Rectangle" x="38" y="368" width="116.80000305175781" height="5" />
+    <rounded-rectangle id="2:149" name="Rectangle" x="20" y="406" width="350" height="108" />
+    <text id="2:150" name="Склад №2 • Аксу" x="38" y="424" width="120" height="17" />
+    <text id="2:151" name="391,2 т" x="38" y="454" width="84" height="29" />
+    <rounded-rectangle id="2:152" name="Rectangle" x="286" y="448" width="66" height="26" />
+    <text id="2:153" name="33%" x="298" y="453" width="24" height="13" />
+    <rounded-rectangle id="2:154" name="Rectangle" x="38" y="494" width="292" height="5" />
+    <rounded-rectangle id="2:155" name="Rectangle" x="38" y="494" width="96.36000061035156" height="5" />
+    <rounded-rectangle id="2:156" name="Rectangle" x="20" y="532" width="350" height="108" />
+    <text id="2:157" name="Склад №3 • Экибастуз" x="38" y="550" width="160" height="17" />
+    <text id="2:158" name="324,6 т" x="38" y="580" width="88" height="29" />
+    <rounded-rectangle id="2:159" name="Rectangle" x="286" y="574" width="66" height="26" />
+    <text id="2:160" name="27%" x="298" y="579" width="23" height="13" />
+    <rounded-rectangle id="2:161" name="Rectangle" x="38" y="620" width="292" height="5" />
+    <rounded-rectangle id="2:162" name="Rectangle" x="38" y="620" width="78.83999633789062" height="5" />
+    <rounded-rectangle id="2:163" name="Rectangle" x="0" y="768" width="390" height="76" />
+    <rounded-rectangle id="2:164" name="Rectangle" x="24" y="780" width="42" height="42" />
+    <text id="2:165" name="⌂" x="36" y="791" width="11" height="18" />
+    <rounded-rectangle id="2:166" name="Rectangle" x="115" y="780" width="42" height="42" />
+    <text id="2:167" name="⇄" x="127" y="791" width="16" height="18" />
+    <rounded-rectangle id="2:168" name="Rectangle" x="206" y="780" width="42" height="42" />
+    <text id="2:169" name="▣" x="218" y="791" width="13" height="18" />
+    <rounded-rectangle id="2:170" name="Rectangle" x="297" y="780" width="42" height="42" />
+    <text id="2:171" name="≡" x="309" y="791" width="9" height="18" />
+  </frame>
+  <frame id="2:172" name="Mobile / Производство" x="2250" y="120" width="390" height="844">
+    <text id="2:173" name="BIOFLOW" x="24" y="24" width="65" height="17" />
+    <text id="2:174" name="09:41" x="316" y="24" width="33" height="15" />
+    <text id="2:175" name="Производство" x="24" y="70" width="330" height="10" />
+    <text id="2:176" name="Грязный → мытый → готовый" x="24" y="108" width="330" height="10" />
+    <rounded-rectangle id="2:177" name="Rectangle" x="20" y="150" width="350" height="120" />
+    <rounded-rectangle id="2:178" name="Rectangle" x="38" y="174" width="10" height="72" />
+    <text id="2:179" name="Грязный материал" x="66" y="174" width="129" height="17" />
+    <text id="2:180" name="634,8 т" x="66" y="202" width="104" height="34" />
+    <text id="2:181" name="Передать на следующий этап →" x="66" y="239" width="195" height="15" />
+    <rounded-rectangle id="2:182" name="Rectangle" x="20" y="288" width="350" height="120" />
+    <rounded-rectangle id="2:183" name="Rectangle" x="38" y="312" width="10" height="72" />
+    <text id="2:184" name="Мытый материал" x="66" y="312" width="121" height="17" />
+    <text id="2:185" name="402,1 т" x="66" y="340" width="98" height="34" />
+    <text id="2:186" name="Передать на следующий этап →" x="66" y="377" width="195" height="15" />
+    <rounded-rectangle id="2:187" name="Rectangle" x="20" y="426" width="350" height="120" />
+    <rounded-rectangle id="2:188" name="Rectangle" x="38" y="450" width="10" height="72" />
+    <text id="2:189" name="Готовая продукция" x="66" y="450" width="134" height="17" />
+    <text id="2:190" name="161,5 т" x="66" y="478" width="94" height="34" />
+    <text id="2:191" name="Открыть партии →" x="66" y="515" width="113" height="15" />
+    <rounded-rectangle id="2:192" name="Rectangle" x="20" y="584" width="350" height="62" />
+    <text id="2:193" name="Создать производственную операцию" x="55" y="604" width="272" height="17" />
+    <rounded-rectangle id="2:194" name="Rectangle" x="0" y="768" width="390" height="76" />
+    <rounded-rectangle id="2:195" name="Rectangle" x="24" y="780" width="42" height="42" />
+    <text id="2:196" name="⌂" x="36" y="791" width="11" height="18" />
+    <rounded-rectangle id="2:197" name="Rectangle" x="115" y="780" width="42" height="42" />
+    <text id="2:198" name="⇄" x="127" y="791" width="16" height="18" />
+    <rounded-rectangle id="2:199" name="Rectangle" x="206" y="780" width="42" height="42" />
+    <text id="2:200" name="▣" x="218" y="791" width="13" height="18" />
+    <rounded-rectangle id="2:201" name="Rectangle" x="297" y="780" width="42" height="42" />
+    <text id="2:202" name="≡" x="309" y="791" width="9" height="18" />
+  </frame>
+  <frame id="2:203" name="Mobile / Ещё" x="2700" y="120" width="390" height="844">
+    <text id="2:204" name="BIOFLOW" x="24" y="24" width="65" height="17" />
+    <text id="2:205" name="09:41" x="316" y="24" width="33" height="15" />
+    <text id="2:206" name="Ещё" x="24" y="70" width="330" height="10" />
+    <text id="2:207" name="Справочники и управление" x="24" y="108" width="330" height="10" />
+    <rounded-rectangle id="2:208" name="Rectangle" x="20" y="150" width="350" height="74" />
+    <text id="2:209" name="Контрагенты" x="38" y="166" width="98" height="18" />
+    <text id="2:210" name="12 организаций" x="38" y="192" width="84" height="13" />
+    <text id="2:211" name="›" x="336" y="173" width="8" height="27" />
+    <rounded-rectangle id="2:212" name="Rectangle" x="20" y="242" width="350" height="74" />
+    <text id="2:213" name="Транспорт" x="38" y="258" width="80" height="18" />
+    <text id="2:214" name="36 автомобилей" x="38" y="284" width="89" height="13" />
+    <text id="2:215" name="›" x="336" y="265" width="8" height="27" />
+    <rounded-rectangle id="2:216" name="Rectangle" x="20" y="334" width="350" height="74" />
+    <text id="2:217" name="Пользователи и роли" x="38" y="350" width="160" height="18" />
+    <text id="2:218" name="18 сотрудников" x="38" y="376" width="84" height="13" />
+    <text id="2:219" name="›" x="336" y="357" width="8" height="27" />
+    <rounded-rectangle id="2:220" name="Rectangle" x="20" y="426" width="350" height="74" />
+    <text id="2:221" name="Настройки" x="38" y="442" width="82" height="18" />
+    <text id="2:222" name="Склады, справочники, уведомления" x="38" y="468" width="197" height="13" />
+    <text id="2:223" name="›" x="336" y="449" width="8" height="27" />
+    <rounded-rectangle id="2:224" name="Rectangle" x="0" y="768" width="390" height="76" />
+    <rounded-rectangle id="2:225" name="Rectangle" x="24" y="780" width="42" height="42" />
+    <text id="2:226" name="⌂" x="36" y="791" width="11" height="18" />
+    <rounded-rectangle id="2:227" name="Rectangle" x="115" y="780" width="42" height="42" />
+    <text id="2:228" name="⇄" x="127" y="791" width="16" height="18" />
+    <rounded-rectangle id="2:229" name="Rectangle" x="206" y="780" width="42" height="42" />
+    <text id="2:230" name="▣" x="218" y="791" width="13" height="18" />
+    <rounded-rectangle id="2:231" name="Rectangle" x="297" y="780" width="42" height="42" />
+    <text id="2:232" name="≡" x="309" y="791" width="9" height="18" />
+  </frame>
+  <frame id="2:233" name="Web / Обзор" x="0" y="1080" width="1440" height="960">
+    <rounded-rectangle id="2:234" name="Rectangle" x="0" y="0" width="246" height="960" />
+    <text id="2:235" name="BIOFLOW" x="28" y="30" width="84" height="22" />
+    <text id="2:236" name="CONTROL SYSTEM" x="28" y="55" width="85" height="11" />
+    <rounded-rectangle id="2:237" name="Rectangle" x="16" y="108" width="214" height="42" />
+    <text id="2:238" name="Обзор" x="48" y="120" width="41" height="16" />
+    <text id="2:239" name="Поставки" x="48" y="174" width="62" height="16" />
+    <text id="2:240" name="Контрагенты" x="48" y="228" width="84" height="16" />
+    <text id="2:241" name="Склады" x="48" y="282" width="51" height="16" />
+    <text id="2:242" name="Производство" x="48" y="336" width="93" height="16" />
+    <text id="2:243" name="Отчёты" x="48" y="390" width="49" height="16" />
+    <text id="2:244" name="Обзор" x="286" y="34" width="96" height="36" />
+    <text id="2:245" name="Операционная статистика в реальном времени" x="286" y="76" width="306" height="16" />
+    <rounded-rectangle id="2:246" name="Rectangle" x="1186" y="30" width="214" height="48" />
+    <text id="2:247" name="Администратор" x="1234" y="46" width="104" height="16" />
+    <rounded-rectangle id="2:248" name="Rectangle" x="286" y="126" width="252" height="124" />
+    <text id="2:249" name="Всего материала" x="306" y="148" width="102" height="15" />
+    <text id="2:250" name="1 284,6 т" x="306" y="180" width="115" height="31" />
+    <rounded-rectangle id="2:251" name="Rectangle" x="306" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:252" name="Rectangle" x="562" y="126" width="252" height="124" />
+    <text id="2:253" name="Поступило сегодня" x="582" y="148" width="116" height="15" />
+    <text id="2:254" name="86,2 т" x="582" y="180" width="79" height="31" />
+    <rounded-rectangle id="2:255" name="Rectangle" x="582" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:256" name="Rectangle" x="838" y="126" width="252" height="124" />
+    <text id="2:257" name="Готовая продукция" x="858" y="148" width="115" height="15" />
+    <text id="2:258" name="161,5 т" x="858" y="180" width="87" height="31" />
+    <rounded-rectangle id="2:259" name="Rectangle" x="858" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:260" name="Rectangle" x="1114" y="126" width="252" height="124" />
+    <text id="2:261" name="Расхождения" x="1134" y="148" width="81" height="15" />
+    <text id="2:262" name="0,7%" x="1134" y="180" width="63" height="31" />
+    <rounded-rectangle id="2:263" name="Rectangle" x="1134" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:264" name="Rectangle" x="286" y="278" width="718" height="316" />
+    <text id="2:265" name="Динамика поступлений" x="310" y="304" width="189" height="19" />
+    <text id="2:266" name="тонн за последние 7 дней" x="310" y="330" width="140" height="13" />
+    <rounded-rectangle id="2:267" name="Rectangle" x="326" y="462" width="54" height="92" />
+    <text id="2:268" name="Пн" x="341" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:269" name="Rectangle" x="416" y="406" width="54" height="148" />
+    <text id="2:270" name="Вт" x="431" y="566" width="14" height="13" />
+    <rounded-rectangle id="2:271" name="Rectangle" x="506" y="438" width="54" height="116" />
+    <text id="2:272" name="Ср" x="521" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:273" name="Rectangle" x="596" y="356" width="54" height="198" />
+    <text id="2:274" name="Чт" x="611" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:275" name="Rectangle" x="686" y="389" width="54" height="165" />
+    <text id="2:276" name="Пт" x="701" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:277" name="Rectangle" x="776" y="318" width="54" height="236" />
+    <text id="2:278" name="Сб" x="791" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:279" name="Rectangle" x="866" y="350" width="54" height="204" />
+    <text id="2:280" name="Вс" x="881" y="566" width="14" height="13" />
+    <rounded-rectangle id="2:281" name="Rectangle" x="1030" y="278" width="370" height="316" />
+    <text id="2:282" name="Структура материала" x="1054" y="304" width="177" height="19" />
+    <rounded-rectangle id="2:283" name="Rectangle" x="1054" y="360" width="12" height="12" />
+    <text id="2:284" name="Грязный" x="1078" y="358" width="55" height="16" />
+    <text id="2:285" name="52%" x="1340" y="358" width="28" height="16" />
+    <rounded-rectangle id="2:286" name="Rectangle" x="1078" y="384" width="274" height="6" />
+    <rounded-rectangle id="2:287" name="Rectangle" x="1078" y="384" width="142.47999572753906" height="6" />
+    <rounded-rectangle id="2:288" name="Rectangle" x="1054" y="426" width="12" height="12" />
+    <text id="2:289" name="Мытый" x="1078" y="424" width="47" height="16" />
+    <text id="2:290" name="33%" x="1340" y="424" width="29" height="16" />
+    <rounded-rectangle id="2:291" name="Rectangle" x="1078" y="450" width="274" height="6" />
+    <rounded-rectangle id="2:292" name="Rectangle" x="1078" y="450" width="90.41999816894531" height="6" />
+    <rounded-rectangle id="2:293" name="Rectangle" x="1054" y="492" width="12" height="12" />
+    <text id="2:294" name="Готовый" x="1078" y="490" width="54" height="16" />
+    <text id="2:295" name="15%" x="1340" y="490" width="26" height="16" />
+    <rounded-rectangle id="2:296" name="Rectangle" x="1078" y="516" width="274" height="6" />
+    <rounded-rectangle id="2:297" name="Rectangle" x="1078" y="516" width="41.099998474121094" height="6" />
+    <rounded-rectangle id="2:298" name="Rectangle" x="286" y="624" width="1114" height="286" />
+    <text id="2:299" name="Последние операции" x="310" y="650" width="171" height="19" />
+    <text id="2:300" name="Документ / партия" x="310" y="692" width="103" height="13" />
+    <text id="2:301" name="Контрагент" x="570" y="692" width="63" height="13" />
+    <text id="2:302" name="Объём" x="830" y="692" width="38" height="13" />
+    <text id="2:303" name="Статус" x="1090" y="692" width="39" height="13" />
+    <rounded-rectangle id="2:304" name="Rectangle" x="310" y="724" width="1066" height="1" />
+    <text id="2:305" name="BM-260929-041" x="310" y="742" width="106" height="16" />
+    <text id="2:306" name="ТОО «Акколь Био»" x="570" y="742" width="120" height="16" />
+    <text id="2:307" name="24,8 т" x="830" y="742" width="39" height="16" />
+    <rounded-rectangle id="2:308" name="Rectangle" x="1090" y="735" width="73" height="26" />
+    <text id="2:309" name="Принято" x="1102" y="740" width="47" height="13" />
+    <rounded-rectangle id="2:310" name="Rectangle" x="310" y="776" width="1066" height="1" />
+    <text id="2:311" name="BM-260929-040" x="310" y="794" width="109" height="16" />
+    <text id="2:312" name="Lake Resources" x="570" y="794" width="98" height="16" />
+    <text id="2:313" name="21,4 т" x="830" y="794" width="37" height="16" />
+    <rounded-rectangle id="2:314" name="Rectangle" x="1090" y="787" width="80" height="26" />
+    <text id="2:315" name="Проверка" x="1102" y="792" width="55" height="13" />
+    <rounded-rectangle id="2:316" name="Rectangle" x="310" y="828" width="1066" height="1" />
+    <text id="2:317" name="BM-260929-039" x="310" y="846" width="108" height="16" />
+    <text id="2:318" name="ЭкоДобыча" x="570" y="846" width="75" height="16" />
+    <text id="2:319" name="18,9 т" x="830" y="846" width="37" height="16" />
+    <rounded-rectangle id="2:320" name="Rectangle" x="1090" y="839" width="73" height="26" />
+    <text id="2:321" name="Принято" x="1102" y="844" width="47" height="13" />
+  </frame>
+  <frame id="2:322" name="Web / Поставки" x="1510" y="1080" width="1440" height="960">
+    <rounded-rectangle id="2:323" name="Rectangle" x="0" y="0" width="246" height="960" />
+    <text id="2:324" name="BIOFLOW" x="28" y="30" width="84" height="22" />
+    <text id="2:325" name="CONTROL SYSTEM" x="28" y="55" width="85" height="11" />
+    <text id="2:326" name="Обзор" x="48" y="120" width="41" height="16" />
+    <rounded-rectangle id="2:327" name="Rectangle" x="16" y="162" width="214" height="42" />
+    <text id="2:328" name="Поставки" x="48" y="174" width="63" height="16" />
+    <text id="2:329" name="Контрагенты" x="48" y="228" width="84" height="16" />
+    <text id="2:330" name="Склады" x="48" y="282" width="51" height="16" />
+    <text id="2:331" name="Производство" x="48" y="336" width="93" height="16" />
+    <text id="2:332" name="Отчёты" x="48" y="390" width="49" height="16" />
+    <text id="2:333" name="Поставки" x="286" y="34" width="146" height="36" />
+    <text id="2:334" name="Операционная статистика в реальном времени" x="286" y="76" width="306" height="16" />
+    <rounded-rectangle id="2:335" name="Rectangle" x="1186" y="30" width="214" height="48" />
+    <text id="2:336" name="Администратор" x="1234" y="46" width="104" height="16" />
+    <rounded-rectangle id="2:337" name="Rectangle" x="286" y="126" width="252" height="124" />
+    <text id="2:338" name="Всего материала" x="306" y="148" width="102" height="15" />
+    <text id="2:339" name="1 284,6 т" x="306" y="180" width="115" height="31" />
+    <rounded-rectangle id="2:340" name="Rectangle" x="306" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:341" name="Rectangle" x="562" y="126" width="252" height="124" />
+    <text id="2:342" name="Поступило сегодня" x="582" y="148" width="116" height="15" />
+    <text id="2:343" name="86,2 т" x="582" y="180" width="79" height="31" />
+    <rounded-rectangle id="2:344" name="Rectangle" x="582" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:345" name="Rectangle" x="838" y="126" width="252" height="124" />
+    <text id="2:346" name="Готовая продукция" x="858" y="148" width="115" height="15" />
+    <text id="2:347" name="161,5 т" x="858" y="180" width="87" height="31" />
+    <rounded-rectangle id="2:348" name="Rectangle" x="858" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:349" name="Rectangle" x="1114" y="126" width="252" height="124" />
+    <text id="2:350" name="Расхождения" x="1134" y="148" width="81" height="15" />
+    <text id="2:351" name="0,7%" x="1134" y="180" width="63" height="31" />
+    <rounded-rectangle id="2:352" name="Rectangle" x="1134" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:353" name="Rectangle" x="286" y="278" width="718" height="316" />
+    <text id="2:354" name="Поставки — динамика" x="310" y="304" width="180" height="19" />
+    <text id="2:355" name="тонн за последние 7 дней" x="310" y="330" width="140" height="13" />
+    <rounded-rectangle id="2:356" name="Rectangle" x="326" y="462" width="54" height="92" />
+    <text id="2:357" name="Пн" x="341" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:358" name="Rectangle" x="416" y="406" width="54" height="148" />
+    <text id="2:359" name="Вт" x="431" y="566" width="14" height="13" />
+    <rounded-rectangle id="2:360" name="Rectangle" x="506" y="438" width="54" height="116" />
+    <text id="2:361" name="Ср" x="521" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:362" name="Rectangle" x="596" y="356" width="54" height="198" />
+    <text id="2:363" name="Чт" x="611" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:364" name="Rectangle" x="686" y="389" width="54" height="165" />
+    <text id="2:365" name="Пт" x="701" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:366" name="Rectangle" x="776" y="318" width="54" height="236" />
+    <text id="2:367" name="Сб" x="791" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:368" name="Rectangle" x="866" y="350" width="54" height="204" />
+    <text id="2:369" name="Вс" x="881" y="566" width="14" height="13" />
+    <rounded-rectangle id="2:370" name="Rectangle" x="1030" y="278" width="370" height="316" />
+    <text id="2:371" name="Структура материала" x="1054" y="304" width="177" height="19" />
+    <rounded-rectangle id="2:372" name="Rectangle" x="1054" y="360" width="12" height="12" />
+    <text id="2:373" name="Грязный" x="1078" y="358" width="55" height="16" />
+    <text id="2:374" name="52%" x="1340" y="358" width="28" height="16" />
+    <rounded-rectangle id="2:375" name="Rectangle" x="1078" y="384" width="274" height="6" />
+    <rounded-rectangle id="2:376" name="Rectangle" x="1078" y="384" width="142.47999572753906" height="6" />
+    <rounded-rectangle id="2:377" name="Rectangle" x="1054" y="426" width="12" height="12" />
+    <text id="2:378" name="Мытый" x="1078" y="424" width="47" height="16" />
+    <text id="2:379" name="33%" x="1340" y="424" width="29" height="16" />
+    <rounded-rectangle id="2:380" name="Rectangle" x="1078" y="450" width="274" height="6" />
+    <rounded-rectangle id="2:381" name="Rectangle" x="1078" y="450" width="90.41999816894531" height="6" />
+    <rounded-rectangle id="2:382" name="Rectangle" x="1054" y="492" width="12" height="12" />
+    <text id="2:383" name="Готовый" x="1078" y="490" width="54" height="16" />
+    <text id="2:384" name="15%" x="1340" y="490" width="26" height="16" />
+    <rounded-rectangle id="2:385" name="Rectangle" x="1078" y="516" width="274" height="6" />
+    <rounded-rectangle id="2:386" name="Rectangle" x="1078" y="516" width="41.099998474121094" height="6" />
+    <rounded-rectangle id="2:387" name="Rectangle" x="286" y="624" width="1114" height="286" />
+    <text id="2:388" name="Последние поставки" x="310" y="650" width="167" height="19" />
+    <text id="2:389" name="Документ / партия" x="310" y="692" width="103" height="13" />
+    <text id="2:390" name="Контрагент" x="570" y="692" width="63" height="13" />
+    <text id="2:391" name="Объём" x="830" y="692" width="38" height="13" />
+    <text id="2:392" name="Статус" x="1090" y="692" width="39" height="13" />
+    <rounded-rectangle id="2:393" name="Rectangle" x="310" y="724" width="1066" height="1" />
+    <text id="2:394" name="BM-260929-041" x="310" y="742" width="106" height="16" />
+    <text id="2:395" name="ТОО «Акколь Био»" x="570" y="742" width="120" height="16" />
+    <text id="2:396" name="24,8 т" x="830" y="742" width="39" height="16" />
+    <rounded-rectangle id="2:397" name="Rectangle" x="1090" y="735" width="73" height="26" />
+    <text id="2:398" name="Принято" x="1102" y="740" width="47" height="13" />
+    <rounded-rectangle id="2:399" name="Rectangle" x="310" y="776" width="1066" height="1" />
+    <text id="2:400" name="BM-260929-040" x="310" y="794" width="109" height="16" />
+    <text id="2:401" name="Lake Resources" x="570" y="794" width="98" height="16" />
+    <text id="2:402" name="21,4 т" x="830" y="794" width="37" height="16" />
+    <rounded-rectangle id="2:403" name="Rectangle" x="1090" y="787" width="80" height="26" />
+    <text id="2:404" name="Проверка" x="1102" y="792" width="55" height="13" />
+    <rounded-rectangle id="2:405" name="Rectangle" x="310" y="828" width="1066" height="1" />
+    <text id="2:406" name="BM-260929-039" x="310" y="846" width="108" height="16" />
+    <text id="2:407" name="ЭкоДобыча" x="570" y="846" width="75" height="16" />
+    <text id="2:408" name="18,9 т" x="830" y="846" width="37" height="16" />
+    <rounded-rectangle id="2:409" name="Rectangle" x="1090" y="839" width="73" height="26" />
+    <text id="2:410" name="Принято" x="1102" y="844" width="47" height="13" />
+  </frame>
+  <frame id="2:411" name="Web / Контрагенты" x="3020" y="1080" width="1440" height="960">
+    <rounded-rectangle id="2:412" name="Rectangle" x="0" y="0" width="246" height="960" />
+    <text id="2:413" name="BIOFLOW" x="28" y="30" width="84" height="22" />
+    <text id="2:414" name="CONTROL SYSTEM" x="28" y="55" width="85" height="11" />
+    <text id="2:415" name="Обзор" x="48" y="120" width="41" height="16" />
+    <text id="2:416" name="Поставки" x="48" y="174" width="62" height="16" />
+    <rounded-rectangle id="2:417" name="Rectangle" x="16" y="216" width="214" height="42" />
+    <text id="2:418" name="Контрагенты" x="48" y="228" width="85" height="16" />
+    <text id="2:419" name="Склады" x="48" y="282" width="51" height="16" />
+    <text id="2:420" name="Производство" x="48" y="336" width="93" height="16" />
+    <text id="2:421" name="Отчёты" x="48" y="390" width="49" height="16" />
+    <text id="2:422" name="Контрагенты" x="286" y="34" width="199" height="36" />
+    <text id="2:423" name="Операционная статистика в реальном времени" x="286" y="76" width="306" height="16" />
+    <rounded-rectangle id="2:424" name="Rectangle" x="1186" y="30" width="214" height="48" />
+    <text id="2:425" name="Администратор" x="1234" y="46" width="104" height="16" />
+    <rounded-rectangle id="2:426" name="Rectangle" x="286" y="126" width="252" height="124" />
+    <text id="2:427" name="Всего материала" x="306" y="148" width="102" height="15" />
+    <text id="2:428" name="1 284,6 т" x="306" y="180" width="115" height="31" />
+    <rounded-rectangle id="2:429" name="Rectangle" x="306" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:430" name="Rectangle" x="562" y="126" width="252" height="124" />
+    <text id="2:431" name="Поступило сегодня" x="582" y="148" width="116" height="15" />
+    <text id="2:432" name="86,2 т" x="582" y="180" width="79" height="31" />
+    <rounded-rectangle id="2:433" name="Rectangle" x="582" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:434" name="Rectangle" x="838" y="126" width="252" height="124" />
+    <text id="2:435" name="Готовая продукция" x="858" y="148" width="115" height="15" />
+    <text id="2:436" name="161,5 т" x="858" y="180" width="87" height="31" />
+    <rounded-rectangle id="2:437" name="Rectangle" x="858" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:438" name="Rectangle" x="1114" y="126" width="252" height="124" />
+    <text id="2:439" name="Расхождения" x="1134" y="148" width="81" height="15" />
+    <text id="2:440" name="0,7%" x="1134" y="180" width="63" height="31" />
+    <rounded-rectangle id="2:441" name="Rectangle" x="1134" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:442" name="Rectangle" x="286" y="278" width="718" height="316" />
+    <text id="2:443" name="Контрагенты — динамика" x="310" y="304" width="207" height="19" />
+    <text id="2:444" name="тонн за последние 7 дней" x="310" y="330" width="140" height="13" />
+    <rounded-rectangle id="2:445" name="Rectangle" x="326" y="462" width="54" height="92" />
+    <text id="2:446" name="Пн" x="341" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:447" name="Rectangle" x="416" y="406" width="54" height="148" />
+    <text id="2:448" name="Вт" x="431" y="566" width="14" height="13" />
+    <rounded-rectangle id="2:449" name="Rectangle" x="506" y="438" width="54" height="116" />
+    <text id="2:450" name="Ср" x="521" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:451" name="Rectangle" x="596" y="356" width="54" height="198" />
+    <text id="2:452" name="Чт" x="611" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:453" name="Rectangle" x="686" y="389" width="54" height="165" />
+    <text id="2:454" name="Пт" x="701" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:455" name="Rectangle" x="776" y="318" width="54" height="236" />
+    <text id="2:456" name="Сб" x="791" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:457" name="Rectangle" x="866" y="350" width="54" height="204" />
+    <text id="2:458" name="Вс" x="881" y="566" width="14" height="13" />
+    <rounded-rectangle id="2:459" name="Rectangle" x="1030" y="278" width="370" height="316" />
+    <text id="2:460" name="Структура материала" x="1054" y="304" width="177" height="19" />
+    <rounded-rectangle id="2:461" name="Rectangle" x="1054" y="360" width="12" height="12" />
+    <text id="2:462" name="Грязный" x="1078" y="358" width="55" height="16" />
+    <text id="2:463" name="52%" x="1340" y="358" width="28" height="16" />
+    <rounded-rectangle id="2:464" name="Rectangle" x="1078" y="384" width="274" height="6" />
+    <rounded-rectangle id="2:465" name="Rectangle" x="1078" y="384" width="142.47999572753906" height="6" />
+    <rounded-rectangle id="2:466" name="Rectangle" x="1054" y="426" width="12" height="12" />
+    <text id="2:467" name="Мытый" x="1078" y="424" width="47" height="16" />
+    <text id="2:468" name="33%" x="1340" y="424" width="29" height="16" />
+    <rounded-rectangle id="2:469" name="Rectangle" x="1078" y="450" width="274" height="6" />
+    <rounded-rectangle id="2:470" name="Rectangle" x="1078" y="450" width="90.41999816894531" height="6" />
+    <rounded-rectangle id="2:471" name="Rectangle" x="1054" y="492" width="12" height="12" />
+    <text id="2:472" name="Готовый" x="1078" y="490" width="54" height="16" />
+    <text id="2:473" name="15%" x="1340" y="490" width="26" height="16" />
+    <rounded-rectangle id="2:474" name="Rectangle" x="1078" y="516" width="274" height="6" />
+    <rounded-rectangle id="2:475" name="Rectangle" x="1078" y="516" width="41.099998474121094" height="6" />
+    <rounded-rectangle id="2:476" name="Rectangle" x="286" y="624" width="1114" height="286" />
+    <text id="2:477" name="Рейтинг контрагентов" x="310" y="650" width="177" height="19" />
+    <text id="2:478" name="Контрагент" x="310" y="692" width="63" height="13" />
+    <text id="2:479" name="Объём" x="570" y="692" width="38" height="13" />
+    <text id="2:480" name="Поставок" x="830" y="692" width="53" height="13" />
+    <text id="2:481" name="Качество" x="1090" y="692" width="53" height="13" />
+    <rounded-rectangle id="2:482" name="Rectangle" x="310" y="724" width="1066" height="1" />
+    <text id="2:483" name="Акколь Био" x="310" y="742" width="75" height="16" />
+    <text id="2:484" name="482 т" x="570" y="742" width="36" height="16" />
+    <text id="2:485" name="18" x="830" y="742" width="15" height="16" />
+    <rounded-rectangle id="2:486" name="Rectangle" x="1090" y="735" width="73" height="26" />
+    <text id="2:487" name="Принято" x="1102" y="740" width="47" height="13" />
+    <rounded-rectangle id="2:488" name="Rectangle" x="310" y="776" width="1066" height="1" />
+    <text id="2:489" name="Lake Resources" x="310" y="794" width="100" height="16" />
+    <text id="2:490" name="391 т" x="570" y="794" width="34" height="16" />
+    <text id="2:491" name="14" x="830" y="794" width="15" height="16" />
+    <rounded-rectangle id="2:492" name="Rectangle" x="1090" y="787" width="80" height="26" />
+    <text id="2:493" name="Проверка" x="1102" y="792" width="55" height="13" />
+    <rounded-rectangle id="2:494" name="Rectangle" x="310" y="828" width="1066" height="1" />
+    <text id="2:495" name="ЭкоДобыча" x="310" y="846" width="76" height="16" />
+    <text id="2:496" name="324 т" x="570" y="846" width="36" height="16" />
+    <text id="2:497" name="11" x="830" y="846" width="13" height="16" />
+    <rounded-rectangle id="2:498" name="Rectangle" x="1090" y="839" width="73" height="26" />
+    <text id="2:499" name="Принято" x="1102" y="844" width="47" height="13" />
+  </frame>
+  <frame id="2:500" name="Web / Склады" x="4530" y="1080" width="1440" height="960">
+    <rounded-rectangle id="2:501" name="Rectangle" x="0" y="0" width="246" height="960" />
+    <text id="2:502" name="BIOFLOW" x="28" y="30" width="84" height="22" />
+    <text id="2:503" name="CONTROL SYSTEM" x="28" y="55" width="85" height="11" />
+    <text id="2:504" name="Обзор" x="48" y="120" width="41" height="16" />
+    <text id="2:505" name="Поставки" x="48" y="174" width="62" height="16" />
+    <text id="2:506" name="Контрагенты" x="48" y="228" width="84" height="16" />
+    <rounded-rectangle id="2:507" name="Rectangle" x="16" y="270" width="214" height="42" />
+    <text id="2:508" name="Склады" x="48" y="282" width="52" height="16" />
+    <text id="2:509" name="Производство" x="48" y="336" width="93" height="16" />
+    <text id="2:510" name="Отчёты" x="48" y="390" width="49" height="16" />
+    <text id="2:511" name="Склады" x="286" y="34" width="121" height="36" />
+    <text id="2:512" name="Операционная статистика в реальном времени" x="286" y="76" width="306" height="16" />
+    <rounded-rectangle id="2:513" name="Rectangle" x="1186" y="30" width="214" height="48" />
+    <text id="2:514" name="Администратор" x="1234" y="46" width="104" height="16" />
+    <rounded-rectangle id="2:515" name="Rectangle" x="286" y="126" width="252" height="124" />
+    <text id="2:516" name="Всего материала" x="306" y="148" width="102" height="15" />
+    <text id="2:517" name="1 284,6 т" x="306" y="180" width="115" height="31" />
+    <rounded-rectangle id="2:518" name="Rectangle" x="306" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:519" name="Rectangle" x="562" y="126" width="252" height="124" />
+    <text id="2:520" name="Поступило сегодня" x="582" y="148" width="116" height="15" />
+    <text id="2:521" name="86,2 т" x="582" y="180" width="79" height="31" />
+    <rounded-rectangle id="2:522" name="Rectangle" x="582" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:523" name="Rectangle" x="838" y="126" width="252" height="124" />
+    <text id="2:524" name="Готовая продукция" x="858" y="148" width="115" height="15" />
+    <text id="2:525" name="161,5 т" x="858" y="180" width="87" height="31" />
+    <rounded-rectangle id="2:526" name="Rectangle" x="858" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:527" name="Rectangle" x="1114" y="126" width="252" height="124" />
+    <text id="2:528" name="Расхождения" x="1134" y="148" width="81" height="15" />
+    <text id="2:529" name="0,7%" x="1134" y="180" width="63" height="31" />
+    <rounded-rectangle id="2:530" name="Rectangle" x="1134" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:531" name="Rectangle" x="286" y="278" width="718" height="316" />
+    <text id="2:532" name="Склады — динамика" x="310" y="304" width="166" height="19" />
+    <text id="2:533" name="тонн за последние 7 дней" x="310" y="330" width="140" height="13" />
+    <rounded-rectangle id="2:534" name="Rectangle" x="326" y="462" width="54" height="92" />
+    <text id="2:535" name="Пн" x="341" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:536" name="Rectangle" x="416" y="406" width="54" height="148" />
+    <text id="2:537" name="Вт" x="431" y="566" width="14" height="13" />
+    <rounded-rectangle id="2:538" name="Rectangle" x="506" y="438" width="54" height="116" />
+    <text id="2:539" name="Ср" x="521" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:540" name="Rectangle" x="596" y="356" width="54" height="198" />
+    <text id="2:541" name="Чт" x="611" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:542" name="Rectangle" x="686" y="389" width="54" height="165" />
+    <text id="2:543" name="Пт" x="701" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:544" name="Rectangle" x="776" y="318" width="54" height="236" />
+    <text id="2:545" name="Сб" x="791" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:546" name="Rectangle" x="866" y="350" width="54" height="204" />
+    <text id="2:547" name="Вс" x="881" y="566" width="14" height="13" />
+    <rounded-rectangle id="2:548" name="Rectangle" x="1030" y="278" width="370" height="316" />
+    <text id="2:549" name="Структура материала" x="1054" y="304" width="177" height="19" />
+    <rounded-rectangle id="2:550" name="Rectangle" x="1054" y="360" width="12" height="12" />
+    <text id="2:551" name="Грязный" x="1078" y="358" width="55" height="16" />
+    <text id="2:552" name="52%" x="1340" y="358" width="28" height="16" />
+    <rounded-rectangle id="2:553" name="Rectangle" x="1078" y="384" width="274" height="6" />
+    <rounded-rectangle id="2:554" name="Rectangle" x="1078" y="384" width="142.47999572753906" height="6" />
+    <rounded-rectangle id="2:555" name="Rectangle" x="1054" y="426" width="12" height="12" />
+    <text id="2:556" name="Мытый" x="1078" y="424" width="47" height="16" />
+    <text id="2:557" name="33%" x="1340" y="424" width="29" height="16" />
+    <rounded-rectangle id="2:558" name="Rectangle" x="1078" y="450" width="274" height="6" />
+    <rounded-rectangle id="2:559" name="Rectangle" x="1078" y="450" width="90.41999816894531" height="6" />
+    <rounded-rectangle id="2:560" name="Rectangle" x="1054" y="492" width="12" height="12" />
+    <text id="2:561" name="Готовый" x="1078" y="490" width="54" height="16" />
+    <text id="2:562" name="15%" x="1340" y="490" width="26" height="16" />
+    <rounded-rectangle id="2:563" name="Rectangle" x="1078" y="516" width="274" height="6" />
+    <rounded-rectangle id="2:564" name="Rectangle" x="1078" y="516" width="41.099998474121094" height="6" />
+    <rounded-rectangle id="2:565" name="Rectangle" x="286" y="624" width="1114" height="286" />
+    <text id="2:566" name="Остатки по складам" x="310" y="650" width="163" height="19" />
+    <text id="2:567" name="Склад" x="310" y="692" width="35" height="13" />
+    <text id="2:568" name="Грязный" x="570" y="692" width="47" height="13" />
+    <text id="2:569" name="Мытый" x="830" y="692" width="41" height="13" />
+    <text id="2:570" name="Готовый" x="1090" y="692" width="47" height="13" />
+    <rounded-rectangle id="2:571" name="Rectangle" x="310" y="724" width="1066" height="1" />
+    <text id="2:572" name="Склад №1" x="310" y="742" width="65" height="16" />
+    <text id="2:573" name="248 т" x="570" y="742" width="35" height="16" />
+    <text id="2:574" name="154 т" x="830" y="742" width="34" height="16" />
+    <rounded-rectangle id="2:575" name="Rectangle" x="1090" y="735" width="73" height="26" />
+    <text id="2:576" name="Принято" x="1102" y="740" width="47" height="13" />
+    <rounded-rectangle id="2:577" name="Rectangle" x="310" y="776" width="1066" height="1" />
+    <text id="2:578" name="Склад №2" x="310" y="794" width="67" height="16" />
+    <text id="2:579" name="221 т" x="570" y="794" width="33" height="16" />
+    <text id="2:580" name="122 т" x="830" y="794" width="33" height="16" />
+    <rounded-rectangle id="2:581" name="Rectangle" x="1090" y="787" width="80" height="26" />
+    <text id="2:582" name="Проверка" x="1102" y="792" width="55" height="13" />
+    <rounded-rectangle id="2:583" name="Rectangle" x="310" y="828" width="1066" height="1" />
+    <text id="2:584" name="Склад №3" x="310" y="846" width="67" height="16" />
+    <text id="2:585" name="166 т" x="570" y="846" width="34" height="16" />
+    <text id="2:586" name="126 т" x="830" y="846" width="33" height="16" />
+    <rounded-rectangle id="2:587" name="Rectangle" x="1090" y="839" width="73" height="26" />
+    <text id="2:588" name="Принято" x="1102" y="844" width="47" height="13" />
+  </frame>
+  <frame id="2:589" name="Web / Производство" x="6040" y="1080" width="1440" height="960">
+    <rounded-rectangle id="2:590" name="Rectangle" x="0" y="0" width="246" height="960" />
+    <text id="2:591" name="BIOFLOW" x="28" y="30" width="84" height="22" />
+    <text id="2:592" name="CONTROL SYSTEM" x="28" y="55" width="85" height="11" />
+    <text id="2:593" name="Обзор" x="48" y="120" width="41" height="16" />
+    <text id="2:594" name="Поставки" x="48" y="174" width="62" height="16" />
+    <text id="2:595" name="Контрагенты" x="48" y="228" width="84" height="16" />
+    <text id="2:596" name="Склады" x="48" y="282" width="51" height="16" />
+    <rounded-rectangle id="2:597" name="Rectangle" x="16" y="324" width="214" height="42" />
+    <text id="2:598" name="Производство" x="48" y="336" width="95" height="16" />
+    <text id="2:599" name="Отчёты" x="48" y="390" width="49" height="16" />
+    <text id="2:600" name="Производство" x="286" y="34" width="221" height="36" />
+    <text id="2:601" name="Операционная статистика в реальном времени" x="286" y="76" width="306" height="16" />
+    <rounded-rectangle id="2:602" name="Rectangle" x="1186" y="30" width="214" height="48" />
+    <text id="2:603" name="Администратор" x="1234" y="46" width="104" height="16" />
+    <rounded-rectangle id="2:604" name="Rectangle" x="286" y="126" width="252" height="124" />
+    <text id="2:605" name="Всего материала" x="306" y="148" width="102" height="15" />
+    <text id="2:606" name="1 284,6 т" x="306" y="180" width="115" height="31" />
+    <rounded-rectangle id="2:607" name="Rectangle" x="306" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:608" name="Rectangle" x="562" y="126" width="252" height="124" />
+    <text id="2:609" name="Поступило сегодня" x="582" y="148" width="116" height="15" />
+    <text id="2:610" name="86,2 т" x="582" y="180" width="79" height="31" />
+    <rounded-rectangle id="2:611" name="Rectangle" x="582" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:612" name="Rectangle" x="838" y="126" width="252" height="124" />
+    <text id="2:613" name="Готовая продукция" x="858" y="148" width="115" height="15" />
+    <text id="2:614" name="161,5 т" x="858" y="180" width="87" height="31" />
+    <rounded-rectangle id="2:615" name="Rectangle" x="858" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:616" name="Rectangle" x="1114" y="126" width="252" height="124" />
+    <text id="2:617" name="Расхождения" x="1134" y="148" width="81" height="15" />
+    <text id="2:618" name="0,7%" x="1134" y="180" width="63" height="31" />
+    <rounded-rectangle id="2:619" name="Rectangle" x="1134" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:620" name="Rectangle" x="286" y="278" width="718" height="316" />
+    <text id="2:621" name="Производство — динамика" x="310" y="304" width="219" height="19" />
+    <text id="2:622" name="тонн за последние 7 дней" x="310" y="330" width="140" height="13" />
+    <rounded-rectangle id="2:623" name="Rectangle" x="326" y="462" width="54" height="92" />
+    <text id="2:624" name="Пн" x="341" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:625" name="Rectangle" x="416" y="406" width="54" height="148" />
+    <text id="2:626" name="Вт" x="431" y="566" width="14" height="13" />
+    <rounded-rectangle id="2:627" name="Rectangle" x="506" y="438" width="54" height="116" />
+    <text id="2:628" name="Ср" x="521" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:629" name="Rectangle" x="596" y="356" width="54" height="198" />
+    <text id="2:630" name="Чт" x="611" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:631" name="Rectangle" x="686" y="389" width="54" height="165" />
+    <text id="2:632" name="Пт" x="701" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:633" name="Rectangle" x="776" y="318" width="54" height="236" />
+    <text id="2:634" name="Сб" x="791" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:635" name="Rectangle" x="866" y="350" width="54" height="204" />
+    <text id="2:636" name="Вс" x="881" y="566" width="14" height="13" />
+    <rounded-rectangle id="2:637" name="Rectangle" x="1030" y="278" width="370" height="316" />
+    <text id="2:638" name="Структура материала" x="1054" y="304" width="177" height="19" />
+    <rounded-rectangle id="2:639" name="Rectangle" x="1054" y="360" width="12" height="12" />
+    <text id="2:640" name="Грязный" x="1078" y="358" width="55" height="16" />
+    <text id="2:641" name="52%" x="1340" y="358" width="28" height="16" />
+    <rounded-rectangle id="2:642" name="Rectangle" x="1078" y="384" width="274" height="6" />
+    <rounded-rectangle id="2:643" name="Rectangle" x="1078" y="384" width="142.47999572753906" height="6" />
+    <rounded-rectangle id="2:644" name="Rectangle" x="1054" y="426" width="12" height="12" />
+    <text id="2:645" name="Мытый" x="1078" y="424" width="47" height="16" />
+    <text id="2:646" name="33%" x="1340" y="424" width="29" height="16" />
+    <rounded-rectangle id="2:647" name="Rectangle" x="1078" y="450" width="274" height="6" />
+    <rounded-rectangle id="2:648" name="Rectangle" x="1078" y="450" width="90.41999816894531" height="6" />
+    <rounded-rectangle id="2:649" name="Rectangle" x="1054" y="492" width="12" height="12" />
+    <text id="2:650" name="Готовый" x="1078" y="490" width="54" height="16" />
+    <text id="2:651" name="15%" x="1340" y="490" width="26" height="16" />
+    <rounded-rectangle id="2:652" name="Rectangle" x="1078" y="516" width="274" height="6" />
+    <rounded-rectangle id="2:653" name="Rectangle" x="1078" y="516" width="41.099998474121094" height="6" />
+    <rounded-rectangle id="2:654" name="Rectangle" x="286" y="624" width="1114" height="286" />
+    <text id="2:655" name="Производственные партии" x="310" y="650" width="217" height="19" />
+    <text id="2:656" name="Документ / партия" x="310" y="692" width="103" height="13" />
+    <text id="2:657" name="Контрагент" x="570" y="692" width="63" height="13" />
+    <text id="2:658" name="Объём" x="830" y="692" width="38" height="13" />
+    <text id="2:659" name="Статус" x="1090" y="692" width="39" height="13" />
+    <rounded-rectangle id="2:660" name="Rectangle" x="310" y="724" width="1066" height="1" />
+    <text id="2:661" name="BM-260929-041" x="310" y="742" width="106" height="16" />
+    <text id="2:662" name="ТОО «Акколь Био»" x="570" y="742" width="120" height="16" />
+    <text id="2:663" name="24,8 т" x="830" y="742" width="39" height="16" />
+    <rounded-rectangle id="2:664" name="Rectangle" x="1090" y="735" width="80" height="26" />
+    <text id="2:665" name="В работе" x="1102" y="740" width="49" height="13" />
+    <rounded-rectangle id="2:666" name="Rectangle" x="310" y="776" width="1066" height="1" />
+    <text id="2:667" name="BM-260929-040" x="310" y="794" width="109" height="16" />
+    <text id="2:668" name="Lake Resources" x="570" y="794" width="98" height="16" />
+    <text id="2:669" name="21,4 т" x="830" y="794" width="37" height="16" />
+    <rounded-rectangle id="2:670" name="Rectangle" x="1090" y="787" width="80" height="26" />
+    <text id="2:671" name="В работе" x="1102" y="792" width="49" height="13" />
+    <rounded-rectangle id="2:672" name="Rectangle" x="310" y="828" width="1066" height="1" />
+    <text id="2:673" name="BM-260929-039" x="310" y="846" width="108" height="16" />
+    <text id="2:674" name="ЭкоДобыча" x="570" y="846" width="75" height="16" />
+    <text id="2:675" name="18,9 т" x="830" y="846" width="37" height="16" />
+    <rounded-rectangle id="2:676" name="Rectangle" x="1090" y="839" width="80" height="26" />
+    <text id="2:677" name="В работе" x="1102" y="844" width="49" height="13" />
+  </frame>
+  <frame id="2:678" name="Web / Отчёты" x="7550" y="1080" width="1440" height="960">
+    <rounded-rectangle id="2:679" name="Rectangle" x="0" y="0" width="246" height="960" />
+    <text id="2:680" name="BIOFLOW" x="28" y="30" width="84" height="22" />
+    <text id="2:681" name="CONTROL SYSTEM" x="28" y="55" width="85" height="11" />
+    <text id="2:682" name="Обзор" x="48" y="120" width="41" height="16" />
+    <text id="2:683" name="Поставки" x="48" y="174" width="62" height="16" />
+    <text id="2:684" name="Контрагенты" x="48" y="228" width="84" height="16" />
+    <text id="2:685" name="Склады" x="48" y="282" width="51" height="16" />
+    <text id="2:686" name="Производство" x="48" y="336" width="93" height="16" />
+    <rounded-rectangle id="2:687" name="Rectangle" x="16" y="378" width="214" height="42" />
+    <text id="2:688" name="Отчёты" x="48" y="390" width="50" height="16" />
+    <text id="2:689" name="Отчёты" x="286" y="34" width="117" height="36" />
+    <text id="2:690" name="Операционная статистика в реальном времени" x="286" y="76" width="306" height="16" />
+    <rounded-rectangle id="2:691" name="Rectangle" x="1186" y="30" width="214" height="48" />
+    <text id="2:692" name="Администратор" x="1234" y="46" width="104" height="16" />
+    <rounded-rectangle id="2:693" name="Rectangle" x="286" y="126" width="252" height="124" />
+    <text id="2:694" name="Всего материала" x="306" y="148" width="102" height="15" />
+    <text id="2:695" name="1 284,6 т" x="306" y="180" width="115" height="31" />
+    <rounded-rectangle id="2:696" name="Rectangle" x="306" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:697" name="Rectangle" x="562" y="126" width="252" height="124" />
+    <text id="2:698" name="Поступило сегодня" x="582" y="148" width="116" height="15" />
+    <text id="2:699" name="86,2 т" x="582" y="180" width="79" height="31" />
+    <rounded-rectangle id="2:700" name="Rectangle" x="582" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:701" name="Rectangle" x="838" y="126" width="252" height="124" />
+    <text id="2:702" name="Готовая продукция" x="858" y="148" width="115" height="15" />
+    <text id="2:703" name="161,5 т" x="858" y="180" width="87" height="31" />
+    <rounded-rectangle id="2:704" name="Rectangle" x="858" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:705" name="Rectangle" x="1114" y="126" width="252" height="124" />
+    <text id="2:706" name="Расхождения" x="1134" y="148" width="81" height="15" />
+    <text id="2:707" name="0,7%" x="1134" y="180" width="63" height="31" />
+    <rounded-rectangle id="2:708" name="Rectangle" x="1134" y="224" width="54" height="4" />
+    <rounded-rectangle id="2:709" name="Rectangle" x="286" y="278" width="718" height="316" />
+    <text id="2:710" name="Отчёты — динамика" x="310" y="304" width="164" height="19" />
+    <text id="2:711" name="тонн за последние 7 дней" x="310" y="330" width="140" height="13" />
+    <rounded-rectangle id="2:712" name="Rectangle" x="326" y="462" width="54" height="92" />
+    <text id="2:713" name="Пн" x="341" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:714" name="Rectangle" x="416" y="406" width="54" height="148" />
+    <text id="2:715" name="Вт" x="431" y="566" width="14" height="13" />
+    <rounded-rectangle id="2:716" name="Rectangle" x="506" y="438" width="54" height="116" />
+    <text id="2:717" name="Ср" x="521" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:718" name="Rectangle" x="596" y="356" width="54" height="198" />
+    <text id="2:719" name="Чт" x="611" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:720" name="Rectangle" x="686" y="389" width="54" height="165" />
+    <text id="2:721" name="Пт" x="701" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:722" name="Rectangle" x="776" y="318" width="54" height="236" />
+    <text id="2:723" name="Сб" x="791" y="566" width="15" height="13" />
+    <rounded-rectangle id="2:724" name="Rectangle" x="866" y="350" width="54" height="204" />
+    <text id="2:725" name="Вс" x="881" y="566" width="14" height="13" />
+    <rounded-rectangle id="2:726" name="Rectangle" x="1030" y="278" width="370" height="316" />
+    <text id="2:727" name="Структура материала" x="1054" y="304" width="177" height="19" />
+    <rounded-rectangle id="2:728" name="Rectangle" x="1054" y="360" width="12" height="12" />
+    <text id="2:729" name="Грязный" x="1078" y="358" width="55" height="16" />
+    <text id="2:730" name="52%" x="1340" y="358" width="28" height="16" />
+    <rounded-rectangle id="2:731" name="Rectangle" x="1078" y="384" width="274" height="6" />
+    <rounded-rectangle id="2:732" name="Rectangle" x="1078" y="384" width="142.47999572753906" height="6" />
+    <rounded-rectangle id="2:733" name="Rectangle" x="1054" y="426" width="12" height="12" />
+    <text id="2:734" name="Мытый" x="1078" y="424" width="47" height="16" />
+    <text id="2:735" name="33%" x="1340" y="424" width="29" height="16" />
+    <rounded-rectangle id="2:736" name="Rectangle" x="1078" y="450" width="274" height="6" />
+    <rounded-rectangle id="2:737" name="Rectangle" x="1078" y="450" width="90.41999816894531" height="6" />
+    <rounded-rectangle id="2:738" name="Rectangle" x="1054" y="492" width="12" height="12" />
+    <text id="2:739" name="Готовый" x="1078" y="490" width="54" height="16" />
+    <text id="2:740" name="15%" x="1340" y="490" width="26" height="16" />
+    <rounded-rectangle id="2:741" name="Rectangle" x="1078" y="516" width="274" height="6" />
+    <rounded-rectangle id="2:742" name="Rectangle" x="1078" y="516" width="41.099998474121094" height="6" />
+    <rounded-rectangle id="2:743" name="Rectangle" x="286" y="624" width="1114" height="286" />
+    <text id="2:744" name="Сформированные отчёты" x="310" y="650" width="207" height="19" />
+    <text id="2:745" name="Документ / партия" x="310" y="692" width="103" height="13" />
+    <text id="2:746" name="Контрагент" x="570" y="692" width="63" height="13" />
+    <text id="2:747" name="Объём" x="830" y="692" width="38" height="13" />
+    <text id="2:748" name="Статус" x="1090" y="692" width="39" height="13" />
+    <rounded-rectangle id="2:749" name="Rectangle" x="310" y="724" width="1066" height="1" />
+    <text id="2:750" name="BM-260929-041" x="310" y="742" width="106" height="16" />
+    <text id="2:751" name="ТОО «Акколь Био»" x="570" y="742" width="120" height="16" />
+    <text id="2:752" name="24,8 т" x="830" y="742" width="39" height="16" />
+    <rounded-rectangle id="2:753" name="Rectangle" x="1090" y="735" width="66" height="26" />
+    <text id="2:754" name="PDF" x="1102" y="740" width="22" height="13" />
+    <rounded-rectangle id="2:755" name="Rectangle" x="310" y="776" width="1066" height="1" />
+    <text id="2:756" name="BM-260929-040" x="310" y="794" width="109" height="16" />
+    <text id="2:757" name="Lake Resources" x="570" y="794" width="98" height="16" />
+    <text id="2:758" name="21,4 т" x="830" y="794" width="37" height="16" />
+    <rounded-rectangle id="2:759" name="Rectangle" x="1090" y="787" width="66" height="26" />
+    <text id="2:760" name="PDF" x="1102" y="792" width="22" height="13" />
+    <rounded-rectangle id="2:761" name="Rectangle" x="310" y="828" width="1066" height="1" />
+    <text id="2:762" name="BM-260929-039" x="310" y="846" width="108" height="16" />
+    <text id="2:763" name="ЭкоДобыча" x="570" y="846" width="75" height="16" />
+    <text id="2:764" name="18,9 т" x="830" y="846" width="37" height="16" />
+    <rounded-rectangle id="2:765" name="Rectangle" x="1090" y="839" width="66" height="26" />
+    <text id="2:766" name="PDF" x="1102" y="844" width="22" height="13" />
+  </frame>
+</canvas>

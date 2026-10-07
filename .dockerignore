@@ -14,3 +14,9 @@ coverage
 *.log
 apps/web/tsconfig.tsbuildinfo
 apps/backend/coverage
+
+secrets
+certificates
+apps/mobile/build
+apps/mobile/.dart_tool
+apps/mobile/android/.gradle

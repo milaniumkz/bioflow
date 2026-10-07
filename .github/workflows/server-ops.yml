@@ -45,28 +45,29 @@ jobs:
           case "$OP" in
             status)
               echo "commit=$(cat DEPLOYED_COMMIT 2>/dev/null || true)"
-              docker compose ps
+              docker compose -p bioflow-production -f docker-compose.production.yml ps
               curl --fail --silent --show-error "${{ secrets.PROD_APP_URL }}/api/v1/health"
               ;;
             logs)
-              docker compose logs --tail=200 --no-color backend web nginx | sed -E 's/(Authorization: Bearer )[A-Za-z0-9._-]+/\1[redacted]/g; s/(password|secret|token)=([^[:space:]]+)/\1=[redacted]/Ig'
+              docker compose -p bioflow-production -f docker-compose.production.yml logs --tail=200 --no-color backend web nginx | sed -E 's/(Authorization: Bearer )[A-Za-z0-9._-]+/\1[redacted]/g; s/(password|secret|token)=([^[:space:]]+)/\1=[redacted]/Ig'
               ;;
             restart)
-              docker compose restart backend web nginx
-              docker compose ps
+              docker compose -p bioflow-production -f docker-compose.production.yml restart backend web nginx
+              docker compose -p bioflow-production -f docker-compose.production.yml ps
               ;;
             redeploy)
-              docker compose --env-file .env up -d --build
-              docker compose ps
+              docker compose -p bioflow-production -f docker-compose.production.yml --env-file .env.production up -d --build
+              docker compose -p bioflow-production -f docker-compose.production.yml ps
               ;;
             rollback)
-              test -n "$RELEASE_SHA"
+              [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
               test -d "$DEPLOY_PATH/releases/$RELEASE_SHA"
+              test -f "$DEPLOY_PATH/releases/$RELEASE_SHA/docker-compose.production.yml"
               ln -sfn "$DEPLOY_PATH/releases/$RELEASE_SHA" "$DEPLOY_PATH/current"
               cd "$DEPLOY_PATH/current"
-              docker compose --env-file .env up -d --build
+              docker compose -p bioflow-production -f docker-compose.production.yml --env-file .env.production up -d --build
               echo "$RELEASE_SHA" > DEPLOYED_COMMIT
-              docker compose ps
+              docker compose -p bioflow-production -f docker-compose.production.yml ps
               ;;
             *)
               echo "Unsupported operation" >&2

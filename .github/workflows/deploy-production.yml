@@ -51,6 +51,9 @@ jobs:
             --exclude=.env \
             --exclude='.env.*' \
             --exclude=backups \
+            --exclude=secrets \
+            --exclude=certificates \
+            --exclude='bioflow-*.tgz' \
             -czf "bioflow-${{ steps.commit.outputs.sha }}.tgz" .
 
       - name: Upload release
@@ -70,17 +73,15 @@ jobs:
           ARCHIVE="$DEPLOY_PATH/incoming/bioflow-$SHA.tgz"
           mkdir -p "$RELEASE" "$DEPLOY_PATH/backups"
           tar -xzf "$ARCHIVE" -C "$RELEASE"
-          test -f "$DEPLOY_PATH/shared/.env"
-          cp "$DEPLOY_PATH/shared/.env" "$RELEASE/.env"
-          if [ -L "$DEPLOY_PATH/current" ] && [ -f "$DEPLOY_PATH/current/docker-compose.yml" ]; then
-            (cd "$DEPLOY_PATH/current" && docker compose exec -T postgres pg_dump -U bioflow bioflow > "$DEPLOY_PATH/backups/bioflow-$SHA.sql") || true
-            cp "$DEPLOY_PATH/shared/.env" "$DEPLOY_PATH/backups/env-$SHA" || true
+          PREVIOUS=$(readlink -f "$DEPLOY_PATH/current" || true)
+          if ! bash "$RELEASE/infrastructure/deploy-release.sh" "$RELEASE" "$DEPLOY_PATH/shared" "$DEPLOY_PATH/backups"; then
+            if [ -n "$PREVIOUS" ] && [ -f "$PREVIOUS/docker-compose.production.yml" ]; then
+              (cd "$PREVIOUS" && docker compose -p bioflow-production -f docker-compose.production.yml up -d --build)
+            fi
+            exit 1
           fi
           ln -sfn "$RELEASE" "$DEPLOY_PATH/current"
-          cd "$DEPLOY_PATH/current"
-          docker compose --env-file .env up -d --build
-          echo "$SHA" > "$DEPLOY_PATH/current/DEPLOYED_COMMIT"
-          docker compose ps
+          printf '%s\n' "$SHA" > "$RELEASE/DEPLOYED_COMMIT"
           REMOTE
 
       - name: Verify health

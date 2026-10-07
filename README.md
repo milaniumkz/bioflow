@@ -2,7 +2,11 @@
 
 BIOFLOW is a monorepo for material logistics: NestJS backend, PostgreSQL/Redis/MinIO infrastructure, Next.js web panel, Flutter mobile app, shared types, and API client.
 
-## Structure
+## Project requirements and design
+
+The imported [BIOFLOW project materials](docs/project-context/bioflow/README.md) preserve the original specification and the latest documented decisions. Use the [requirements and source guide](docs/project-context/bioflow/IMPORT_REPORT.md) and the [implementation gap analysis](docs/project-context/bioflow/docs/IMPLEMENTATION_GAPS.md) alongside the existing technical documentation. The original specification defines the functional scope; the current Figma defines the visual layout. Only NAVY & PLATINUM is selected; GPS tracking is excluded. Acceptance criteria are not evidence that features have passed testing.
+
+## Repository layout
 
 - `apps/backend` - NestJS REST API, Prisma, Swagger.
 - `apps/web` - Next.js admin panel.

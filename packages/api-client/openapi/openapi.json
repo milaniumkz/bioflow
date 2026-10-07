@@ -15,6 +15,418 @@
         ]
       }
     },
+    "/api/v1/ledger/batches": {
+      "get": {
+        "operationId": "LedgerController_batches",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      },
+      "post": {
+        "operationId": "LedgerController_createBatch",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/batches/{id}/confirm": {
+      "post": {
+        "operationId": "LedgerController_confirmBatch",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/batches/{id}/cancel": {
+      "post": {
+        "operationId": "LedgerController_cancelBatch",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/batches/{id}/close": {
+      "post": {
+        "operationId": "LedgerController_closeBatch",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/batches/{id}/trace": {
+      "get": {
+        "operationId": "LedgerController_trace",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/waybills": {
+      "get": {
+        "operationId": "LedgerController_trips",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      },
+      "post": {
+        "operationId": "LedgerController_createTrip",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/waybills/{id}": {
+      "get": {
+        "operationId": "LedgerController_trip",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/waybills/{id}/load": {
+      "post": {
+        "operationId": "LedgerController_load",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/waybills/{id}/status": {
+      "post": {
+        "operationId": "LedgerController_status",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/waybills/{id}/receipt": {
+      "post": {
+        "operationId": "LedgerController_receipt",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/waybills/{id}/unload": {
+      "post": {
+        "operationId": "LedgerController_unload",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/qr/resolve": {
+      "post": {
+        "operationId": "LedgerController_resolve",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/operations": {
+      "get": {
+        "operationId": "LedgerController_operations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      },
+      "post": {
+        "operationId": "LedgerController_operation",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/operations/{id}/confirm": {
+      "post": {
+        "operationId": "LedgerController_confirmOperation",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/operations/{id}/cancel": {
+      "post": {
+        "operationId": "LedgerController_cancelOperation",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/stocks": {
+      "get": {
+        "operationId": "LedgerController_stocks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/reports/{type}": {
+      "get": {
+        "operationId": "LedgerController_report",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/reports/{type}/export": {
+      "get": {
+        "operationId": "LedgerController_export",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/v1/ledger/users/{id}/access": {
+      "post": {
+        "operationId": "LedgerController_access",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "operationId": "AuthController_login",
@@ -60,6 +472,20 @@
     "/api/v1/auth/reset-password": {
       "post": {
         "operationId": "AuthController_resetPassword",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/users/{id}/reset-password": {
+      "post": {
+        "operationId": "AuthController_adminReset",
         "parameters": [],
         "responses": {
           "201": {
@@ -674,6 +1100,25 @@
     "/api/v1/files/upload-url": {
       "post": {
         "operationId": "FilesController_createUploadUrl",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "files"
+        ]
+      }
+    },
+    "/api/v1/files/{id}/complete": {
+      "post": {
+        "operationId": "FilesController_complete",
         "parameters": [],
         "responses": {
           "201": {
