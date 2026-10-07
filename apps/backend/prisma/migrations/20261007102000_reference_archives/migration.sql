@@ -1,0 +1,3 @@
+ALTER TABLE "ExtractionSite" ADD COLUMN "archivedAt" TIMESTAMP(3);
+ALTER TABLE "Driver" ADD COLUMN "archivedAt" TIMESTAMP(3);
+ALTER TABLE "Plant" ADD COLUMN "archivedAt" TIMESTAMP(3);

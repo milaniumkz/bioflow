@@ -23,6 +23,10 @@ enum WaybillStatus {
   ACCEPTED_WITH_DIFFERENCE
   REJECTED
   CANCELLED
+  UNLOADED
+  COMPLETED
+  REVIEW
+  PARTIALLY_ACCEPTED
 }
 
 enum InventoryMovementType {
@@ -88,6 +92,10 @@ model User {
   auditLogs      AuditLog[]
   createdWaybills Waybill[] @relation("WaybillCreatedBy")
   acceptedWaybills Waybill[] @relation("WaybillAcceptedBy")
+  counterpartyScopeId String?
+  warehouseScopeIds String[] @default([])
+  extractionScopeIds String[] @default([])
+  accessAllObjects Boolean @default(false)
   inventoryMovements InventoryMovement[] @relation("InventoryMovementCreatedBy")
   washingBatches WashingBatch[] @relation("WashingBatchCreatedBy")
   productionBatches ProductionBatch[] @relation("ProductionBatchCreatedBy")
@@ -153,6 +161,10 @@ model Vehicle {
   counterpartyId String?
   type String
   brand String
+  model String?
+  capacity Decimal? @db.Decimal(14, 3)
+  tareWeight Decimal? @db.Decimal(14, 3)
+  archivedAt DateTime?
   plateNumber String @unique
   status String @default("ACTIVE")
   organization Organization @relation(fields: [organizationId], references: [id])
@@ -172,6 +184,7 @@ model Driver {
   waybills Waybill[]
   @@unique([organizationId, phone])
   @@index([organizationId, fullName])
+  archivedAt DateTime?
 }
 
 model ExtractionSite {
@@ -182,6 +195,7 @@ model ExtractionSite {
   organization Organization @relation(fields: [organizationId], references: [id])
   waybills Waybill[]
   @@unique([organizationId, name])
+  archivedAt DateTime?
 }
 
 model Warehouse {
@@ -189,6 +203,10 @@ model Warehouse {
   organizationId String
   name String
   address String?
+  capacity Decimal? @db.Decimal(14, 3)
+  warehouseType String @default("RAW")
+  allowedMaterialTypeIds String[] @default([])
+  archivedAt DateTime?
   lowStockLimit Decimal? @db.Decimal(14, 3)
   organization Organization @relation(fields: [organizationId], references: [id])
   waybills Waybill[] @relation("DestinationWarehouse")
@@ -210,6 +228,7 @@ model Plant {
   name String
   address String?
   organization Organization @relation(fields: [organizationId], references: [id])
+  archivedAt DateTime?
 }
 
 model MaterialType {
@@ -234,6 +253,16 @@ model ProductType {
 }
 
 model Waybill {
+  batchId String?
+  batch MaterialBatch? @relation(fields: [batchId], references: [id])
+  tareWeight Decimal? @db.Decimal(14, 3)
+  grossWeight Decimal? @db.Decimal(14, 3)
+  documentDate DateTime?
+  receivedWeight Decimal? @db.Decimal(14, 3)
+  receiptWarehouseId String?
+  measurementMethod String?
+  reviewReason String?
+  completedAt DateTime?
   id String @id @default(cuid())
   organizationId String
   number String @unique
@@ -242,7 +271,7 @@ model Waybill {
   counterpartyId String
   extractionSiteId String
   vehicleId String
-  driverId String
+  driverId String?
   destinationWarehouseId String
   materialTypeId String
   declaredWeight Decimal @db.Decimal(14, 3)
@@ -261,7 +290,7 @@ model Waybill {
   counterparty Counterparty @relation(fields: [counterpartyId], references: [id])
   extractionSite ExtractionSite @relation(fields: [extractionSiteId], references: [id])
   vehicle Vehicle @relation(fields: [vehicleId], references: [id])
-  driver Driver @relation(fields: [driverId], references: [id])
+  driver Driver? @relation(fields: [driverId], references: [id])
   destinationWarehouse Warehouse @relation("DestinationWarehouse", fields: [destinationWarehouseId], references: [id])
   materialType MaterialType @relation(fields: [materialTypeId], references: [id])
   files WaybillFile[]
@@ -503,6 +532,7 @@ model AuditLog {
   oldValue Json?
   newValue Json?
   reason String?
+  deviceId String?
   requestId String?
   createdAt DateTime @default(now())
   organization Organization @relation(fields: [organizationId], references: [id])
@@ -512,6 +542,10 @@ model AuditLog {
 }
 
 model File {
+  createdById String?
+  entityType String?
+  entityId String?
+  verifiedAt DateTime?
   id String @id @default(cuid())
   organizationId String
   key String @unique
@@ -530,4 +564,137 @@ model SystemSetting {
   value Json
   organization Organization @relation(fields: [organizationId], references: [id])
   @@unique([organizationId, key])
+}
+
+// Quantities are stored in tonnes with three decimal places. Original measurements
+// are retained with each operation; clients convert kilograms at the boundary.
+model MaterialBatch {
+  originCounterpartyIds String[] @default([])
+  originExtractionSiteIds String[] @default([])
+  id String @id @default(cuid())
+  organizationId String
+  number String @unique
+  qrTokenHash String @unique
+  state MaterialState @default(DIRTY)
+  status String @default("DRAFT")
+  counterpartyId String?
+  extractionSiteId String?
+  materialTypeId String?
+  productTypeId String?
+  initialQuantity Decimal @db.Decimal(14, 3)
+  availableSourceQuantity Decimal @db.Decimal(14, 3)
+  measurementMethod String
+  measuredAt DateTime
+  createdById String
+  createdAt DateTime @default(now())
+  archivedAt DateTime?
+  waybills Waybill[]
+  stocks BatchStock[]
+  inputUses BatchOperationInput[]
+  outputOf BatchOperation? @relation("OperationOutput")
+  movements BatchMovement[]
+  @@index([organizationId, counterpartyId, state, status])
+}
+
+model BatchStock {
+  id String @id @default(cuid())
+  batchId String
+  warehouseId String
+  quantity Decimal @default(0) @db.Decimal(14, 3)
+  reserved Decimal @default(0) @db.Decimal(14, 3)
+  batch MaterialBatch @relation(fields: [batchId], references: [id])
+  updatedAt DateTime @updatedAt
+  @@unique([batchId, warehouseId])
+}
+
+model BatchOperation {
+  id String @id @default(cuid())
+  organizationId String
+  number String @unique
+  kind String
+  status OperationStatus @default(DRAFT)
+  fromWarehouseId String?
+  toWarehouseId String?
+  outputBatchId String? @unique
+  outputBatch MaterialBatch? @relation("OperationOutput", fields: [outputBatchId], references: [id])
+  outputQuantity Decimal? @db.Decimal(14, 3)
+  wasteQuantity Decimal @default(0) @db.Decimal(14, 3)
+  lossQuantity Decimal @default(0) @db.Decimal(14, 3)
+  defectQuantity Decimal @default(0) @db.Decimal(14, 3)
+  reason String?
+  details Json
+  idempotencyKey String
+  createdById String
+  confirmedById String?
+  cancelledById String?
+  confirmedAt DateTime?
+  cancelledAt DateTime?
+  createdAt DateTime @default(now())
+  inputs BatchOperationInput[]
+  movements BatchMovement[]
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, kind, status, createdAt])
+}
+
+model BatchOperationInput {
+  id String @id @default(cuid())
+  operationId String
+  batchId String
+  quantity Decimal @db.Decimal(14, 3)
+  operation BatchOperation @relation(fields: [operationId], references: [id])
+  batch MaterialBatch @relation(fields: [batchId], references: [id])
+  @@unique([operationId, batchId])
+}
+
+model BatchMovement {
+  id String @id @default(cuid())
+  organizationId String
+  batchId String
+  warehouseId String
+  quantity Decimal @db.Decimal(14, 3)
+  reservedDelta Decimal @default(0) @db.Decimal(14, 3)
+  kind String
+  operationId String?
+  waybillId String?
+  reversesId String? @unique
+  reason String?
+  createdById String
+  createdAt DateTime @default(now())
+  batch MaterialBatch @relation(fields: [batchId], references: [id])
+  operation BatchOperation? @relation(fields: [operationId], references: [id])
+  @@index([organizationId, batchId, warehouseId, createdAt])
+}
+
+model CommandReceipt {
+  id String @id @default(cuid())
+  organizationId String
+  key String
+  fingerprint String
+  response Json
+  createdAt DateTime @default(now())
+  @@unique([organizationId, key])
+}
+
+model ReferenceValue {
+  id String @id @default(cuid())
+  organizationId String
+  category String
+  code String
+  name String
+  archivedAt DateTime?
+  @@unique([organizationId, category, code])
+}
+
+model PushDelivery {
+  id String @id @default(cuid())
+  notificationId String
+  deviceId String
+  status String @default("PENDING")
+  attempts Int @default(0)
+  lastError String?
+  deliveredAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  @@unique([notificationId, deviceId])
+  @@index([status, createdAt])
 }

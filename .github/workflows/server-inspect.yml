@@ -1,0 +1,37 @@
+name: server-inspect
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST || '109.235.118.171' }}
+      PROD_SSH_PORT: ${{ secrets.PROD_SSH_PORT || '22' }}
+      PROD_SSH_USER: ${{ secrets.PROD_SSH_USER || 'root' }}
+      PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+      SSHPASS: ${{ secrets.PROD_SSH_PASSWORD }}
+      PROD_SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+      SSH_ALLOW_FIRST_CONNECTION: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y sshpass
+      - name: Inspect server without changing its configuration
+        run: |
+          source infrastructure/ci-ssh.sh
+          bioflow_ssh 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          cat /etc/os-release
+          uname -m
+          df -h / /var
+          free -h
+          command -v docker >/dev/null && docker version || true
+          command -v docker >/dev/null && docker ps --format '{{.Names}} {{.Status}} {{.Ports}}' || true
+          ss -lnt
+          getent hosts bio.app.kz || true
+          REMOTE
+          echo 'First-connection host fingerprint; verify against the provider console before deployment:'
+          ssh-keygen -lf "$ssh_dir/known_hosts"
+          cat "$ssh_dir/known_hosts"
