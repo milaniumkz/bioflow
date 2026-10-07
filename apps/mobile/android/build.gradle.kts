@@ -1,3 +1,5 @@
+apply(from = "jni-abis.gradle")
+
 allprojects {
     repositories {
         google()

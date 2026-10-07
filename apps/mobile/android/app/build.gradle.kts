@@ -22,7 +22,6 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "kz.milanium.bioflow_mobile"
         manifestPlaceholders["allowCleartext"] = "false"
         // You can update the following values to match your application needs.
@@ -50,8 +49,7 @@ android {
     buildTypes {
         debug { manifestPlaceholders["allowCleartext"] = "true" }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // Production signing is supplied by the owner through ignored key.properties.
             if (ownerKey.isNotEmpty()) signingConfig = signingConfigs.getByName("ownerRelease")
         }
     }

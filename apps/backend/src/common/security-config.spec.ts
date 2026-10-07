@@ -4,6 +4,15 @@ import {
 } from "./security-config";
 
 describe("security config", () => {
+  const originalValue = process.env.WEB_ORIGIN;
+  beforeEach(() => {
+    delete process.env.WEB_ORIGIN;
+  });
+  afterEach(() => {
+    if (originalValue === undefined) delete process.env.WEB_ORIGIN;
+    else process.env.WEB_ORIGIN = originalValue;
+  });
+
   it("allows open CORS only outside production when WEB_ORIGIN is missing", () => {
     expect(corsOriginConfig("development", undefined)).toBe(true);
   });
