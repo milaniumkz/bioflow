@@ -1,0 +1,29 @@
+name: publish-test-apk
+on:
+  push:
+    branches: [codex/apk-download]
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download verified server APK
+        uses: actions/download-artifact@v4
+        with:
+          name: BIOFLOW-server-test-apk
+          run-id: 37604263196
+          github-token: ${{ github.token }}
+          path: apk
+      - name: Publish public HTTPS download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mv apk/app-debug.apk apk/BIOFLOW-test.apk
+          echo '2e73e26f9945f3390bb0e71585b85eff8c6de6aabd3ec84a0c4351686b8cc93c  apk/BIOFLOW-test.apk' | sha256sum -c -
+          gh release upload test-2026-10-07 apk/BIOFLOW-test.apk --clobber
