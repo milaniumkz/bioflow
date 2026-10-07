@@ -18,6 +18,13 @@ jobs:
           run-id: 37604263196
           github-token: ${{ github.token }}
           path: apk
+      - name: Download encrypted test login
+        uses: actions/download-artifact@v4
+        with:
+          name: BIOFLOW-test-access
+          run-id: 37604263196
+          github-token: ${{ github.token }}
+          path: access
       - name: Publish public HTTPS download
         env:
           GH_TOKEN: ${{ github.token }}
@@ -27,3 +34,4 @@ jobs:
           mv apk/app-debug.apk apk/BIOFLOW-test.apk
           echo '2e73e26f9945f3390bb0e71585b85eff8c6de6aabd3ec84a0c4351686b8cc93c  apk/BIOFLOW-test.apk' | sha256sum -c -
           gh release upload test-2026-10-07 apk/BIOFLOW-test.apk --clobber
+          gh release upload test-2026-10-07 access/BIOFLOW-test-access.html --clobber
