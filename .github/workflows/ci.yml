@@ -15,7 +15,7 @@ jobs:
           POSTGRES_USER: bioflow
           POSTGRES_PASSWORD: bioflow
         ports: ["5432:5432"]
-        options: --health-cmd "pg_isready -U bioflow" --health-interval 5s --health-timeout 5s --health-retries 10
+        options: --health-cmd "pg_isready -U bioflow -d bioflow_spec" --health-interval 5s --health-timeout 5s --health-retries 10
       redis:
         image: redis:7-alpine
         ports: ["6379:6379"]
@@ -40,7 +40,7 @@ jobs:
       - run: npm run lint && npm test && npm run build
       - run: npm run openapi:generate
       - run: |
-          docker run -d --name bioflow-ci-s3 -p 9000:8333 -v "$PWD/infrastructure/s3-development.json:/etc/seaweed/s3.json:ro" chrislusf/seaweedfs:3.85 server -s3 -s3.config=/etc/seaweed/s3.json -ip=localhost -ip.bind=0.0.0.0
+          docker run -d --name bioflow-ci-s3 -p 9000:8333 -v "$PWD/infrastructure/s3-development.json:/etc/seaweed/s3.json:ro" chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d server -dir=/data -master.volumeSizeLimitMB=100 -volume.max=8 -s3 -s3.config=/etc/seaweed/s3.json -ip=127.0.0.1 -ip.bind=0.0.0.0
           for attempt in $(seq 1 30); do
             if npm run s3:init -w @bioflow/backend; then break; fi
             sleep 2
