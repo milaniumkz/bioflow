@@ -28,3 +28,6 @@ build
 backups/
 secrets/
 certificates/
+
+__pycache__/
+*.pyc

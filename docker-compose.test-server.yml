@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bioflow_test
+      POSTGRES_USER: bioflow_test
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U bioflow_test -d bioflow_test]
+      interval: 5s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      retries: 20
+  s3:
+    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
+    restart: unless-stopped
+    command: server -dir=/data -master.volumeSizeLimitMB=100 -volume.max=16 -s3 -s3.config=/etc/seaweedfs/bioflow-s3.json -ip=s3 -ip.bind=0.0.0.0
+    ports: ["9000:8333"]
+    volumes:
+      - s3_data:/data
+      - ${BIOFLOW_SHARED_DIR:?}/s3.json:/etc/seaweedfs/bioflow-s3.json:ro
+  backend:
+    image: bioflow-test-backend:${BIOFLOW_IMAGE_TAG:?}
+    env_file: ${BIOFLOW_SHARED_DIR:?}/server.env
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      s3: { condition: service_started }
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://localhost:4000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      retries: 20
+  web:
+    image: bioflow-test-web:${BIOFLOW_IMAGE_TAG:?}
+    restart: unless-stopped
+  nginx:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    ports: ["80:80"]
+    depends_on: [backend, web]
+    volumes:
+      - ./infrastructure/nginx/test-server.conf:/etc/nginx/nginx.conf:ro
+      - ${BIOFLOW_SHARED_DIR:?}/downloads:/downloads:ro
+volumes:
+  postgres_data:
+  redis_data:
+  s3_data:
