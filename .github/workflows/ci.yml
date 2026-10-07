@@ -57,6 +57,12 @@ jobs:
       - run: npm audit --omit=dev --audit-level=high
       - run: docker compose config --quiet
       - run: cp .env.production.example .env.production && docker compose -f docker-compose.production.yml config --quiet
+      - name: Validate isolated server configuration
+        run: |
+          mkdir -p /tmp/bioflow-compose-check
+          cp .env.production.example /tmp/bioflow-compose-check/server.env
+          BIOFLOW_SHARED_DIR=/tmp/bioflow-compose-check BIOFLOW_IMAGE_TAG=validation POSTGRES_PASSWORD=validation docker compose -f docker-compose.test-server.yml config --quiet
+          bash -n infrastructure/ci-ssh.sh infrastructure/launch-test-server.sh
       - run: docker build -f apps/backend/Dockerfile . && docker build -f apps/web/Dockerfile .
   android:
     runs-on: ubuntu-latest

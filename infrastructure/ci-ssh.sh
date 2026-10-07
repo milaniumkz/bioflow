@@ -8,6 +8,9 @@ PROD_SSH_USER=${PROD_SSH_USER:-root}
 ssh_dir=$(mktemp -d)
 chmod 700 "$ssh_dir"
 trap 'rm -rf "$ssh_dir"' EXIT
+if [ -z "${PROD_SSH_KNOWN_HOSTS:-}" ] && [ "$PROD_SSH_HOST" = 109.235.118.171 ]; then
+  PROD_SSH_KNOWN_HOSTS=$(cat "$(dirname "${BASH_SOURCE[0]}")/ssh/bio-app.known_hosts")
+fi
 ssh_options=(-o ConnectTimeout=20 -o ServerAliveInterval=15 -o UserKnownHostsFile="$ssh_dir/known_hosts")
 if [ -n "${PROD_SSH_KNOWN_HOSTS:-}" ]; then
   printf '%s\n' "$PROD_SSH_KNOWN_HOSTS" > "$ssh_dir/known_hosts"

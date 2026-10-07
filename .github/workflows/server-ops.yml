@@ -8,6 +8,7 @@ on:
         required: true
         type: choice
         options:
+          - launch-test
           - status
           - logs
           - restart
@@ -22,7 +23,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  launch-test:
+    if: inputs.operation == 'launch-test'
+    uses: ./.github/workflows/deploy-test.yml
+    secrets: inherit
+
   operate:
+    if: inputs.operation != 'launch-test'
     runs-on: ubuntu-latest
     environment: production
     steps:
