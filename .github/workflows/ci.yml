@@ -1,7 +1,11 @@
 name: ci
-on: [push, pull_request]
+on:
+  push:
+    branches-ignore: [codex/mac-ci-pilot, codex/ci-split-pilot]
+  pull_request:
 jobs:
   build-test:
+    needs: native-node
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -73,3 +77,62 @@ jobs:
         with:
           name: BIOFLOW-test-apk
           path: apps/mobile/build/app/outputs/flutter-apk/app-debug.apk
+
+  native-node:
+    runs-on: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && fromJSON('["milanium-mac-arm64", "repo-bioflow"]') || fromJSON('["ubuntu-latest"]') }}
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      DATABASE_URL: ''
+      REDIS_URL: ''
+      PROMO_TEST_DATABASE_URL: ''
+      COREPACK_ENABLE_NETWORK: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && '0' || '1' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        if: github.event_name == 'pull_request' || github.ref != 'refs/heads/main'
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Select existing Node 24
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          echo /opt/homebrew/bin >> "$GITHUB_PATH"
+          test "$(/opt/homebrew/bin/node -p 'process.versions.node.split(".")[0]')" = 24
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run lint
+      - run: npm test
+      - run: npm test -w @bioflow/backend -- --detectOpenHandles --runInBand
+      - name: Generate OpenAPI without a real database connection
+        run: DATABASE_URL='postgresql://bioflow:bioflow@127.0.0.1:9/bioflow?schema=public' npm run openapi:generate
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bioflow-openapi
+          path: packages/api-client/openapi
+          if-no-files-found: error
+          retention-days: 1
+  native-mobile:
+    needs: native-node
+    if: github.repository == 'milaniumkz/bioflow' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [milanium-mac-arm64, repo-bioflow]
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.6
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter analyze
+      - run: flutter test

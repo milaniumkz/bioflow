@@ -1,0 +1,55 @@
+name: Native Mac Pilot
+on:
+  push:
+    branches: [codex/mac-ci-pilot]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-mac-bioflow-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  native-node:
+    if: github.repository == 'milaniumkz/bioflow' && (github.ref == 'refs/heads/codex/mac-ci-pilot' || github.ref == 'refs/heads/main')
+    runs-on: [milanium-mac-arm64, repo-bioflow]
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      DATABASE_URL: ''
+      REDIS_URL: ''
+      PROMO_TEST_DATABASE_URL: ''
+      COREPACK_ENABLE_NETWORK: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Select existing Node 24
+        run: |
+          echo /opt/homebrew/bin >> "$GITHUB_PATH"
+          test "$(/opt/homebrew/bin/node -p 'process.versions.node.split(".")[0]')" = 24
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npm run lint
+      - run: npm test
+      - run: npm test -w @bioflow/backend -- --detectOpenHandles --runInBand
+      - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+  native-mobile:
+    needs: native-node
+    if: github.repository == 'milaniumkz/bioflow' && (github.ref == 'refs/heads/codex/mac-ci-pilot' || github.ref == 'refs/heads/main')
+    runs-on: [milanium-mac-arm64, repo-bioflow]
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Select existing Flutter 3.41.1
+        run: |
+          echo /Volumes/PD1000/job/flutter/bin >> "$GITHUB_PATH"
+          /Volumes/PD1000/job/flutter/bin/flutter --version --machine | python3 -c 'import json,sys; assert json.load(sys.stdin)["frameworkVersion"] == "3.41.1"'
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter analyze
+      - run: flutter test
