@@ -54,7 +54,9 @@ jobs:
             sleep 2
           done
           npm run test:acceptance -w @bioflow/backend
-      - run: npm audit --omit=dev --audit-level=high
+      - run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --audit-level=high
       - run: docker compose config --quiet
       - run: cp .env.production.example .env.production && docker compose -f docker-compose.production.yml config --quiet
       - name: Validate isolated server configuration
@@ -85,28 +87,22 @@ jobs:
           path: apps/mobile/build/app/outputs/flutter-apk/app-debug.apk
 
   native-node:
-    runs-on: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && fromJSON('["milanium-mac-arm64", "repo-bioflow"]') || fromJSON('["ubuntu-latest"]') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
       CI: "true"
       DATABASE_URL: ""
       REDIS_URL: ""
       PROMO_TEST_DATABASE_URL: ""
-      COREPACK_ENABLE_NETWORK: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && '0' || '1' }}
+      COREPACK_ENABLE_NETWORK: "1"
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - uses: actions/setup-node@v4
-        if: github.event_name == 'pull_request' || github.ref != 'refs/heads/main'
         with:
           node-version: "24"
           cache: npm
-      - name: Select existing Node 24
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: |
-          echo /opt/homebrew/bin >> "$GITHUB_PATH"
-          test "$(/opt/homebrew/bin/node -p 'process.versions.node.split(".")[0]')" = 24
       - run: npm ci
       - run: npm run prisma:generate
       - run: npm run lint
@@ -115,7 +111,9 @@ jobs:
       - name: Generate OpenAPI without a real database connection
         run: DATABASE_URL='postgresql://bioflow:bioflow@127.0.0.1:9/bioflow?schema=public' npm run openapi:generate
       - run: npm run build
-      - run: npm audit --omit=dev --audit-level=high
+      - run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --audit-level=high
       - uses: actions/upload-artifact@v4
         with:
           name: bioflow-openapi
@@ -124,7 +122,7 @@ jobs:
           retention-days: 1
   native-mobile:
     needs: native-node
-    if: github.repository == 'milaniumkz/bioflow' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: vars.NATIVE_MAC_CI_ENABLED == 'true' && github.repository == 'milaniumkz/bioflow' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: [milanium-mac-arm64, repo-bioflow]
     timeout-minutes: 30
     defaults:

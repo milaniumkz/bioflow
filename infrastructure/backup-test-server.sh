@@ -5,6 +5,7 @@ root=/opt/bioflow-test
 release=$(readlink -f "$root/current")
 export BIOFLOW_SHARED_DIR=$root/shared BIOFLOW_IMAGE_TAG=$(cat "$release/DEPLOYED_COMMIT")
 compose=(docker compose -p bioflow-test --env-file "$root/shared/server.env" -f "$release/docker-compose.test-server.yml")
+if [ -f "$root/shared/https.compose.yml" ]; then compose+=(-f "$root/shared/https.compose.yml"); fi
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 base=$root/backups/bioflow-test-$stamp
 mkdir -p "$root/backups"

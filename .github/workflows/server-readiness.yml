@@ -1,0 +1,57 @@
+name: server-readiness
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Readiness operation (restores only disposable backup copies)"
+        type: choice
+        required: true
+        options: [inspect, verify-backup, enable-https]
+permissions:
+  contents: read
+concurrency:
+  group: production-ops
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      PROD_SSH_HOST: "109.235.118.171"
+      PROD_SSH_PORT: ${{ secrets.PROD_SSH_PORT || '22' }}
+      PROD_SSH_USER: ${{ secrets.PROD_SSH_USER || 'root' }}
+      PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+      SSHPASS: ${{ secrets.PROD_SSH_PASSWORD }}
+      PROD_SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+      OPERATION: ${{ inputs.operation }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y sshpass
+      - name: Inspect server without business data mutations
+        if: inputs.operation == 'inspect'
+        run: |
+          source infrastructure/ci-ssh.sh
+          bioflow_ssh 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          echo "deployed=$(cat /opt/bioflow-test/current/DEPLOYED_COMMIT)"
+          getent ahostsv4 bio.app.kz || echo 'DNS bio.app.kz: missing'
+          systemctl is-active bioflow-test-backup.timer
+          echo "paired_file_backups=$(find /opt/bioflow-test/backups -maxdepth 1 -name 'bioflow-test-*-files.tgz' -type f | wc -l)"
+          docker ps --format '{{.Names}} {{.Status}}'
+          df -h /opt/bioflow-test
+          REMOTE
+      - name: Run reviewed server preparation or restore verification
+        if: inputs.operation != 'inspect'
+        run: |
+          source infrastructure/ci-ssh.sh
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          target="/opt/bioflow-test/verification/$GITHUB_SHA"
+          bioflow_ssh "mkdir -p '$target/nginx' && chmod 700 '$target'"
+          bioflow_scp infrastructure/verify-test-backup.sh infrastructure/verify-restored-files.cjs infrastructure/enable-test-https.sh infrastructure/renew-test-https.sh "$PROD_SSH_USER@$PROD_SSH_HOST:$target/"
+          bioflow_scp infrastructure/nginx/test-server-https.conf "$PROD_SSH_USER@$PROD_SSH_HOST:$target/nginx/"
+          case "$OPERATION" in
+            verify-backup) bioflow_ssh bash "$target/verify-test-backup.sh" ;;
+            enable-https) bioflow_ssh bash "$target/enable-test-https.sh" ;;
+            *) exit 2 ;;
+          esac
