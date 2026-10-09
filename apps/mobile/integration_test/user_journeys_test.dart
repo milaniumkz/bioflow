@@ -93,17 +93,18 @@ void main() {
           widget is DropdownButtonFormField<String> &&
           widget.decoration.labelText == label);
       await wait(tester, field);
+      final dropdown = find.descendant(
+          of: field, matching: find.byType(DropdownButton<String>));
       for (var n = 0; n < 100; n++) {
-        if (tester
-                .widget<DropdownButtonFormField<String>>(field)
-                .items
-                ?.isNotEmpty ==
-            true) break;
+        if (tester.widget<DropdownButton<String>>(dropdown).items?.isNotEmpty ==
+            true) {
+          break;
+        }
         await tester.pump(const Duration(milliseconds: 200));
       }
       await tester.ensureVisible(field);
       final option = tester
-          .widget<DropdownButtonFormField<String>>(field)
+          .widget<DropdownButton<String>>(dropdown)
           .items!
           .first
           .child as Text;
