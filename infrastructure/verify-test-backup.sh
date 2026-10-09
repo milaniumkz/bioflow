@@ -32,10 +32,16 @@ trap cleanup EXIT
 docker run -d --name "$db" --label bioflow.restore-verification=true --network none --memory 512m \
   --tmpfs /var/lib/postgresql/data:rw,size=512m \
   -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_USER=verify -e POSTGRES_DB=restore_verify postgres:16-alpine >/dev/null
+ready=false
 for attempt in $(seq 1 60); do
-  if docker exec "$db" pg_isready -U verify -d restore_verify >/dev/null 2>&1; then break; fi
+  # The entrypoint's temporary bootstrap server accepts Unix sockets before the
+  # target database exists. TCP plus a real query waits for the final server.
+  if docker exec "$db" psql -h 127.0.0.1 -U verify -d restore_verify -Atc 'SELECT 1' >/dev/null 2>&1; then
+    ready=true; break
+  fi
   sleep 1
 done
+[ "$ready" = true ] || { echo 'Disposable restore database did not become ready'; exit 1; }
 docker exec -i "$db" pg_restore --exit-on-error --no-owner --no-acl -U verify -d restore_verify < "$base.dump"
 invalid=$(docker exec "$db" psql -U verify -d restore_verify -Atc "SELECT count(*) FROM pg_constraint WHERE contype='f' AND NOT convalidated")
 [ "$invalid" = 0 ] || { echo 'Restored foreign keys are not validated'; exit 1; }
