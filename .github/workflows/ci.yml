@@ -54,7 +54,9 @@ jobs:
             sleep 2
           done
           npm run test:acceptance -w @bioflow/backend
-      - run: npm audit --omit=dev --audit-level=high
+      - run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --audit-level=high
       - run: docker compose config --quiet
       - run: cp .env.production.example .env.production && docker compose -f docker-compose.production.yml config --quiet
       - name: Validate isolated server configuration
@@ -109,7 +111,9 @@ jobs:
       - name: Generate OpenAPI without a real database connection
         run: DATABASE_URL='postgresql://bioflow:bioflow@127.0.0.1:9/bioflow?schema=public' npm run openapi:generate
       - run: npm run build
-      - run: npm audit --omit=dev --audit-level=high
+      - run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --audit-level=high
       - uses: actions/upload-artifact@v4
         with:
           name: bioflow-openapi
