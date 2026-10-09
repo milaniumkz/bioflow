@@ -122,6 +122,60 @@ test("BIOFLOW specification AT 01–13 on PostgreSQL and private S3", async (t) 
   }
 
   await t.test(
+    "UI regression — notifications and audit keep their own routes",
+    async () => {
+      assert.ok(Array.isArray((await api("/notifications")).data));
+      assert.ok(Array.isArray((await api("/audit")).data));
+    },
+  );
+  await t.test(
+    "UI regression — settings accept valid values and reject negative thresholds",
+    async () => {
+      const setting = await api(
+        "/settings",
+        {
+          key: "acceptance.differenceThresholdPercent",
+          value: 4,
+          reason: "Acceptance regression",
+        },
+        201,
+      );
+      assert.equal(setting.value, 4);
+      await api(
+        "/settings",
+        { key: "acceptance.differenceThresholdPercent", value: -1 },
+        400,
+      );
+      await api(
+        "/settings",
+        {
+          key: "acceptance.differenceThresholdPercent",
+          value: 3,
+          reason: "Restore test default",
+        },
+        201,
+      );
+    },
+  );
+  await t.test(
+    "UI regression — missing fields and duplicate plates are client errors",
+    async () => {
+      await api("/counterparties", { data: {} }, 400);
+      await api(
+        "/vehicles",
+        {
+          data: {
+            plateNumber: vehicle.plateNumber,
+            brand: "AT",
+            type: "Truck",
+          },
+        },
+        409,
+      );
+    },
+  );
+
+  await t.test(
     "AT 01 — source batch, number, QR and available quantity",
     async () => {
       batch = await api(

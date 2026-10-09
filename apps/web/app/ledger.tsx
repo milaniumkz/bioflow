@@ -1,9 +1,14 @@
 "use client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { webRequest, downloadReport } from "./session";
+import { webRequest, downloadReport, networkFetch } from "./session";
 type Row = Record<string, any>;
 const url = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 const names: Record<string, string> = {
+  PARTIALLY_SHIPPED: "Частично отгружена",
+  FULLY_SHIPPED: "Полностью отгружена",
+  REJECTED: "Отклонена",
+  CLOSED: "Закрыта",
   DIRTY: "Сырьё",
   WASHED: "Мытое",
   FINISHED: "Готовая продукция",
@@ -72,9 +77,11 @@ const reportNames = [
 export function Ledger({
   token,
   initialTab = "batches",
+  initialKind = "TRANSFER",
 }: {
   token: string;
   initialTab?: string;
+  initialKind?: string;
 }) {
   const pending = useRef(new Map<string, string>());
 
@@ -98,6 +105,7 @@ export function Ledger({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [trace, setTrace] = useState<Row | null>(null),
+    [attachments, setAttachments] = useState<Row[] | null>(null),
     [report, setReport] = useState("inventory"),
     [revision, setRevision] = useState(0),
     [result, setResult] = useState<Row | null>(null);
@@ -110,37 +118,48 @@ export function Ledger({
         ? undefined
         : { method: "POST", body: JSON.stringify(data) },
     );
+  const queryClient = useQueryClient();
+  const profile = useQuery({
+    queryKey: ["currentUser", token],
+    queryFn: () => call<Row>("/auth/me"),
+  });
+  const referenceQuery = useQuery({
+    queryKey: ["ledgerReferences", token],
+    staleTime: 10000,
+    queryFn: async () =>
+      Object.fromEntries(
+        await Promise.all(
+          [
+            "counterparties",
+            "extraction-sites",
+            "warehouses",
+            "vehicles",
+            "drivers",
+            "material-types",
+            "product-types",
+            "ledger/batches",
+            "ledger/stocks",
+          ].map(async (entity) => {
+            const x = await call<any>(`/${entity}?pageSize=100`);
+            return [entity, Array.isArray(x) ? x : (x.data ?? [])];
+          }),
+        ),
+      ),
+  });
   useEffect(() => {
-    let alive = true;
-    call<Row>("/auth/me")
-      .then((x) => {
-        if (alive) setPermissions(x.permissions ?? []);
-      })
-      .catch((e) => setError(e.message));
-    Promise.all(
-      [
-        "counterparties",
-        "extraction-sites",
-        "warehouses",
-        "vehicles",
-        "drivers",
-        "material-types",
-        "product-types",
-        "ledger/batches",
-        "ledger/stocks",
-      ].map(async (entity) => {
-        const x = await call<any>(`/${entity}?pageSize=100`);
-        return [entity, Array.isArray(x) ? x : (x.data ?? [])] as const;
-      }),
-    )
-      .then((x) => {
-        if (alive) setRefs(Object.fromEntries(x));
-      })
-      .catch((e) => setError(e.message));
-    return () => {
-      alive = false;
-    };
-  }, [token]);
+    setPermissions(profile.data?.permissions ?? []);
+  }, [profile.data]);
+  useEffect(() => {
+    if (referenceQuery.data) setRefs(referenceQuery.data);
+  }, [referenceQuery.data]);
+  useEffect(() => {
+    if (revision) {
+      void queryClient.invalidateQueries({
+        queryKey: ["ledgerReferences", token],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["currentUser", token] });
+    }
+  }, [revision, token, queryClient]);
   useEffect(() => {
     let alive = true;
     setError("");
@@ -271,7 +290,7 @@ export function Ledger({
           mimeType: f.type,
           size: f.size,
         });
-        const r = await fetch(x.uploadUrl, {
+        const r = await networkFetch(x.uploadUrl, {
           method: "PUT",
           headers: { "Content-Type": f.type },
           body: f,
@@ -323,7 +342,7 @@ export function Ledger({
       {label}
     </button>
   );
-  const operationKind = values.kind ?? "TRANSFER";
+  const operationKind = values.kind ?? initialKind;
   return (
     <>
       <div className="toolbar">
@@ -335,6 +354,11 @@ export function Ledger({
               key={id}
               className={`button ${tab === id ? "" : "secondary"}`}
               onClick={() => {
+                if (id === tab) return;
+                const event = new CustomEvent("bioflow:navigate", {
+                  cancelable: true,
+                });
+                if (!window.dispatchEvent(event)) return;
                 setTab(id);
                 setPage(1);
                 setValues({});
@@ -345,6 +369,11 @@ export function Ledger({
             </button>
           ))}
       </div>
+      {(referenceQuery.error || profile.error) && (
+        <p className="error" role="alert">
+          {(referenceQuery.error ?? profile.error)?.message}
+        </p>
+      )}
       <p className="metric">Все массы — в тоннах с точностью 0,001 т</p>
       {error && (
         <div role="alert" className="error">
@@ -614,6 +643,33 @@ export function Ledger({
             select("warehouseId", "Склад приёмки", "warehouses")}
           {field("grossWeight", "Брутто, т", "number")}
           {field("tareWeight", "Тара, т", "number")}
+          {selected.action === "receipt" &&
+            values.grossWeight !== undefined &&
+            values.tareWeight !== undefined && (
+              <p role="status">
+                Нетто:{" "}
+                {(
+                  Number(values.grossWeight) - Number(values.tareWeight)
+                ).toFixed(3)}{" "}
+                т. Расхождение с отправленной массой:{" "}
+                {(
+                  Number(values.grossWeight) -
+                  Number(values.tareWeight) -
+                  Number(selected.declaredWeight)
+                ).toFixed(3)}{" "}
+                т (
+                {Number(selected.declaredWeight) > 0
+                  ? (
+                      ((Number(values.grossWeight) -
+                        Number(values.tareWeight) -
+                        Number(selected.declaredWeight)) /
+                        Number(selected.declaredWeight)) *
+                      100
+                    ).toFixed(2)
+                  : "0.00"}
+                %)
+              </p>
+            )}
           {field("reason", "Причина расхождения", "text", false)}
           {selected.action === "receipt" && (
             <label>
@@ -694,10 +750,42 @@ export function Ledger({
                 row.batchId ??
                 `Запись ${i + 1}`}
             </h3>
+            {tab === "stocks" && (
+              <p>
+                {row.batch?.materialType?.name ??
+                  row.batch?.productType?.name ??
+                  refs["material-types"]?.find(
+                    (x) => x.id === row.batch?.materialTypeId,
+                  )?.name ??
+                  refs["product-types"]?.find(
+                    (x) => x.id === row.batch?.productTypeId,
+                  )?.name ??
+                  "Материал"}{" "}
+                · {names[row.batch?.state] ?? row.batch?.state}
+              </p>
+            )}
+            {tab === "waybills" &&
+              row.receivedWeight != null &&
+              Number(row.declaredWeight) > 0 && (
+                <p>
+                  Расхождение:{" "}
+                  {(
+                    Number(row.receivedWeight) - Number(row.declaredWeight)
+                  ).toFixed(3)}{" "}
+                  т (
+                  {(
+                    ((Number(row.receivedWeight) - Number(row.declaredWeight)) /
+                      Number(row.declaredWeight)) *
+                    100
+                  ).toFixed(2)}
+                  %)
+                </p>
+              )}
             {Object.entries(row)
               .filter(
                 ([k, v]) =>
                   v !== null &&
+                  !["qrTokenHash", "organizationId"].includes(k) &&
                   (tab === "reports" ||
                     [
                       "status",
@@ -724,6 +812,57 @@ export function Ledger({
                   <span>
                     {(
                       {
+                        number: "Номер",
+                        initialQuantity: "Исходная масса, т",
+                        unit: "Единица измерения",
+                        updatedAt: "Изменено",
+                        confirmedAt: "Подтверждено",
+                        createdById: "Автор",
+                        confirmedById: "Подтвердил",
+                        acceptedById: "Принял",
+                        acceptedAt: "Принято",
+                        completedAt: "Завершено",
+                        version: "Версия",
+                        documentDate: "Дата документа",
+                        measurementMethod: "Способ измерения",
+                        materialTypeId: "Материал",
+                        productTypeId: "Продукция",
+                        counterpartyId: "Подрядчик",
+                        extractionSiteId: "Место добычи",
+                        originCounterpartyIds: "Подрядчики происхождения",
+                        originExtractionSiteIds: "Места добычи происхождения",
+                        destinationWarehouseId: "Склад назначения",
+                        receiptWarehouseId: "Склад приёмки",
+                        fromWarehouseId: "Исходный склад",
+                        toWarehouseId: "Склад назначения",
+                        driverId: "Водитель",
+                        vehicleId: "Транспорт",
+                        batch: "Партия",
+                        vehicle: "Транспорт",
+                        driver: "Водитель",
+                        inputs: "Входные партии",
+                        outputBatch: "Выходная партия",
+                        outputBatchId: "Выходная партия",
+                        outputQuantity: "Выход, т",
+                        shift: "Смена",
+                        line: "Линия",
+                        packaging: "Упаковка",
+                        recipient: "Получатель",
+                        documentNumber: "Номер документа",
+                        reason: "Причина",
+                        discrepancyReason: "Причина расхождения",
+                        reviewReason: "Причина проверки",
+                        comment: "Комментарий",
+                        action: "Действие",
+                        entity: "Объект",
+                        entityId: "Объект",
+                        userId: "Пользователь",
+                        oldValue: "До изменения",
+                        newValue: "После изменения",
+                        organizationId: "Организация",
+                        grossWeight: "Брутто, т",
+                        tareWeight: "Тара, т",
+                        actualWeight: "Фактическая масса, т",
                         quantity: "Остаток, т",
                         reserved: "Резерв, т",
                         available: "Доступно, т",
@@ -742,6 +881,8 @@ export function Ledger({
                         availableSourceQuantity: "Не распределено, т",
                         declaredWeight: "Отправлено, т",
                         receivedWeight: "Принято, т",
+                        difference: "Расхождение, т",
+                        differencePercent: "Расхождение, %",
                         batchId: "ID партии",
                         id: "ID",
                         kind: "Операция",
@@ -752,6 +893,8 @@ export function Ledger({
                   <span>
                     {typeof v === "object"
                       ? ((v as Row).name ??
+                        (v as Row).fullName ??
+                        (v as Row).plateNumber ??
                         (v as Row).number ??
                         JSON.stringify(v))
                       : k === "warehouseId"
@@ -762,12 +905,30 @@ export function Ledger({
                 </div>
               ))}
             <div className="toolbar">
+              {tab === "waybills" && (
+                <button
+                  className="button secondary"
+                  onClick={async () => {
+                    try {
+                      setAttachments(
+                        await call<Row[]>(`/ledger/files/Waybill/${row.id}`),
+                      );
+                    } catch (e) {
+                      setError((e as Error).message);
+                    }
+                  }}
+                >
+                  Фотографии и документы
+                </button>
+              )}
               {tab === "batches" && has("batches.manage") && (
                 <>
                   {row.status === "DRAFT" &&
                     action(row, "Подтвердить", "confirm", {}, true)}
-                  {action(row, "Закрыть", "close", {}, true)}
-                  {action(row, "Отменить", "cancel", {}, true)}
+                  {!["CLOSED", "CANCELLED"].includes(row.status) &&
+                    action(row, "Закрыть", "close", {}, true)}
+                  {!["CLOSED", "CANCELLED"].includes(row.status) &&
+                    action(row, "Отменить", "cancel", {}, true)}
                 </>
               )}
               {["batches", "stocks"].includes(tab) && (
@@ -853,6 +1014,9 @@ export function Ledger({
                     row.status === "UNLOADED" &&
                     action(row, "Завершить", "status", { status: "COMPLETED" })}
                   {has("waybills.manage") &&
+                    !["CANCELLED", "COMPLETED", "UNLOADED"].includes(
+                      row.status,
+                    ) &&
                     action(
                       row,
                       "Отменить",
@@ -867,7 +1031,8 @@ export function Ledger({
                   <>
                     {row.status === "DRAFT" &&
                       action(row, "Подтвердить", "confirm")}
-                    {action(row, "Отменить", "cancel", {}, true)}
+                    {!["CLOSED", "CANCELLED"].includes(row.status) &&
+                      action(row, "Отменить", "cancel", {}, true)}
                   </>
                 )}
               {tab === "access" && has("users.manage") && (
@@ -966,6 +1131,41 @@ export function Ledger({
             Далее
           </button>
         </div>
+      )}
+      {attachments && (
+        <section className="panel">
+          <h3>Фотографии и документы</h3>
+          {!attachments.length && <p>Нет прикреплённых файлов</p>}
+          {attachments.map((file) => (
+            <button
+              key={file.id}
+              className="button secondary"
+              onClick={async () => {
+                const popup = window.open("", "_blank");
+                try {
+                  const data = await call<Row>(
+                    `/files/${file.id}/download-url`,
+                  );
+                  if (popup) {
+                    popup.opener = null;
+                    popup.location.href = data.downloadUrl;
+                  }
+                } catch (e) {
+                  popup?.close();
+                  setError((e as Error).message);
+                }
+              }}
+            >
+              {file.fileName}
+            </button>
+          ))}
+          <button
+            className="button secondary"
+            onClick={() => setAttachments(null)}
+          >
+            Закрыть
+          </button>
+        </section>
       )}
       {trace && (
         <section className="panel">

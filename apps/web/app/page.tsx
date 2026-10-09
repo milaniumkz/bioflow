@@ -1,6 +1,11 @@
 "use client";
 
-import { webRequest, setSession, clearSession } from "./session";
+import {
+  webRequest,
+  setSession,
+  clearSession,
+  currentSessionId,
+} from "./session";
 import { Ledger } from "./ledger";
 import { BioflowApiClient } from "@bioflow/api-client";
 import {
@@ -143,7 +148,7 @@ function Login({ onToken }: { onToken: (token: string) => void }) {
     onSuccess: (data) =>
       setMessage(
         data.resetToken
-          ? `Reset token: ${data.resetToken}`
+          ? `Код восстановления: ${data.resetToken}`
           : "Для восстановления доступа обратитесь к администратору",
       ),
   });
@@ -193,7 +198,7 @@ function Login({ onToken }: { onToken: (token: string) => void }) {
           <input
             value={resetToken}
             onChange={(e) => setResetToken(e.target.value)}
-            placeholder="Reset token"
+            placeholder="Код восстановления"
           />
         </div>
         <div className="toolbar">
@@ -231,11 +236,17 @@ function Dashboard({ token }: { token: string }) {
     ...(dateFrom ? { dateFrom } : {}),
     ...(dateTo ? { dateTo } : {}),
   }).toString();
-  const { data, isLoading } = useQuery({
-    queryKey: ["dashboard", dateFrom, dateTo],
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["dashboard", token, dateFrom, dateTo],
     queryFn: () => request<any>(`/dashboard${query ? `?${query}` : ""}`, token),
   });
   const balances = data?.balances ?? [];
+  if (error)
+    return (
+      <p className="error" role="alert">
+        {error.message}
+      </p>
+    );
   return (
     <>
       <DateRangeControls
@@ -301,6 +312,77 @@ function Metric({ label, value }: { label: string; value: string | number }) {
   );
 }
 
+const fieldNames: Record<string, string> = {
+  number: "Номер",
+  mustChangePassword: "Требуется смена пароля",
+  lowStockLimit: "Минимальный остаток, т",
+  DIRTY: "Сырьё",
+  WASHED: "Мытое",
+  FINISHED: "Готовая продукция",
+  ACTIVE: "Активен",
+  INACTIVE: "Неактивен",
+  PARTIALLY_SHIPPED: "Частично отгружена",
+  FULLY_SHIPPED: "Отгружена",
+  entityId: "Объект",
+  userId: "Пользователь",
+  "user.fullName": "Пользователь",
+  OPERATION_CONFIRMED: "Операция подтверждена",
+  OPERATION_PENDING: "Ожидает подтверждения",
+  WAYBILL_CREATED: "Перевозка создана",
+  WAYBILL_LOADED: "Перевозка погружена",
+  WAYBILL_UNLOADED: "Перевозка разгружена",
+  LOW_STOCK: "Низкий остаток",
+  WAREHOUSE_CAPACITY: "Вместимость склада",
+  fullName: "ФИО",
+  createdAt: "Дата создания",
+  updatedAt: "Дата изменения",
+  name: "Название",
+  code: "Код",
+  category: "Категория",
+  email: "Email",
+  phone: "Телефон",
+  bin: "БИН",
+  status: "Статус",
+  type: "Тип",
+  state: "Состояние",
+  quantity: "Количество, т",
+  declaredWeight: "Отправлено, т",
+  receivedWeight: "Принято, т",
+  plateNumber: "Госномер",
+  capacity: "Вместимость, т",
+  tareWeight: "Тара, т",
+  brand: "Марка",
+  model: "Модель",
+  address: "Адрес",
+  location: "Местоположение",
+  key: "Параметр",
+  value: "Значение",
+  action: "Действие",
+  entity: "Объект",
+  reason: "Причина",
+  isBlocked: "Заблокирован",
+  archivedAt: "В архиве",
+  revokedAt: "Отозвана",
+  expiresAt: "Действует до",
+  userAgent: "Устройство",
+  ip: "IP-адрес",
+  title: "Заголовок",
+  body: "Сообщение",
+  readAt: "Прочитано",
+  "organization.name": "Организация",
+  "counterparty.name": "Контрагент",
+  "warehouse.name": "Склад",
+  "vehicle.plateNumber": "Госномер",
+  "driver.fullName": "Водитель",
+  "items.summary": "Состав",
+  sortBy: "Сортировка",
+  desc: "По убыванию",
+  asc: "По возрастанию",
+};
+function fieldLabel(key: string) {
+  return fieldNames[key] ?? key;
+}
+
 function Table({
   title,
   rows,
@@ -323,7 +405,17 @@ function Table({
     }
     const value = read(row, path);
     if (Array.isArray(value)) return String(value.length);
-    return value == null || value === "" ? "-" : String(value);
+    return value == null || value === ""
+      ? "-"
+      : typeof value === "boolean"
+        ? value
+          ? "Да"
+          : "Нет"
+        : typeof value === "object"
+          ? JSON.stringify(value)
+          : ["status", "state", "type"].includes(path)
+            ? fieldLabel(String(value))
+            : String(value);
   };
   return (
     <section className="tableWrap" style={{ marginTop: 18 }}>
@@ -333,7 +425,7 @@ function Table({
           <thead>
             <tr>
               {columns.map((c) => (
-                <th key={c}>{c}</th>
+                <th key={c}>{fieldLabel(c)}</th>
               ))}
             </tr>
           </thead>
@@ -387,7 +479,7 @@ function DataSection({ token, section }: { token: string; section: string }) {
     "plants",
     "material-types",
     "product-types",
-    "roles",
+    "reference-values",
   ];
   const pagedSections = [
     "waybills",
@@ -438,96 +530,101 @@ function DataSection({ token, section }: { token: string; section: string }) {
               ? "/auth/sessions"
               : `/${section}${pagedSections.includes(section) && suffix ? `?${suffix}` : ""}`;
   const { data, isLoading, error } = useQuery({
-    queryKey: [section, search, status, sortBy, sortDir],
+    queryKey: [section, search, status, sortBy, sortDir, token],
     queryFn: () => request<any>(path, token),
   });
   const rows = Array.isArray(data) ? data : (data?.rows ?? data?.data ?? []);
   const columns =
-    section === "inventory"
-      ? [
-          "type",
-          "state",
-          "quantity",
-          "warehouse.name",
-          "materialType.name",
-          "productType.name",
-          "waybill.number",
-          "createdAt",
-        ]
-      : section === "waybills"
-        ? [
-            "number",
-            "status",
-            "declaredWeight",
-            "actualWeight",
-            "counterparty.name",
-            "destinationWarehouse.name",
-            "materialType.name",
-            "createdAt",
-          ]
-        : section === "write-offs"
+    section === "audit"
+      ? ["createdAt", "action", "entity", "entityId", "user.fullName", "reason"]
+      : section === "reference-values"
+        ? ["category", "code", "name", "archivedAt"]
+        : section === "inventory"
           ? [
-              "status",
+              "type",
               "state",
               "quantity",
               "warehouse.name",
               "materialType.name",
               "productType.name",
-              "reason",
+              "waybill.number",
               "createdAt",
             ]
-          : section === "shipments"
+          : section === "waybills"
             ? [
+                "number",
                 "status",
-                "quantity",
-                "warehouse.name",
-                "productType.name",
-                "recipient",
-                "documentNumber",
+                "declaredWeight",
+                "actualWeight",
+                "counterparty.name",
+                "destinationWarehouse.name",
+                "materialType.name",
                 "createdAt",
               ]
-            : section === "transfers"
+            : section === "write-offs"
               ? [
                   "status",
-                  "fromWarehouse.name",
-                  "toWarehouse.name",
-                  "items.summary",
+                  "state",
+                  "quantity",
+                  "warehouse.name",
+                  "materialType.name",
+                  "productType.name",
+                  "reason",
                   "createdAt",
                 ]
-              : section === "counterparties"
-                ? ["name", "bin", "phone", "email", "status", "createdAt"]
-                : section === "vehicles"
-                  ? ["plateNumber", "brand", "type", "status"]
-                  : section === "drivers"
-                    ? ["fullName", "phone"]
-                    : section === "warehouses"
-                      ? ["name", "address", "lowStockLimit"]
-                      : section === "extraction-sites" || section === "plants"
-                        ? ["name", "location", "address"]
-                        : section === "material-types" ||
-                            section === "product-types"
-                          ? ["name"]
-                          : section === "users"
-                            ? [
-                                "fullName",
-                                "email",
-                                "phone",
-                                "isBlocked",
-                                "mustChangePassword",
-                                "createdAt",
-                              ]
-                            : section === "roles"
-                              ? ["code", "name"]
-                              : section === "settings"
-                                ? ["key", "value"]
-                                : [
-                                    "number",
-                                    "name",
-                                    "status",
-                                    "state",
-                                    "quantity",
+              : section === "shipments"
+                ? [
+                    "status",
+                    "quantity",
+                    "warehouse.name",
+                    "productType.name",
+                    "recipient",
+                    "documentNumber",
+                    "createdAt",
+                  ]
+                : section === "transfers"
+                  ? [
+                      "status",
+                      "fromWarehouse.name",
+                      "toWarehouse.name",
+                      "items.summary",
+                      "createdAt",
+                    ]
+                  : section === "counterparties"
+                    ? ["name", "bin", "phone", "email", "status", "createdAt"]
+                    : section === "vehicles"
+                      ? ["plateNumber", "brand", "type", "status"]
+                      : section === "drivers"
+                        ? ["fullName", "phone"]
+                        : section === "warehouses"
+                          ? ["name", "address", "lowStockLimit"]
+                          : section === "extraction-sites" ||
+                              section === "plants"
+                            ? ["name", "location", "address"]
+                            : section === "material-types" ||
+                                section === "product-types"
+                              ? ["name"]
+                              : section === "users"
+                                ? [
+                                    "fullName",
+                                    "email",
+                                    "phone",
+                                    "isBlocked",
+                                    "mustChangePassword",
                                     "createdAt",
-                                  ];
+                                  ]
+                                : section === "roles"
+                                  ? ["code", "name"]
+                                  : section === "settings"
+                                    ? ["key", "value"]
+                                    : [
+                                        "number",
+                                        "name",
+                                        "status",
+                                        "state",
+                                        "quantity",
+                                        "createdAt",
+                                      ];
   if (isLoading) return <div className="card">Загрузка...</div>;
   if (error) return <div className="error">{(error as Error).message}</div>;
   if (section === "sessions")
@@ -581,78 +678,126 @@ function DataSection({ token, section }: { token: string; section: string }) {
             />
           )}
           <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-            <option value="createdAt">createdAt</option>
-            {section === "waybills" && <option value="number">number</option>}
-            {section === "waybills" && <option value="status">status</option>}
+            <option value="createdAt">{fieldLabel("createdAt")}</option>
             {section === "waybills" && (
-              <option value="declaredWeight">declaredWeight</option>
+              <option value="number">{fieldLabel("number")}</option>
             )}
-            {section === "inventory" && <option value="type">type</option>}
-            {section === "inventory" && <option value="state">state</option>}
+            {section === "waybills" && (
+              <option value="status">{fieldLabel("status")}</option>
+            )}
+            {section === "waybills" && (
+              <option value="declaredWeight">
+                {fieldLabel("declaredWeight")}
+              </option>
+            )}
             {section === "inventory" && (
-              <option value="quantity">quantity</option>
+              <option value="type">{fieldLabel("type")}</option>
             )}
-            {section === "audit" && <option value="action">action</option>}
-            {section === "audit" && <option value="entity">entity</option>}
-            {(section === "washing" || section === "production") && (
-              <option value="number">number</option>
+            {section === "inventory" && (
+              <option value="state">{fieldLabel("state")}</option>
+            )}
+            {section === "inventory" && (
+              <option value="quantity">{fieldLabel("quantity")}</option>
+            )}
+            {section === "audit" && (
+              <option value="action">{fieldLabel("action")}</option>
+            )}
+            {section === "audit" && (
+              <option value="entity">{fieldLabel("entity")}</option>
             )}
             {(section === "washing" || section === "production") && (
-              <option value="status">status</option>
+              <option value="number">{fieldLabel("number")}</option>
             )}
             {(section === "washing" || section === "production") && (
-              <option value="inputWeight">inputWeight</option>
+              <option value="status">{fieldLabel("status")}</option>
             )}
             {(section === "washing" || section === "production") && (
-              <option value="outputWeight">outputWeight</option>
+              <option value="inputWeight">{fieldLabel("inputWeight")}</option>
+            )}
+            {(section === "washing" || section === "production") && (
+              <option value="outputWeight">{fieldLabel("outputWeight")}</option>
             )}
             {section === "shipments" && (
-              <option value="recipient">recipient</option>
+              <option value="recipient">{fieldLabel("recipient")}</option>
             )}
-            {section === "shipments" && <option value="status">status</option>}
             {section === "shipments" && (
-              <option value="quantity">quantity</option>
+              <option value="status">{fieldLabel("status")}</option>
             )}
-            {section === "write-offs" && <option value="status">status</option>}
-            {section === "write-offs" && <option value="state">state</option>}
+            {section === "shipments" && (
+              <option value="quantity">{fieldLabel("quantity")}</option>
+            )}
             {section === "write-offs" && (
-              <option value="quantity">quantity</option>
+              <option value="status">{fieldLabel("status")}</option>
             )}
-            {section === "transfers" && <option value="status">status</option>}
-            {section === "counterparties" && <option value="name">name</option>}
+            {section === "write-offs" && (
+              <option value="state">{fieldLabel("state")}</option>
+            )}
+            {section === "write-offs" && (
+              <option value="quantity">{fieldLabel("quantity")}</option>
+            )}
+            {section === "transfers" && (
+              <option value="status">{fieldLabel("status")}</option>
+            )}
             {section === "counterparties" && (
-              <option value="status">status</option>
+              <option value="name">{fieldLabel("name")}</option>
+            )}
+            {section === "counterparties" && (
+              <option value="status">{fieldLabel("status")}</option>
             )}
             {section === "vehicles" && (
-              <option value="plateNumber">plateNumber</option>
+              <option value="plateNumber">{fieldLabel("plateNumber")}</option>
             )}
-            {section === "vehicles" && <option value="brand">brand</option>}
-            {section === "vehicles" && <option value="type">type</option>}
-            {section === "vehicles" && <option value="status">status</option>}
+            {section === "vehicles" && (
+              <option value="brand">{fieldLabel("brand")}</option>
+            )}
+            {section === "vehicles" && (
+              <option value="type">{fieldLabel("type")}</option>
+            )}
+            {section === "vehicles" && (
+              <option value="status">{fieldLabel("status")}</option>
+            )}
             {section === "drivers" && (
-              <option value="fullName">fullName</option>
+              <option value="fullName">{fieldLabel("fullName")}</option>
             )}
-            {section === "drivers" && <option value="phone">phone</option>}
-            {section === "warehouses" && <option value="name">name</option>}
+            {section === "drivers" && (
+              <option value="phone">{fieldLabel("phone")}</option>
+            )}
+            {section === "warehouses" && (
+              <option value="name">{fieldLabel("name")}</option>
+            )}
             {(section === "extraction-sites" ||
               section === "plants" ||
               section === "material-types" ||
               section === "product-types") && (
-              <option value="name">name</option>
+              <option value="name">{fieldLabel("name")}</option>
             )}
-            {section === "users" && <option value="fullName">fullName</option>}
-            {section === "users" && <option value="email">email</option>}
-            {section === "roles" && <option value="code">code</option>}
-            {section === "roles" && <option value="name">name</option>}
-            {section === "settings" && <option value="key">key</option>}
+            {section === "users" && (
+              <option value="fullName">{fieldLabel("fullName")}</option>
+            )}
+            {section === "users" && (
+              <option value="email">{fieldLabel("email")}</option>
+            )}
+            {section === "roles" && (
+              <option value="code">{fieldLabel("code")}</option>
+            )}
+            {section === "roles" && (
+              <option value="name">{fieldLabel("name")}</option>
+            )}
+            {section === "settings" && (
+              <option value="key">{fieldLabel("key")}</option>
+            )}
           </select>
           <select value={sortDir} onChange={(e) => setSortDir(e.target.value)}>
-            <option value="desc">desc</option>
-            <option value="asc">asc</option>
+            <option value="desc">{fieldLabel("desc")}</option>
+            <option value="asc">{fieldLabel("asc")}</option>
           </select>
         </div>
       )}
-      <Table title={section} rows={rows} columns={columns} />
+      <Table
+        title={sections.find(([id]) => id === section)?.[1] ?? section}
+        rows={rows}
+        columns={columns}
+      />
     </>
   );
 }
@@ -698,6 +843,15 @@ function ReferenceCreateForm({
         {fields.map(([key, label]) => (
           <input
             key={key}
+            required={[
+              "name",
+              "plateNumber",
+              "brand",
+              "type",
+              "fullName",
+              "category",
+              "code",
+            ].includes(key)}
             value={values[key] ?? ""}
             onChange={(e) =>
               setValues((prev) => ({ ...prev, [key]: e.target.value }))
@@ -798,6 +952,15 @@ function ReferenceEditForm({
         {fields.map(([key, label]) => (
           <input
             key={key}
+            required={[
+              "name",
+              "plateNumber",
+              "brand",
+              "type",
+              "fullName",
+              "category",
+              "code",
+            ].includes(key)}
             value={values[key] ?? ""}
             onChange={(e) =>
               setValues((prev) => ({ ...prev, [key]: e.target.value }))
@@ -888,9 +1051,9 @@ function CorrectionForm({ token }: { token: string }) {
         <label>
           <span className="metric">Состояние</span>
           <select value={state} onChange={(e) => setState(e.target.value)}>
-            <option value="DIRTY">DIRTY</option>
-            <option value="WASHED">WASHED</option>
-            <option value="FINISHED">FINISHED</option>
+            <option value="DIRTY">{fieldLabel("DIRTY")}</option>
+            <option value="WASHED">{fieldLabel("WASHED")}</option>
+            <option value="FINISHED">{fieldLabel("FINISHED")}</option>
           </select>
         </label>
         {state === "FINISHED" ? (
@@ -996,11 +1159,15 @@ function ShipmentForm({ token }: { token: string }) {
 }
 
 function NotificationsSection({ token, rows }: { token: string; rows: any[] }) {
+  const client = useQueryClient();
   const [message, setMessage] = useState("");
   const markRead = useMutation({
     mutationFn: (id: string) =>
       request<any>(`/notifications/${id}/read`, token, { method: "POST" }),
-    onSuccess: () => setMessage("Уведомление отмечено прочитанным"),
+    onSuccess: () => {
+      setMessage("Уведомление отмечено прочитанным");
+      void client.invalidateQueries({ queryKey: ["notifications"] });
+    },
   });
   return (
     <section className="tableWrap">
@@ -1020,7 +1187,7 @@ function NotificationsSection({ token, rows }: { token: string; rows: any[] }) {
           <tbody>
             {rows.map((row) => (
               <tr key={row.id}>
-                <td>{row.type}</td>
+                <td>{fieldLabel(row.type)}</td>
                 <td>{row.title}</td>
                 <td>{row.body}</td>
                 <td>{row.createdAt}</td>
@@ -1046,7 +1213,29 @@ function NotificationsSection({ token, rows }: { token: string; rows: any[] }) {
 }
 
 function SettingsForm({ token }: { token: string }) {
+  const client = useQueryClient();
+  const [initialized, setInitialized] = useState(false);
+  const current = useQuery({
+    queryKey: ["acceptanceSetting", token],
+    queryFn: () =>
+      request<any>(
+        "/settings?search=acceptance.differenceThresholdPercent",
+        token,
+      ),
+  });
   const [threshold, setThreshold] = useState("3");
+  useEffect(() => {
+    if (!initialized && current.data) {
+      setThreshold(
+        String(
+          current.data.data?.find(
+            (x: any) => x.key === "acceptance.differenceThresholdPercent",
+          )?.value ?? 3,
+        ),
+      );
+      setInitialized(true);
+    }
+  }, [current.data, initialized]);
   const [reason, setReason] = useState("Обновление порога приёмки");
   const [message, setMessage] = useState("");
   const save = useMutation({
@@ -1059,7 +1248,11 @@ function SettingsForm({ token }: { token: string }) {
           reason,
         }),
       }),
-    onSuccess: () => setMessage("Настройка сохранена"),
+    onSuccess: () => {
+      setMessage("Настройка сохранена");
+      void client.invalidateQueries({ queryKey: ["settings"] });
+      void client.invalidateQueries({ queryKey: ["acceptanceSetting"] });
+    },
   });
   return (
     <section className="tableWrap">
@@ -1072,8 +1265,16 @@ function SettingsForm({ token }: { token: string }) {
         }}
       >
         <input
+          type="number"
+          required
+          min={0}
+          max={100}
+          step="0.01"
           value={threshold}
-          onChange={(e) => setThreshold(e.target.value)}
+          onChange={(e) => {
+            setInitialized(true);
+            setThreshold(e.target.value);
+          }}
           placeholder="Порог расхождения, %"
         />
         <input
@@ -1092,11 +1293,12 @@ function SettingsForm({ token }: { token: string }) {
 }
 
 function SessionActions({ token, rows }: { token: string; rows: any[] }) {
+  const queryClient = useQueryClient();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState("");
   const profile = useQuery({
-    queryKey: ["me"],
+    queryKey: ["me", token],
     queryFn: () => request<any>("/auth/me", token),
   });
   const changePassword = useMutation({
@@ -1105,12 +1307,19 @@ function SessionActions({ token, rows }: { token: string; rows: any[] }) {
         method: "POST",
         body: JSON.stringify({ currentPassword, newPassword }),
       }),
-    onSuccess: () => setMessage("Пароль изменён, активные сессии отозваны"),
+    onSuccess: () => window.dispatchEvent(new Event("bioflow:expired")),
   });
   const revoke = useMutation({
     mutationFn: (id: string) =>
       request<any>(`/auth/sessions/${id}/revoke`, token, { method: "POST" }),
-    onSuccess: () => setMessage("Сессия отозвана"),
+    onSuccess: (_, id) => {
+      if (id === currentSessionId()) {
+        window.dispatchEvent(new Event("bioflow:expired"));
+        return;
+      }
+      setMessage("Сессия отозвана");
+      void queryClient.invalidateQueries({ queryKey: ["sessions"] });
+    },
   });
   return (
     <>
@@ -1233,9 +1442,9 @@ function WriteOffForm({ token }: { token: string }) {
         <label>
           <span className="metric">Состояние</span>
           <select value={state} onChange={(e) => setState(e.target.value)}>
-            <option value="DIRTY">DIRTY</option>
-            <option value="WASHED">WASHED</option>
-            <option value="FINISHED">FINISHED</option>
+            <option value="DIRTY">{fieldLabel("DIRTY")}</option>
+            <option value="WASHED">{fieldLabel("WASHED")}</option>
+            <option value="FINISHED">{fieldLabel("FINISHED")}</option>
           </select>
         </label>
         {state === "FINISHED" ? (
@@ -1381,6 +1590,11 @@ function TransferForm({ token }: { token: string }) {
 }
 
 function UserForm({ token }: { token: string }) {
+  const queryClient = useQueryClient();
+  const users = useQuery({
+    queryKey: ["userChoices", token],
+    queryFn: () => request<any>("/users?pageSize=100", token),
+  });
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [fullName, setFullName] = useState("");
@@ -1400,7 +1614,13 @@ function UserForm({ token }: { token: string }) {
           temporaryPassword,
         }),
       }),
-    onSuccess: (data) => setMessage(`Пользователь создан: ${data.fullName}`),
+    onSuccess: (data) => {
+      setMessage(`Пользователь создан: ${data.fullName}`);
+      setTemporaryPassword("");
+      setUserId(data.id);
+      void queryClient.invalidateQueries({ queryKey: ["users"] });
+      void queryClient.invalidateQueries({ queryKey: ["userChoices"] });
+    },
   });
   const assignRoles = useMutation({
     mutationFn: () =>
@@ -1413,7 +1633,12 @@ function UserForm({ token }: { token: string }) {
             .filter(Boolean),
         }),
       }),
-    onSuccess: () => setMessage("Роли назначены"),
+    onSuccess: () => {
+      setMessage("Роли назначены");
+      void queryClient.invalidateQueries({ queryKey: ["users"] });
+      void queryClient.invalidateQueries({ queryKey: ["userChoices"] });
+      void queryClient.invalidateQueries({ queryKey: ["currentUser", token] });
+    },
   });
   const blockUser = useMutation({
     mutationFn: (blocked: boolean) =>
@@ -1421,12 +1646,15 @@ function UserForm({ token }: { token: string }) {
         method: "POST",
         body: JSON.stringify({ blocked, reason: blockReason }),
       }),
-    onSuccess: (data) =>
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: ["users"] });
+      void queryClient.invalidateQueries({ queryKey: ["userChoices"] });
       setMessage(
         data.isBlocked
           ? "Пользователь заблокирован"
           : "Пользователь разблокирован",
-      ),
+      );
+    },
   });
   return (
     <section className="tableWrap">
@@ -1454,6 +1682,8 @@ function UserForm({ token }: { token: string }) {
           placeholder="Телефон"
         />
         <input
+          type="password"
+          autoComplete="new-password"
           value={temporaryPassword}
           onChange={(e) => setTemporaryPassword(e.target.value)}
           placeholder="Временный пароль"
@@ -1470,11 +1700,18 @@ function UserForm({ token }: { token: string }) {
           assignRoles.mutate();
         }}
       >
-        <input
+        <select
+          aria-label="Пользователь"
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
-          placeholder="ID пользователя"
-        />
+        >
+          <option value="">Выберите пользователя</option>
+          {(users.data?.data ?? []).map((user: any) => (
+            <option key={user.id} value={user.id}>
+              {user.fullName} · {user.email ?? user.phone}
+            </option>
+          ))}
+        </select>
         <input
           value={roleCodes}
           onChange={(e) => setRoleCodes(e.target.value)}
@@ -1486,11 +1723,18 @@ function UserForm({ token }: { token: string }) {
       </form>
       <h2>Блокировка доступа</h2>
       <div className="formGrid compact">
-        <input
+        <select
+          aria-label="Пользователь"
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
-          placeholder="ID пользователя"
-        />
+        >
+          <option value="">Выберите пользователя</option>
+          {(users.data?.data ?? []).map((user: any) => (
+            <option key={user.id} value={user.id}>
+              {user.fullName} · {user.email ?? user.phone}
+            </option>
+          ))}
+        </select>
         <input
           value={blockReason}
           onChange={(e) => setBlockReason(e.target.value)}
@@ -1535,7 +1779,7 @@ function ReportExport({ token }: { token: string }) {
     ...(dateTo ? { dateTo } : {}),
   });
   const report = useQuery({
-    queryKey: ["report", type, dateFrom, dateTo],
+    queryKey: ["report", token, type, dateFrom, dateTo],
     queryFn: () => request<any>(`/reports?${reportParams.toString()}`, token),
   });
   async function download() {
@@ -1872,11 +2116,11 @@ function WaybillActions({ token }: { token: string }) {
           value={nextStatus}
           onChange={(e) => setNextStatus(e.target.value)}
         >
-          <option value="LOADED">LOADED</option>
-          <option value="IN_TRANSIT">IN_TRANSIT</option>
-          <option value="ARRIVED">ARRIVED</option>
-          <option value="REJECTED">REJECTED</option>
-          <option value="CANCELLED">CANCELLED</option>
+          <option value="LOADED">{fieldLabel("LOADED")}</option>
+          <option value="IN_TRANSIT">{fieldLabel("IN_TRANSIT")}</option>
+          <option value="ARRIVED">{fieldLabel("ARRIVED")}</option>
+          <option value="REJECTED">{fieldLabel("REJECTED")}</option>
+          <option value="CANCELLED">{fieldLabel("CANCELLED")}</option>
         </select>
         <input
           value={statusReason}
@@ -2078,7 +2322,7 @@ function useReferenceOptions(token: string) {
   const [reason, setReason] = useState("");
   const query = (key: string) =>
     useQuery({
-      queryKey: [key],
+      queryKey: [key, token],
       queryFn: () => request<any>(`/${key}`, token),
       select: (data) => data.data ?? [],
     });
@@ -2185,7 +2429,75 @@ function ForcePassword({
 }
 
 function App() {
+  const dirty = useMemo(
+    () => ({
+      forms: new Set<Element>(),
+      get value() {
+        for (const form of this.forms)
+          if (!form.isConnected) this.forms.delete(form);
+        return this.forms.size > 0;
+      },
+      set value(value: boolean) {
+        if (!value) this.forms.clear();
+      },
+    }),
+    [],
+  );
+  const navigation = useMemo(() => ({ index: 0, restoring: false }), []);
+  const discardChanges = () =>
+    !dirty.value ||
+    window.confirm("Есть несохранённые изменения. Покинуть форму?");
+  useEffect(() => {
+    const change = (e: Event) => {
+      const form = (e.target as HTMLElement).closest("form, .formGrid");
+      if (form) dirty.forms.add(form);
+    };
+    const saved = (event: Event) => {
+      const form = (event as CustomEvent<{ form?: Element }>).detail?.form;
+      if (form) dirty.forms.delete(form);
+    };
+    const navigate = (e: Event) => {
+      if (
+        dirty.value &&
+        !window.confirm("Есть несохранённые изменения. Покинуть форму?")
+      )
+        e.preventDefault();
+      else dirty.value = false;
+    };
+    const unload = (e: BeforeUnloadEvent) => {
+      if (dirty.value) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    document.addEventListener("input", change);
+    document.addEventListener("change", change);
+    window.addEventListener("bioflow:navigate", navigate);
+    window.addEventListener("bioflow:saved", saved);
+    window.addEventListener("beforeunload", unload);
+    return () => {
+      document.removeEventListener("input", change);
+      document.removeEventListener("change", change);
+      window.removeEventListener("bioflow:navigate", navigate);
+      window.removeEventListener("bioflow:saved", saved);
+      window.removeEventListener("beforeunload", unload);
+    };
+  }, [dirty]);
+  const queryClient = useQueryClient();
   const [token, setToken] = useState("");
+  useEffect(() => {
+    const expire = () => {
+      void queryClient.cancelQueries();
+      queryClient.clear();
+      clearSession();
+      dirty.value = false;
+      setSection("dashboard");
+      setToken("");
+    };
+    window.addEventListener("bioflow:expired", expire);
+    return () => window.removeEventListener("bioflow:expired", expire);
+  }, [queryClient, dirty]);
+
   const profile = useQuery({
     queryKey: ["currentUser", token],
     queryFn: () => request<any>("/auth/me", token),
@@ -2196,14 +2508,104 @@ function App() {
   }, []);
   const permissions: string[] = profile.data?.permissions ?? [];
   const [section, setSection] = useState("dashboard");
+  const allowed = (id: string): boolean =>
+    id === "plants"
+      ? permissions.includes("references.read") &&
+        !!profile.data?.accessAllObjects
+      : id === "audit"
+        ? permissions.includes("audit.read") && !!profile.data?.accessAllObjects
+        : id === "dashboard"
+          ? permissions.includes("dashboard.read") &&
+            !!profile.data?.accessAllObjects
+          : id === "settings"
+            ? permissions.includes("references.manage")
+            : [
+                  "ledger",
+                  "waybills",
+                  "inventory",
+                  "transfers",
+                  "write-offs",
+                  "shipments",
+                  "washing",
+                  "production",
+                ].includes(id)
+              ? permissions.includes("inventory.read")
+              : id === "reports"
+                ? permissions.includes("reports.read")
+                : id === "notifications"
+                  ? permissions.includes("notifications.read")
+                  : id === "sessions"
+                    ? true
+                    : ["users", "roles", "settings", "audit"].includes(id)
+                      ? permissions.includes(
+                          id === "audit" ? "audit.read" : "users.manage",
+                        )
+                      : permissions.includes("references.read");
+  useEffect(() => {
+    if (profile.data && !allowed(section))
+      setSection(sections.find(([id]) => allowed(id))?.[0] ?? "sessions");
+  }, [profile.data, section]);
+  useEffect(() => {
+    window.history.replaceState(
+      { ...window.history.state, bioflowIndex: navigation.index },
+      "",
+    );
+    const onBack = (event: PopStateEvent) => {
+      if (navigation.restoring) {
+        navigation.restoring = false;
+        return;
+      }
+      const index =
+        typeof event.state?.bioflowIndex === "number"
+          ? event.state.bioflowIndex
+          : 0;
+      const next = window.location.hash.slice(1);
+      if (
+        dirty.value &&
+        !window.confirm("Есть несохранённые изменения. Покинуть форму?")
+      ) {
+        navigation.restoring = true;
+        window.history.go(navigation.index - index);
+        return;
+      }
+      dirty.value = false;
+      navigation.index = index;
+      if (sections.some(([id]) => id === next)) setSection(next);
+    };
+    window.addEventListener("popstate", onBack);
+    return () => window.removeEventListener("popstate", onBack);
+  }, []);
+  useEffect(() => {
+    if (token)
+      window.history.replaceState(window.history.state, "", `#${section}`);
+  }, [section, token]);
+  const navigate = (id: string) => {
+    if (id === section) return;
+    if (!discardChanges()) return;
+    dirty.value = false;
+    setSection(id);
+    navigation.index++;
+    window.history.pushState({ bioflowIndex: navigation.index }, "", `#${id}`);
+  };
   const title = sections.find(([id]) => id === section)?.[1] ?? "Обзор";
   if (!token)
     return (
       <Login
         onToken={(next) => {
+          void queryClient.cancelQueries();
+          queryClient.clear();
+          setSection("dashboard");
           setToken(next);
         }}
       />
+    );
+  if (!profile.data)
+    return (
+      <p role="status">
+        {profile.error
+          ? "Не удалось загрузить профиль. Обновите страницу."
+          : "Загрузка профиля…"}
+      </p>
     );
   if (profile.data?.mustChangePassword)
     return (
@@ -2221,36 +2623,12 @@ function App() {
         <div className="brand">BIOFLOW</div>
         <nav className="nav">
           {sections
-            .filter(([id]) =>
-              [
-                "dashboard",
-                "ledger",
-                "waybills",
-                "inventory",
-                "transfers",
-                "write-offs",
-                "shipments",
-                "washing",
-                "production",
-              ].includes(id)
-                ? permissions.includes("inventory.read")
-                : id === "reports"
-                  ? permissions.includes("reports.read")
-                  : id === "notifications"
-                    ? permissions.includes("notifications.read")
-                    : id === "sessions"
-                      ? true
-                      : ["users", "roles", "settings", "audit"].includes(id)
-                        ? permissions.includes(
-                            id === "audit" ? "audit.read" : "users.manage",
-                          )
-                        : permissions.includes("references.read"),
-            )
+            .filter(([id]) => allowed(id))
             .map(([id, label, Icon]) => (
               <button
                 key={id}
                 className={section === id ? "active" : ""}
-                onClick={() => setSection(id)}
+                onClick={() => navigate(id)}
               >
                 <Icon size={18} />
                 {label}
@@ -2264,32 +2642,51 @@ function App() {
           <button
             className="button secondary"
             onClick={async () => {
+              if (!discardChanges()) return;
+              dirty.value = false;
               await request("/auth/logout-all", token, {
                 method: "POST",
                 body: "{}",
               }).catch(() => {});
+              void queryClient.cancelQueries();
+              queryClient.clear();
               clearSession();
+              setSection("dashboard");
               setToken("");
             }}
           >
             <LogOut size={16} /> Выйти
           </button>
         </div>
-        {[
-          "dashboard",
-          "ledger",
-          "waybills",
-          "inventory",
-          "transfers",
-          "write-offs",
-          "shipments",
-          "washing",
-          "production",
-          "reports",
-        ].includes(section) ? (
+        {!allowed(section) ? (
+          <p>Загрузка доступного раздела…</p>
+        ) : section === "dashboard" ? (
+          <Dashboard token={token} />
+        ) : [
+            "ledger",
+            "waybills",
+            "inventory",
+            "transfers",
+            "write-offs",
+            "shipments",
+            "washing",
+            "production",
+            "reports",
+          ].includes(section) ? (
           <Ledger
             key={section}
             token={token}
+            initialKind={
+              (
+                {
+                  transfers: "TRANSFER",
+                  "write-offs": "WRITE_OFF",
+                  shipments: "SHIPMENT",
+                  washing: "WASHING",
+                  production: "PRODUCTION",
+                } as Record<string, string>
+              )[section]
+            }
             initialTab={
               section === "waybills"
                 ? "waybills"
@@ -2309,7 +2706,11 @@ function App() {
             }
           />
         ) : (
-          <DataSection token={token} section={section} />
+          <DataSection
+            key={`${section}:${token}`}
+            token={token}
+            section={section}
+          />
         )}
       </main>
     </div>

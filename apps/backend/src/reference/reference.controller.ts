@@ -6,6 +6,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import {
@@ -31,13 +32,31 @@ export class ReferenceController {
   constructor(private readonly references: ReferenceService) {}
 
   @Permissions("references.read")
-  @Get(":entity")
+  @Get([
+    "reference-values",
+    "counterparties",
+    "vehicles",
+    "drivers",
+    "extraction-sites",
+    "warehouses",
+    "plants",
+    "material-types",
+    "product-types",
+    "users",
+    "roles",
+    "permissions",
+    "settings",
+  ])
   list(
-    @Param("entity") entity: string,
+    @Req() request: { path: string },
     @Query() query: PageDto,
     @CurrentUserDecorator() user: CurrentUser,
   ) {
-    return this.references.list(entity, query, user);
+    return this.references.list(
+      request.path.split("/").filter(Boolean).at(-1)!,
+      query,
+      user,
+    );
   }
 
   @Permissions("users.manage")

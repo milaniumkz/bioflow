@@ -240,7 +240,7 @@ th {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  color: #33435d;
+  color: #dbe8ff;
 }
 .ledger-form input,
 .ledger-form select,

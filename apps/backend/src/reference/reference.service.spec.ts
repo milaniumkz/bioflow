@@ -140,3 +140,75 @@ describe("ReferenceService", () => {
     });
   });
 });
+
+describe("reference validation regressions", () => {
+  it("rejects a blank counterparty before writing", async () => {
+    const create = jest.fn();
+    const service = new ReferenceService({ counterparty: { create } } as any);
+    await expect(service.create("counterparties", {}, user)).rejects.toThrow(
+      "обязательное поле",
+    );
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("handles duplicate errors originating from another Prisma runtime", async () => {
+    const error = Object.assign(new Error("unique violation"), {
+      code: "P2002",
+    });
+    const service = new ReferenceService({
+      vehicle: { create: jest.fn().mockRejectedValue(error) },
+    } as any);
+    await expect(
+      service.create(
+        "vehicles",
+        { plateNumber: "TEST", brand: "MAN", type: "Грузовой" },
+        user,
+      ),
+    ).rejects.toThrow(ConflictException);
+  });
+
+  it.each([-1, 101, "3", null, Number.NaN])(
+    "rejects invalid acceptance threshold %s without a write",
+    async (value) => {
+      const upsert = jest.fn();
+      const service = new ReferenceService({
+        systemSetting: { upsert },
+      } as any);
+      await expect(
+        service.upsertSetting(
+          { key: "acceptance.differenceThresholdPercent", value },
+          user,
+        ),
+      ).rejects.toThrow();
+      expect(upsert).not.toHaveBeenCalled();
+    },
+  );
+
+  it("persists a valid acceptance threshold and its audit reason", async () => {
+    const upsert = jest.fn().mockResolvedValue({ id: "s1", value: 4 });
+    const audit = jest.fn().mockResolvedValue({});
+    const service = new ReferenceService({
+      systemSetting: {
+        findUnique: jest.fn().mockResolvedValue({ value: 3 }),
+        upsert,
+      },
+      auditLog: { create: audit },
+    } as any);
+    await service.upsertSetting(
+      {
+        key: "acceptance.differenceThresholdPercent",
+        value: 4,
+        reason: "Review",
+      },
+      user,
+    );
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: { value: 4 } }),
+    );
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ reason: "Review" }),
+      }),
+    );
+  });
+});
