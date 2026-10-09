@@ -785,6 +785,7 @@ export function Ledger({
               .filter(
                 ([k, v]) =>
                   v !== null &&
+                  !["qrTokenHash", "organizationId"].includes(k) &&
                   (tab === "reports" ||
                     [
                       "status",
