@@ -20,7 +20,7 @@ jobs:
           POSTGRES_USER: bioflow
           POSTGRES_PASSWORD: bioflow-ui-test-only
         ports: ["5432:5432"]
-        options: --health-cmd 'pg_isready -U bioflow -d bioflow_android_ui_spec' --health-interval 5s --health-retries 20
+        options: --health-cmd "pg_isready -U bioflow -d bioflow_android_ui_spec" --health-interval 5s --health-retries 20
       redis:
         image: redis:7-alpine
         ports: ["6379:6379"]
