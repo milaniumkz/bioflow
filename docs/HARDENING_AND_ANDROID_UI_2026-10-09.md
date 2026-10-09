@@ -26,6 +26,8 @@
 
 Роли Android: OWNER, ADMIN, CONTRACTOR_REP, RECEIVER, WASH_OPERATOR, PRODUCTION_OPERATOR, DISPATCHER, EXTRACTION_OPERATOR, LOADING_OPERATOR, WAREHOUSE_OPERATOR, AUDITOR. Вкладки: Добыча, Рейсы, Склады, Операции, События. Обход вкладок не равен проверке каждого разрешённого/запрещённого действия каждой роли.
 
+Дополнительный сценарий android-ui отключает Wi-Fi и мобильные данные только у disposable-эмулятора, проверяет недоступность настоящего API, создаёт команду через кешированные справочники, проверяет отдельность очередей OWNER/ADMIN и повторную синхронизацию после восстановления сети. Он не подменяет ответы API. Контроллер сети доступен только через loopback CI runner, разрешает ровно одно устройство с именем emulator-* и возвращает сеть автоматически; завершение шага также включает сеть. Итог этого расширения смотрите в последнем Android UI run PR №6.
+
 ## Проверка сервера
 
 [Деплой 37905405847](https://github.com/milaniumkz/bioflow/actions/runs/37905405847), [CI main 37905401828](https://github.com/milaniumkz/bioflow/actions/runs/37905401828) и [диагностика 37906187313](https://github.com/milaniumkz/bioflow/actions/runs/37906187313) успешны. Серверный commit — d7e66ea; Web/API доступны; APK скачана и сравнивается по байтам со сборкой. Ежедневный backup timer активен, имеются две парные копии; свободно около 86 ГБ.
