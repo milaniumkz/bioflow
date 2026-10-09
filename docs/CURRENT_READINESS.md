@@ -1,9 +1,9 @@
 # BIOFLOW: проверенная готовность на 09.10.2026
 
-На сервере работает версия `d7e66eaba19fd155b8a683331ea6e0d49c554eee` (PR №5). [Деплой и новая APK](https://github.com/milaniumkz/bioflow/actions/runs/37905405847) завершены успешно; [CI main](https://github.com/milaniumkz/bioflow/actions/runs/37905401828) прошёл. Рабочие данные сохранены.
+**Подтверждённый запуск PR №5:** версия `d7e66eaba19fd155b8a683331ea6e0d49c554eee` (PR №5). [Деплой и новая APK](https://github.com/milaniumkz/bioflow/actions/runs/37905405847) завершены успешно; [CI main](https://github.com/milaniumkz/bioflow/actions/runs/37905401828) прошёл. Рабочие данные сохранены. Этот документ фиксирует проверенный запуск; актуальный commit последующих исправлений показывает server-readiness / inspect, история сборок — GitHub Actions.
 
 - Web: http://109.235.118.171/
-- Тестовый APK: http://109.235.118.171/downloads/BIOFLOW-test.apk — 179 765 845 байт, скачивание сверено со сборкой по байтам.
+- Тестовый APK: http://109.235.118.171/downloads/BIOFLOW-test.apk — скачивание сборки PR №5 (179 765 845 байт) сверено со сборкой по байтам; последующие APK публикуются по тому же адресу.
 - Публичный Web открывается без ошибок JavaScript; API health подтверждает PostgreSQL и Redis. Все контейнеры работают; backup timer активен; на сервере свободно около 86 ГБ.
 
 ## Реализовано и проверено
