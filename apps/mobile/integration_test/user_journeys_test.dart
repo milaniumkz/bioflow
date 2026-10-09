@@ -61,6 +61,19 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> saveForm(WidgetTester tester) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    await tester.pumpAndSettle();
+    // ListView builds fields lazily, and native keyboard hiding updates its
+    // viewport asynchronously. Scroll the actual form before finding Save.
+    await tester.drag(find.byType(ListView).last, const Offset(0, -1000));
+    await tester.pumpAndSettle();
+    await wait(tester, find.text('Сохранить'));
+    await tester.ensureVisible(find.text('Сохранить'));
+    await tester.tap(find.text('Сохранить'));
+  }
+
   Future<void> selectReferences(WidgetTester tester) async {
     for (final label in ['Подрядчик', 'Место добычи', 'Материал']) {
       final field = find.byWidgetPredicate((widget) =>
@@ -136,16 +149,14 @@ void main() {
     await tester.enterText(method, 'Android emulator UI');
     FocusManager.instance.primaryFocus?.unfocus();
     await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
-    await tester.ensureVisible(find.text('Сохранить'));
-    await tester.tap(find.text('Сохранить'));
+    await saveForm(tester);
     await wait(tester, find.text('Недопустимая масса'));
     await shot(tester, 'batch-negative-mass');
     await tester.ensureVisible(quantity);
     await tester.enterText(quantity, '1.001');
     FocusManager.instance.primaryFocus?.unfocus();
     await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
-    await tester.ensureVisible(find.text('Сохранить'));
-    await tester.tap(find.text('Сохранить'));
+    await saveForm(tester);
     await wait(tester, find.text('Сохранено'));
     final savedNumber = tester
         .widgetList<SelectableText>(find.byType(SelectableText))
@@ -197,8 +208,7 @@ void main() {
         'Android offline queue');
     FocusManager.instance.primaryFocus?.unfocus();
     await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
-    await tester.ensureVisible(find.text('Сохранить'));
-    await tester.tap(find.text('Сохранить'));
+    await saveForm(tester);
     await wait(tester, find.text('Сохранено офлайн'));
     await shot(tester, 'offline-command-queued');
     await tester.tap(find.text('Закрыть'));
