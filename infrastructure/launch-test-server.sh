@@ -51,6 +51,7 @@ fi
 export BIOFLOW_SHARED_DIR=$shared BIOFLOW_IMAGE_TAG=$sha
 cd "$release"
 compose=(docker compose -p bioflow-test --env-file "$shared/server.env" -f docker-compose.test-server.yml)
+if [ -f "$root/shared/https.compose.yml" ]; then compose+=(-f "$root/shared/https.compose.yml"); fi
 if "${compose[@]}" ps --status running --services | grep -qx postgres; then
   dump="$root/backups/pre-deploy-$(date -u +%Y%m%dT%H%M%SZ).dump"
   "${compose[@]}" exec -T postgres pg_dump -U bioflow_test -d bioflow_test -Fc > "$dump"

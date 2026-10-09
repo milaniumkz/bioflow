@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:bioflow_mobile/main.dart' as app;
@@ -70,7 +71,9 @@ void main() {
     final measurement = find.widgetWithText(TextFormField, 'Способ измерения');
     await tester.ensureVisible(measurement);
     await tester.enterText(measurement, 'Android unsaved draft');
-    tester.testTextInput.hide();
+    FocusManager.instance.primaryFocus?.unfocus();
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    await tester.pumpAndSettle();
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('Оставить несохранённые изменения?'), findsOneWidget);
@@ -82,6 +85,61 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Выйти без сохранения'));
     await wait(tester, find.byType(NavigationBar));
+
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    for (final label in ['Подрядчик', 'Место добычи', 'Материал']) {
+      final field = find.byWidgetPredicate((widget) =>
+          widget is DropdownButtonFormField<String> &&
+          widget.decoration.labelText == label);
+      await wait(tester, field);
+      for (var n = 0; n < 100; n++) {
+        if (tester
+                .widget<DropdownButtonFormField<String>>(field)
+                .items
+                ?.isNotEmpty ==
+            true) break;
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      await tester.ensureVisible(field);
+      final option = tester
+          .widget<DropdownButtonFormField<String>>(field)
+          .items!
+          .first
+          .child as Text;
+      await tester.tap(field);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(option.data!).last);
+      await tester.pumpAndSettle();
+    }
+    final quantity = find.widgetWithText(TextFormField, 'Количество, т');
+    await tester.ensureVisible(quantity);
+    await tester.enterText(quantity, '-1');
+    final method = find.widgetWithText(TextFormField, 'Способ измерения');
+    await tester.ensureVisible(method);
+    await tester.enterText(method, 'Android emulator UI');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    await tester.ensureVisible(find.text('Сохранить'));
+    await tester.tap(find.text('Сохранить'));
+    await wait(tester, find.text('Недопустимая масса'));
+    await shot(tester, 'batch-negative-mass');
+    await tester.ensureVisible(quantity);
+    await tester.enterText(quantity, '1.001');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    await tester.ensureVisible(find.text('Сохранить'));
+    await tester.tap(find.text('Сохранить'));
+    await wait(tester, find.text('Сохранено'));
+    final savedNumber = tester
+        .widgetList<SelectableText>(find.byType(SelectableText))
+        .first
+        .data!;
+    await shot(tester, 'batch-created');
+    await tester.tap(find.text('Закрыть'));
+    await wait(tester, find.byType(NavigationBar));
+    await wait(tester, find.text(savedNumber));
+    await shot(tester, 'batch-in-list');
 
     const roles = [
       'OWNER',
