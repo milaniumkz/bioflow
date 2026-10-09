@@ -1,4 +1,12 @@
-import { IsBoolean, IsEmail, IsObject, IsOptional, IsString, MinLength } from "class-validator";
+import {
+  Allow,
+  IsBoolean,
+  IsEmail,
+  IsObject,
+  IsOptional,
+  IsString,
+  MinLength,
+} from "class-validator";
 
 export class CreateReferenceDto {
   @IsObject()
@@ -40,6 +48,7 @@ export class UpsertSettingDto {
   @IsString()
   key!: string;
 
+  @Allow()
   value!: unknown;
 
   @IsOptional()

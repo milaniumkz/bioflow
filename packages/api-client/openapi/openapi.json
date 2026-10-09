@@ -15,6 +15,25 @@
         ]
       }
     },
+    "/api/v1/ledger/files/{type}/{id}": {
+      "get": {
+        "operationId": "LedgerController_files",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
     "/api/v1/ledger/batches": {
       "get": {
         "operationId": "LedgerController_batches",
@@ -408,6 +427,25 @@
         ]
       }
     },
+    "/api/v1/ledger/archive/{entity}/{id}": {
+      "post": {
+        "operationId": "LedgerController_archive",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
     "/api/v1/ledger/users/{id}/access": {
       "post": {
         "operationId": "LedgerController_access",
@@ -611,9 +649,180 @@
         ]
       }
     },
-    "/api/v1/{entity}": {
+    "/api/v1/reference-values": {
       "get": {
-        "operationId": "ReferenceController_list",
+        "operationId": "ReferenceController_list[0]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "references"
+        ]
+      }
+    },
+    "/api/v1/counterparties": {
+      "get": {
+        "operationId": "ReferenceController_list[1]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "references"
+        ]
+      }
+    },
+    "/api/v1/vehicles": {
+      "get": {
+        "operationId": "ReferenceController_list[2]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "references"
+        ]
+      }
+    },
+    "/api/v1/drivers": {
+      "get": {
+        "operationId": "ReferenceController_list[3]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "references"
+        ]
+      }
+    },
+    "/api/v1/extraction-sites": {
+      "get": {
+        "operationId": "ReferenceController_list[4]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "references"
+        ]
+      }
+    },
+    "/api/v1/warehouses": {
+      "get": {
+        "operationId": "ReferenceController_list[5]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "references"
+        ]
+      }
+    },
+    "/api/v1/plants": {
+      "get": {
+        "operationId": "ReferenceController_list[6]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "references"
+        ]
+      }
+    },
+    "/api/v1/material-types": {
+      "get": {
+        "operationId": "ReferenceController_list[7]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "references"
+        ]
+      }
+    },
+    "/api/v1/product-types": {
+      "get": {
+        "operationId": "ReferenceController_list[8]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "references"
+        ]
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "operationId": "ReferenceController_list[9]",
         "parameters": [],
         "responses": {
           "200": {
@@ -630,7 +839,7 @@
         ]
       },
       "post": {
-        "operationId": "ReferenceController_create",
+        "operationId": "ReferenceController_createUser",
         "parameters": [],
         "responses": {
           "201": {
@@ -647,9 +856,64 @@
         ]
       }
     },
-    "/api/v1/users": {
+    "/api/v1/roles": {
+      "get": {
+        "operationId": "ReferenceController_list[10]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "references"
+        ]
+      }
+    },
+    "/api/v1/permissions": {
+      "get": {
+        "operationId": "ReferenceController_list[11]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "references"
+        ]
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "operationId": "ReferenceController_list[12]",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "references"
+        ]
+      },
       "post": {
-        "operationId": "ReferenceController_createUser",
+        "operationId": "ReferenceController_upsertSetting",
         "parameters": [],
         "responses": {
           "201": {
@@ -704,9 +968,9 @@
         ]
       }
     },
-    "/api/v1/settings": {
+    "/api/v1/{entity}": {
       "post": {
-        "operationId": "ReferenceController_upsertSetting",
+        "operationId": "ReferenceController_create",
         "parameters": [],
         "responses": {
           "201": {

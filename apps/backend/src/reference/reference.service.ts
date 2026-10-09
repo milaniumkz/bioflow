@@ -116,6 +116,18 @@ export class ReferenceService {
     user: CurrentUser,
   ) {
     const model = this.model(entity);
+    const required =
+      entity === "vehicles"
+        ? ["plateNumber", "brand", "type"]
+        : entity === "drivers"
+          ? ["fullName"]
+          : entity === "reference-values"
+            ? ["category", "code", "name"]
+            : ["name"];
+    for (const field of required) {
+      if (typeof data[field] !== "string" || !String(data[field]).trim())
+        throw new BadRequestException(`Заполните обязательное поле: ${field}`);
+    }
     await this.validateLinks(data, user.organizationId);
     const payload = this.withOrg(
       entity,
@@ -229,6 +241,18 @@ export class ReferenceService {
   }
 
   async upsertSetting(dto: UpsertSettingDto, user: CurrentUser) {
+    if (dto.value === undefined || dto.value === null)
+      throw new BadRequestException("Укажите значение настройки");
+    if (
+      dto.key === "acceptance.differenceThresholdPercent" &&
+      (typeof dto.value !== "number" ||
+        !Number.isFinite(dto.value) ||
+        dto.value < 0 ||
+        dto.value > 100)
+    )
+      throw new BadRequestException(
+        "Порог расхождения должен быть от 0 до 100 процентов",
+      );
     const existing = await this.prisma.systemSetting.findUnique({
       where: {
         organizationId_key: {
@@ -394,10 +418,14 @@ export class ReferenceService {
       return await operation();
     } catch (error) {
       if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
         error.code === "P2002"
       ) {
-        throw new ConflictException("Duplicate value");
+        throw new ConflictException(
+          "Запись с таким уникальным значением уже существует",
+        );
       }
       throw error;
     }

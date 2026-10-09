@@ -1666,7 +1666,7 @@ export class LedgerService {
         orderBy: { createdAt: "asc" },
       });
     else if (["waybills", "discrepancies"].includes(type)) {
-      const all: unknown[] = [];
+      const all: Awaited<ReturnType<LedgerService["trips"]>>["data"] = [];
       let page = 1;
       for (;;) {
         const result = await this.trips(
@@ -1680,7 +1680,22 @@ export class LedgerService {
         );
         if (page++ * 100 >= result.total) break;
       }
-      rows = all;
+      rows = all.map((trip) => ({
+        ...trip,
+        difference:
+          trip.receivedWeight === null
+            ? null
+            : trip.receivedWeight.minus(trip.declaredWeight).toString(),
+        differencePercent:
+          trip.receivedWeight === null || trip.declaredWeight.isZero()
+            ? null
+            : trip.receivedWeight
+                .minus(trip.declaredWeight)
+                .mul(100)
+                .div(trip.declaredWeight)
+                .toDecimalPlaces(2)
+                .toString(),
+      }));
     } else if (type === "audit") {
       rows = await this.prisma.auditLog.findMany({
         where: {
