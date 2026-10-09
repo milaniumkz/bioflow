@@ -69,12 +69,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: |
-            python3 infrastructure/android-network-test-control.py > "$RUNNER_TEMP/android-network-control.log" 2>&1 &
-            control_pid=$!
-            trap 'kill "$control_pid" 2>/dev/null || true; adb shell svc wifi enable; adb shell svc data enable' EXIT
-            cd apps/mobile
-            flutter drive --driver=test_driver/integration_test.dart --target=integration_test/user_journeys_test.dart --dart-define=API_URL=http://10.0.2.2:4100/api/v1
+          script: bash infrastructure/run-android-ui.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
