@@ -701,16 +701,20 @@ class _CommandFormState extends State<CommandForm> {
                       ? 'Сохранено офлайн'
                       : 'Сохранено'),
                   content: Column(mainAxisSize: MainAxisSize.min, children: [
+                    if (result['number'] != null)
+                      SelectableText('${result['number']}'),
                     if (result['qrImage'] != null)
                       Image.memory(
                           base64Decode(result['qrImage'].split(',').last),
                           width: 220,
                           height: 220),
-                    SelectableText(result['qrToken'] != null
-                        ? 'QR: ${result['qrToken']}'
-                        : result['queued'] == true
-                            ? 'Команда будет отправлена после синхронизации. Проверка остатка выполняется сервером.'
-                            : '${result['number'] ?? result['id'] ?? 'Готово'}')
+                    if (result['qrToken'] != null)
+                      SelectableText('QR: ${result['qrToken']}')
+                    else if (result['queued'] == true)
+                      const Text(
+                          'Команда будет отправлена после синхронизации. Проверка остатка выполняется сервером.')
+                    else if (result['number'] == null)
+                      SelectableText('${result['id'] ?? 'Готово'}')
                   ]),
                   actions: [
                     TextButton(
