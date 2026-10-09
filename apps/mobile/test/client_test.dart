@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
@@ -52,6 +53,45 @@ void main() {
     expect(seen.length, 2);
     expect(seen.first, seen.last);
     expect(await api.pending(), isEmpty);
+  });
+  test('Late offline failure cannot enqueue into a different user account',
+      () async {
+    final api = BioflowClient()..profile = {'id': 'user-a'};
+    final started = Completer<void>();
+    final release = Completer<void>();
+    api.dio.interceptors.add(InterceptorsWrapper(onRequest: (o, h) async {
+      started.complete();
+      await release.future;
+      h.reject(DioException(
+          requestOptions: o, type: DioExceptionType.connectionError));
+    }));
+    final request = api.send('/ledger/batches', {'quantity': '1.001'});
+    final rejected = expectLater(request, throwsA(isA<StateError>()));
+    await started.future;
+    api.profile = {'id': 'user-b'};
+    release.complete();
+    await rejected;
+    expect(await api.pending(), isEmpty);
+    api.profile = {'id': 'user-a'};
+    expect(await api.pending(), isEmpty);
+  });
+  test('Late read cannot return old data after an account switch', () async {
+    final api = BioflowClient()..profile = {'id': 'user-a'};
+    final started = Completer<void>();
+    final release = Completer<void>();
+    api.dio.interceptors.add(InterceptorsWrapper(onRequest: (o, h) async {
+      started.complete();
+      await release.future;
+      h.resolve(Response(
+          requestOptions: o, statusCode: 200, data: {'private': 'user-a'}));
+    }));
+    final request = api.get('/ledger/batches');
+    final rejected = expectLater(request, throwsA(isA<StateError>()));
+    await started.future;
+    api.profile = {'id': 'user-b'};
+    release.complete();
+    await rejected;
+    expect(await api.storage.read(key: 'cache:user-b:/ledger/batches'), isNull);
   });
   testWidgets('Login has no prefilled demo credentials', (tester) async {
     await tester.pumpWidget(const BioflowApp());

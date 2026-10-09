@@ -168,7 +168,7 @@ class Workspace extends StatefulWidget {
 }
 
 class _WorkspaceState extends State<Workspace> {
-  int tab = 0, page = 1;
+  int tab = 0, page = 1, loadVersion = 0;
   String search = '';
   bool busy = false;
   String? error;
@@ -190,6 +190,7 @@ class _WorkspaceState extends State<Workspace> {
   }
 
   Future<void> load() async {
+    final version = ++loadVersion;
     setState(() {
       busy = true;
       error = null;
@@ -197,16 +198,18 @@ class _WorkspaceState extends State<Workspace> {
     try {
       final data = await api.get(
           '${paths[tab]}?page=$page&pageSize=20&search=${Uri.encodeQueryComponent(search)}');
-      if (!mounted) return;
+      if (!mounted || version != loadVersion) return;
       setState(() {
         rows = data is List ? data : data['data'] as List? ?? [];
         total =
             data is List ? data.length : data['total'] as int? ?? rows.length;
       });
     } catch (e) {
-      if (mounted) setState(() => error = errorText(e));
+      if (mounted && version == loadVersion) {
+        setState(() => error = errorText(e));
+      }
     } finally {
-      if (mounted) setState(() => busy = false);
+      if (mounted && version == loadVersion) setState(() => busy = false);
     }
   }
 
@@ -290,9 +293,11 @@ class _WorkspaceState extends State<Workspace> {
       children.add(TextButton(
           onPressed: () => action(r, 'close', {}, reason: true),
           child: const Text('Закрыть')));
-      children.add(TextButton(
-          onPressed: () => action(r, 'cancel', {}, reason: true),
-          child: const Text('Отменить')));
+      if (status != 'CANCELLED' && status != 'CLOSED') {
+        children.add(TextButton(
+            onPressed: () => action(r, 'cancel', {}, reason: true),
+            child: const Text('Отменить')));
+      }
     }
     if (tab == 0 || tab == 2) {
       children.add(TextButton(
@@ -376,9 +381,11 @@ class _WorkspaceState extends State<Workspace> {
             onPressed: () => action(r, 'confirm', {}),
             child: const Text('Подтвердить')));
       }
-      children.add(TextButton(
-          onPressed: () => action(r, 'cancel', {}, reason: true),
-          child: const Text('Отменить')));
+      if (status != 'CANCELLED') {
+        children.add(TextButton(
+            onPressed: () => action(r, 'cancel', {}, reason: true),
+            child: const Text('Отменить')));
+      }
     }
     if (tab == 2 &&
         (api.can('inventory.manage') || api.can('operations.manage'))) {
@@ -623,7 +630,7 @@ class _CommandFormState extends State<CommandForm> {
   final inputs = <Map<String, dynamic>>[
     {'batchId': '', 'quantity': ''}
   ];
-  bool busy = false;
+  bool busy = false, dirty = false, leaving = false;
   String? error;
   final id = commandId();
   @override
@@ -658,7 +665,12 @@ class _CommandFormState extends State<CommandForm> {
       setState(() => busy = true);
       final file =
           await api.upload(photo.name, await photo.readAsBytes(), 'image/jpeg');
-      if (mounted) setState(() => files.add(file));
+      if (mounted) {
+        setState(() {
+          dirty = true;
+          files.add(file);
+        });
+      }
     } catch (e) {
       if (mounted) setState(() => error = errorText(e));
     } finally {
@@ -667,6 +679,7 @@ class _CommandFormState extends State<CommandForm> {
   }
 
   Future<void> submit() async {
+    if (busy) return;
     if (!form.currentState!.validate()) return;
     setState(() {
       busy = true;
@@ -680,6 +693,7 @@ class _CommandFormState extends State<CommandForm> {
       final result = await api.send(widget.path, data,
           queue: widget.path.startsWith('/ledger/'));
       if (!mounted) return;
+      setState(() => dirty = false);
       await showDialog<void>(
           context: context,
           builder: (ctx) => AlertDialog(
@@ -712,7 +726,9 @@ class _CommandFormState extends State<CommandForm> {
               (_) => false);
         }
       } else if (mounted) {
-        Navigator.pop(context);
+        setState(() => leaving = true);
+        await WidgetsBinding.instance.endOfFrame;
+        if (mounted) Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) setState(() => error = errorText(e));
@@ -740,7 +756,10 @@ class _CommandFormState extends State<CommandForm> {
                 firstDate: DateTime(2000),
                 lastDate: DateTime(2100));
             if (date != null && mounted) {
-              setState(() => values[f.key] = date.toUtc().toIso8601String());
+              setState(() {
+                dirty = true;
+                values[f.key] = date.toUtc().toIso8601String();
+              });
             }
           });
     }
@@ -795,64 +814,94 @@ class _CommandFormState extends State<CommandForm> {
         });
   }
 
+  Future<void> leave(bool didPop) async {
+    if (didPop || busy) return;
+    final discard = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+                title: const Text('Оставить несохранённые изменения?'),
+                content: const Text('Введённые данные будут потеряны.'),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Продолжить ввод')),
+                  TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Выйти без сохранения'))
+                ]));
+    if (discard == true && mounted) {
+      setState(() => leaving = true);
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
-      body: Form(
-          key: form,
-          child: ListView(padding: const EdgeInsets.all(20), children: [
-            const Text('Масса в тоннах · точность 0,001'),
-            ...widget.fields.map((f) => Padding(
-                padding: const EdgeInsets.only(bottom: 16), child: field(f))),
-            if (widget.operation) ...[
-              const Text('Входные партии'),
-              ...inputs.asMap().entries.map((entry) => Row(children: [
-                    Expanded(
-                        child: TextFormField(
-                            initialValue: entry.value['batchId'],
-                            decoration:
-                                const InputDecoration(labelText: 'Партия'),
-                            onChanged: (v) => entry.value['batchId'] = v,
-                            validator: (v) => v == null || v.isEmpty
-                                ? 'Обязательное поле'
-                                : null)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                        child: TextFormField(
-                            decoration: const InputDecoration(
-                                labelText: 'Количество, т'),
-                            keyboardType: const TextInputType.numberWithOptions(
-                                decimal: true, signed: true),
-                            onChanged: (v) => entry.value['quantity'] =
-                                v.replaceAll(',', '.'),
-                            validator: (v) => v == null ||
-                                    !RegExp(r'^-?\d+(?:[.,]\d{1,3})?$')
-                                        .hasMatch(v)
-                                ? 'Укажите массу'
-                                : null)),
-                    if (entry.key > 0)
-                      IconButton(
-                          onPressed: () =>
-                              setState(() => inputs.removeAt(entry.key)),
-                          icon: const Icon(Icons.remove_circle_outline))
-                  ])),
-              TextButton(
-                  onPressed: () => setState(
-                      () => inputs.add({'batchId': '', 'quantity': ''})),
-                  child: const Text('Ещё партия'))
-            ],
-            if (widget.path.startsWith('/ledger/'))
-              OutlinedButton.icon(
-                  onPressed: busy ? null : attach,
-                  icon: const Icon(Icons.camera_alt),
-                  label: Text('Фото документа: ${files.length}')),
-            if (error != null)
-              Text(error!, style: const TextStyle(color: Colors.redAccent)),
-            const SizedBox(height: 20),
-            FilledButton(
-                onPressed: busy ? null : submit,
-                child: Text(busy ? 'Сохранение…' : 'Сохранить'))
-          ])));
+  Widget build(BuildContext context) => PopScope(
+      canPop: leaving || (!dirty && !busy),
+      onPopInvokedWithResult: (didPop, result) => leave(didPop),
+      child: Scaffold(
+          appBar: AppBar(title: Text(widget.title)),
+          body: Form(
+              key: form,
+              onChanged: () {
+                if (!dirty) setState(() => dirty = true);
+              },
+              child: ListView(padding: const EdgeInsets.all(20), children: [
+                const Text('Масса в тоннах · точность 0,001'),
+                ...widget.fields.map((f) => Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: field(f))),
+                if (widget.operation) ...[
+                  const Text('Входные партии'),
+                  ...inputs.asMap().entries.map((entry) => Row(children: [
+                        Expanded(
+                            child: TextFormField(
+                                initialValue: entry.value['batchId'],
+                                decoration:
+                                    const InputDecoration(labelText: 'Партия'),
+                                onChanged: (v) => entry.value['batchId'] = v,
+                                validator: (v) => v == null || v.isEmpty
+                                    ? 'Обязательное поле'
+                                    : null)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                            child: TextFormField(
+                                decoration: const InputDecoration(
+                                    labelText: 'Количество, т'),
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                        decimal: true, signed: true),
+                                onChanged: (v) => entry.value['quantity'] =
+                                    v.replaceAll(',', '.'),
+                                validator: (v) => v == null ||
+                                        !RegExp(r'^-?\d+(?:[.,]\d{1,3})?$')
+                                            .hasMatch(v)
+                                    ? 'Укажите массу'
+                                    : null)),
+                        if (entry.key > 0)
+                          IconButton(
+                              onPressed: () =>
+                                  setState(() => inputs.removeAt(entry.key)),
+                              icon: const Icon(Icons.remove_circle_outline))
+                      ])),
+                  TextButton(
+                      onPressed: () => setState(
+                          () => inputs.add({'batchId': '', 'quantity': ''})),
+                      child: const Text('Ещё партия'))
+                ],
+                if (widget.path.startsWith('/ledger/'))
+                  OutlinedButton.icon(
+                      onPressed: busy ? null : attach,
+                      icon: const Icon(Icons.camera_alt),
+                      label: Text('Фото документа: ${files.length}')),
+                if (error != null)
+                  Text(error!, style: const TextStyle(color: Colors.redAccent)),
+                const SizedBox(height: 20),
+                FilledButton(
+                    onPressed: busy ? null : submit,
+                    child: Text(busy ? 'Сохранение…' : 'Сохранить'))
+              ]))));
 }
 
 class Scanner extends StatefulWidget {

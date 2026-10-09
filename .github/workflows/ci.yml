@@ -85,28 +85,22 @@ jobs:
           path: apps/mobile/build/app/outputs/flutter-apk/app-debug.apk
 
   native-node:
-    runs-on: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && fromJSON('["milanium-mac-arm64", "repo-bioflow"]') || fromJSON('["ubuntu-latest"]') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
       CI: "true"
       DATABASE_URL: ""
       REDIS_URL: ""
       PROMO_TEST_DATABASE_URL: ""
-      COREPACK_ENABLE_NETWORK: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && '0' || '1' }}
+      COREPACK_ENABLE_NETWORK: "1"
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - uses: actions/setup-node@v4
-        if: github.event_name == 'pull_request' || github.ref != 'refs/heads/main'
         with:
           node-version: "24"
           cache: npm
-      - name: Select existing Node 24
-        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-        run: |
-          echo /opt/homebrew/bin >> "$GITHUB_PATH"
-          test "$(/opt/homebrew/bin/node -p 'process.versions.node.split(".")[0]')" = 24
       - run: npm ci
       - run: npm run prisma:generate
       - run: npm run lint
@@ -124,7 +118,7 @@ jobs:
           retention-days: 1
   native-mobile:
     needs: native-node
-    if: github.repository == 'milaniumkz/bioflow' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: vars.NATIVE_MAC_CI_ENABLED == 'true' && github.repository == 'milaniumkz/bioflow' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: [milanium-mac-arm64, repo-bioflow]
     timeout-minutes: 30
     defaults:

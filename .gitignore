@@ -31,3 +31,5 @@ certificates/
 
 __pycache__/
 *.pyc
+
+apps/mobile/artifacts/

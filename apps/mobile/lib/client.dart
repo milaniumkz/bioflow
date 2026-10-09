@@ -19,15 +19,41 @@ class BioflowClient {
   Map<String, dynamic>? profile;
   Future<void> _queueLock = Future.value();
   Future<bool>? _refreshing;
+  int _sessionEpoch = 0;
+  Future<void> _authWrites = Future.value();
+
+  void _checkIdentity(int epoch, String user) {
+    if (epoch != _sessionEpoch || user != owner) {
+      throw StateError('Сессия изменилась. Повторите действие.');
+    }
+  }
+
+  Future<T> _authLocked<T>(Future<T> Function() action) {
+    final result = _authWrites.then((_) => action());
+    _authWrites =
+        result.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    return result;
+  }
+
   BioflowClient() {
     dio.interceptors.add(InterceptorsWrapper(onRequest: (o, h) async {
+      if (o.extra['sessionEpoch'] != null &&
+          o.extra['sessionEpoch'] != _sessionEpoch) {
+        h.reject(DioException(
+            requestOptions: o,
+            type: DioExceptionType.cancel,
+            message: 'Сессия изменилась'));
+        return;
+      }
       final token = await storage.read(key: 'accessToken');
       if (token != null) o.headers['Authorization'] = 'Bearer $token';
       h.next(o);
     }, onError: (e, h) async {
       if (e.response?.statusCode == 401 &&
           e.requestOptions.extra['retried'] != true &&
-          !e.requestOptions.path.startsWith('/auth/')) {
+          !e.requestOptions.path.startsWith('/auth/') &&
+          (e.requestOptions.extra['sessionEpoch'] == null ||
+              e.requestOptions.extra['sessionEpoch'] == _sessionEpoch)) {
         _refreshing ??= _refresh();
         final success = await _refreshing!;
         _refreshing = null;
@@ -47,6 +73,7 @@ class BioflowClient {
     }));
   }
   Future<bool> _refresh() async {
+    final epoch = _sessionEpoch;
     try {
       final refresh = await storage.read(key: 'refreshToken');
       if (refresh == null) return false;
@@ -55,22 +82,24 @@ class BioflowClient {
         'refreshToken': refresh,
         'deviceId': await storage.read(key: 'deviceId')
       });
-      await _tokens(r.data);
-      return true;
+      return await _tokens(r.data, epoch);
     } catch (_) {
       return false;
     }
   }
 
-  Future<void> _tokens(dynamic data) async {
-    await storage.write(key: 'accessToken', value: data['accessToken']);
-    await storage.write(key: 'refreshToken', value: data['refreshToken']);
-    if (data['deviceId'] != null) {
-      await storage.write(key: 'deviceId', value: data['deviceId']);
-    }
-  }
+  Future<bool> _tokens(dynamic data, int epoch) => _authLocked(() async {
+        if (epoch != _sessionEpoch) return false;
+        await storage.write(key: 'accessToken', value: data['accessToken']);
+        await storage.write(key: 'refreshToken', value: data['refreshToken']);
+        if (data['deviceId'] != null) {
+          await storage.write(key: 'deviceId', value: data['deviceId']);
+        }
+        return true;
+      });
 
   Future<void> login(String email, String password) async {
+    final epoch = ++_sessionEpoch;
     var device = await storage.read(key: 'deviceId');
     device ??= commandId();
     await storage.write(key: 'deviceId', value: device);
@@ -80,9 +109,14 @@ class BioflowClient {
       'platform': 'android',
       'deviceId': device
     });
-    await _tokens(r.data);
-    profile = Map<String, dynamic>.from((await dio.get('/auth/me')).data);
-    await storage.write(key: 'profile', value: jsonEncode(profile));
+    if (!await _tokens(r.data, epoch)) throw StateError('Сессия изменилась');
+    final response = await dio.get('/auth/me',
+        options: Options(extra: {'sessionEpoch': epoch}));
+    await _authLocked(() async {
+      if (epoch != _sessionEpoch) throw StateError('Сессия изменилась');
+      profile = Map<String, dynamic>.from(response.data);
+      await storage.write(key: 'profile', value: jsonEncode(profile));
+    });
   }
 
   Future<bool> restore() async {
@@ -94,12 +128,17 @@ class BioflowClient {
   bool can(String p) => (profile?['permissions'] as List? ?? []).contains(p);
   String get owner => profile?['id'] as String? ?? 'anonymous';
   Future<dynamic> get(String path) async {
-    final k = 'cache:$owner:$path';
+    final epoch = _sessionEpoch, user = owner;
+    final k = 'cache:$user:$path';
     try {
-      final r = await dio.get(path);
+      final r =
+          await dio.get(path, options: Options(extra: {'sessionEpoch': epoch}));
+      _checkIdentity(epoch, user);
       await storage.write(key: k, value: jsonEncode(r.data));
+      _checkIdentity(epoch, user);
       return r.data;
     } on DioException catch (e) {
+      _checkIdentity(epoch, user);
       if (!networkError(e)) rethrow;
       final cached = await storage.read(key: k);
       if (cached == null) rethrow;
@@ -118,6 +157,7 @@ class BioflowClient {
       ].contains(e.type);
   Future<dynamic> send(String path, Map<String, dynamic> data,
       {bool queue = true}) async {
+    final epoch = _sessionEpoch, user = owner;
     final payload = {...data};
     if (path.startsWith('/ledger/') &&
         !path.endsWith('/access') &&
@@ -125,18 +165,24 @@ class BioflowClient {
       payload.putIfAbsent('idempotencyKey', commandId);
     }
     try {
-      return (await dio.post(path, data: payload)).data;
+      final response = await dio.post(path,
+          data: payload, options: Options(extra: {'sessionEpoch': epoch}));
+      _checkIdentity(epoch, user);
+      return response.data;
     } on DioException catch (e) {
+      _checkIdentity(epoch, user);
       if (!queue || !networkError(e)) rethrow;
       await _locked(() async {
+        _checkIdentity(epoch, user);
         final q = await pending();
+        _checkIdentity(epoch, user);
         q.add({
           'path': path,
           'data': payload,
           'createdAt': DateTime.now().toIso8601String(),
           'status': 'pending'
         });
-        await storage.write(key: 'queue:$owner', value: jsonEncode(q));
+        await storage.write(key: 'queue:$user', value: jsonEncode(q));
       });
       return {'queued': true};
     }
@@ -155,19 +201,23 @@ class BioflowClient {
   }
 
   Future<void> sync() async {
+    final epoch = _sessionEpoch, user = owner;
     await _locked(() async {
       final q = await pending();
       final remaining = <dynamic>[];
       for (final item in q) {
+        _checkIdentity(epoch, user);
         try {
-          await dio.post(item['path'], data: item['data']);
+          await dio.post(item['path'],
+              data: item['data'],
+              options: Options(extra: {'sessionEpoch': epoch}));
         } on DioException catch (e) {
           item['status'] = networkError(e) ? 'pending' : 'conflict';
           item['error'] = errorText(e);
           remaining.add(item);
         }
       }
-      await storage.write(key: 'queue:$owner', value: jsonEncode(remaining));
+      await storage.write(key: 'queue:$user', value: jsonEncode(remaining));
     });
   }
 
@@ -192,13 +242,17 @@ class BioflowClient {
   }
 
   Future<void> logout() async {
+    final epoch = ++_sessionEpoch;
     try {
       await dio.post('/auth/logout-all', data: {});
     } catch (_) {}
-    await storage.delete(key: 'accessToken');
-    await storage.delete(key: 'refreshToken');
-    await storage.delete(key: 'profile');
-    profile = null;
+    await _authLocked(() async {
+      if (epoch != _sessionEpoch) return;
+      await storage.delete(key: 'accessToken');
+      await storage.delete(key: 'refreshToken');
+      await storage.delete(key: 'profile');
+      profile = null;
+    });
   }
 }
 
@@ -207,7 +261,28 @@ String errorText(Object e) {
     final data = e.response?.data;
     if (data is Map) {
       final error = data['error'];
-      if (error is Map) return '${error['message']}';
+      if (error is Map) {
+        final messages = error['message'];
+        final values = messages is List ? messages : [messages];
+        return values.map((v) {
+          final text = '$v';
+          if (text.contains('email must be an email')) {
+            return 'Введите корректный email';
+          }
+          if (text.contains('fileIds must contain')) {
+            return 'Добавьте фотографию весов или документа';
+          }
+          if (text.contains('password') && text.contains('longer than')) {
+            return 'Пароль должен содержать не менее 8 символов';
+          }
+          if (text == 'Invalid credentials') return 'Неверный email или пароль';
+          if (text == 'Forbidden resource') {
+            return 'Нет доступа к этому действию';
+          }
+          if (text == 'Unauthorized') return 'Сессия истекла. Войдите заново';
+          return text;
+        }).join('\n');
+      }
     }
     return e.response == null
         ? 'Нет соединения с сервером'
