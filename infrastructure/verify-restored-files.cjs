@@ -39,6 +39,9 @@ async function main() {
       throw new Error("Restored file metadata mismatch");
   }
   let bytes = 0;
+  const expectedChecksums = new Map(
+    manifest.map((file) => [file.key, file.md5]),
+  );
   for (const object of objects.values()) {
     const result = await client.send(
       new GetObjectCommand({ Bucket: bucket, Key: object.Key }),
@@ -50,8 +53,12 @@ async function main() {
       size += chunk.length;
     }
     if (size !== object.Size) throw new Error("Restored file length mismatch");
+    const digest = hash.digest("hex");
+    const expectedDigest = expectedChecksums.get(object.Key);
+    if (expectedDigest && digest !== expectedDigest)
+      throw new Error("Restored probe content mismatch");
     const etag = (object.ETag || "").replaceAll('"', "");
-    if (/^[a-f\d]{32}$/i.test(etag) && hash.digest("hex") !== etag)
+    if (/^[a-f\d]{32}$/i.test(etag) && digest !== etag)
       throw new Error("Restored file checksum mismatch");
     bytes += size;
   }

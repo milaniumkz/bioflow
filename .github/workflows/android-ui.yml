@@ -69,7 +69,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: cd apps/mobile && flutter drive --driver=test_driver/integration_test.dart --target=integration_test/user_journeys_test.dart --dart-define=API_URL=http://10.0.2.2:4100/api/v1
+          script: bash infrastructure/run-android-ui.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -77,5 +77,6 @@ jobs:
           path: |
             apps/mobile/artifacts
             ${{ runner.temp }}/android-ui-api.log
+            ${{ runner.temp }}/android-network-control.log
           if-no-files-found: warn
           retention-days: 14

@@ -3,7 +3,23 @@ set -euo pipefail
 umask 077
 domain=bio.app.kz
 expected=109.235.118.171
-resolved=$(getent ahostsv4 "$domain" | awk '{print $1}' | sort -u || true)
+# The provider maps its server hostname to localhost in /etc/hosts. Check public
+# DNS over verified HTTPS so that a valid public A record is not rejected by NSS.
+if ! resolved=$(python3 - <<'PY'
+import json, urllib.request
+request=urllib.request.Request('https://cloudflare-dns.com/dns-query?name=bio.app.kz&type=A', headers={'Accept':'application/dns-json'})
+try:
+    result=json.load(urllib.request.urlopen(request, timeout=20))
+    if result.get('Status') not in (0, 3):
+        raise ValueError('DNS resolver error')
+    print('\n'.join(sorted({answer['data'] for answer in result.get('Answer', []) if answer.get('type') == 1})))
+except Exception:
+    raise SystemExit(1)
+PY
+); then
+  echo 'HTTPS blocked: public DNS query failed. No server configuration changed.'
+  exit 2
+fi
 if [ "$resolved" != "$expected" ]; then
   echo 'HTTPS blocked: add DNS A record bio.app.kz -> 109.235.118.171 and wait for propagation. No server configuration changed.'
   exit 2

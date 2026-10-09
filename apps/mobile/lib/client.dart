@@ -46,6 +46,14 @@ class BioflowClient {
         return;
       }
       final token = await storage.read(key: 'accessToken');
+      if (o.extra['sessionEpoch'] != null &&
+          o.extra['sessionEpoch'] != _sessionEpoch) {
+        h.reject(DioException(
+            requestOptions: o,
+            type: DioExceptionType.cancel,
+            message: 'Сессия изменилась'));
+        return;
+      }
       if (token != null) o.headers['Authorization'] = 'Bearer $token';
       h.next(o);
     }, onError: (e, h) async {
@@ -76,12 +84,12 @@ class BioflowClient {
     final epoch = _sessionEpoch;
     try {
       final refresh = await storage.read(key: 'refreshToken');
-      if (refresh == null) return false;
+      if (refresh == null || epoch != _sessionEpoch) return false;
+      final device = await storage.read(key: 'deviceId');
+      if (epoch != _sessionEpoch) return false;
       final d = Dio(dio.options);
-      final r = await d.post('/auth/refresh', data: {
-        'refreshToken': refresh,
-        'deviceId': await storage.read(key: 'deviceId')
-      });
+      final r = await d.post('/auth/refresh',
+          data: {'refreshToken': refresh, 'deviceId': device});
       return await _tokens(r.data, epoch);
     } catch (_) {
       return false;
@@ -141,6 +149,7 @@ class BioflowClient {
       _checkIdentity(epoch, user);
       if (!networkError(e)) rethrow;
       final cached = await storage.read(key: k);
+      _checkIdentity(epoch, user);
       if (cached == null) rethrow;
       return jsonDecode(cached);
     }

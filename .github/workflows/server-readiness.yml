@@ -36,6 +36,9 @@ jobs:
           set -euo pipefail
           echo "deployed=$(cat /opt/bioflow-test/current/DEPLOYED_COMMIT)"
           getent ahostsv4 bio.app.kz || echo 'DNS bio.app.kz: missing'
+          echo 'Public DNS (independent of server /etc/hosts):'
+          curl --fail --silent --show-error --max-time 20 -H 'Accept: application/dns-json' 'https://cloudflare-dns.com/dns-query?name=bio.app.kz&type=A' || echo 'Public DNS query unavailable'
+          echo
           systemctl is-active bioflow-test-backup.timer
           echo "paired_file_backups=$(find /opt/bioflow-test/backups -maxdepth 1 -name 'bioflow-test-*-files.tgz' -type f | wc -l)"
           docker ps --format '{{.Names}} {{.Status}}'
@@ -48,7 +51,7 @@ jobs:
           [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
           target="/opt/bioflow-test/verification/$GITHUB_SHA"
           bioflow_ssh "mkdir -p '$target/nginx' && chmod 700 '$target'"
-          bioflow_scp infrastructure/verify-test-backup.sh infrastructure/verify-restored-files.cjs infrastructure/enable-test-https.sh infrastructure/renew-test-https.sh "$PROD_SSH_USER@$PROD_SSH_HOST:$target/"
+          bioflow_scp infrastructure/verify-test-backup.sh infrastructure/verify-restored-files.cjs infrastructure/create-restore-probe.cjs infrastructure/enable-test-https.sh infrastructure/renew-test-https.sh "$PROD_SSH_USER@$PROD_SSH_HOST:$target/"
           bioflow_scp infrastructure/nginx/test-server-https.conf "$PROD_SSH_USER@$PROD_SSH_HOST:$target/nginx/"
           case "$OPERATION" in
             verify-backup) bioflow_ssh bash "$target/verify-test-backup.sh" ;;

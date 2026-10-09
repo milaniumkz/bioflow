@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,7 +8,7 @@ import 'package:bioflow_mobile/main.dart' as app;
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   Future<void> wait(WidgetTester tester, Finder finder) async {
-    for (var n = 0; n < 150; n++) {
+    for (var n = 0; n < 225; n++) {
       await tester.pump(const Duration(milliseconds: 200));
       if (finder.evaluate().isNotEmpty) return;
     }
@@ -15,7 +16,7 @@ void main() {
   }
 
   Future<void> ready(WidgetTester tester) async {
-    for (var n = 0; n < 150; n++) {
+    for (var n = 0; n < 225; n++) {
       await tester.pump(const Duration(milliseconds: 200));
       if (find.byType(LinearProgressIndicator).evaluate().isEmpty) {
         await tester.pump(const Duration(milliseconds: 300));
@@ -46,11 +47,62 @@ void main() {
 
   Future<void> shot(WidgetTester tester, String name) async {
     await tester.pumpAndSettle();
+    // Android PixelCopy can still see the preceding frame after Flutter has
+    // completed its widget pumps. Wait for the platform to present this state.
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await tester.pump();
     await binding.takeScreenshot(name);
   }
 
-  testWidgets(
-      'Android: login errors, draft protection and all roles through UI',
+  Future<void> queueScreen(WidgetTester tester) async {
+    await tester.tap(find.byIcon(Icons.sync));
+    await wait(tester, find.text('Команды текущего пользователя'));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> saveForm(WidgetTester tester) async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    await tester.pumpAndSettle();
+    // ListView builds fields lazily, and native keyboard hiding updates its
+    // viewport asynchronously. Scroll the actual form before finding Save.
+    await tester.drag(find.byType(ListView).last, const Offset(0, -1000));
+    await tester.pumpAndSettle();
+    await wait(tester, find.text('Сохранить'));
+    await tester.ensureVisible(find.text('Сохранить'));
+    await tester.tap(find.text('Сохранить'));
+  }
+
+  Future<void> selectReferences(WidgetTester tester) async {
+    for (final label in ['Подрядчик', 'Место добычи', 'Материал']) {
+      final field = find.byWidgetPredicate((widget) =>
+          widget is DropdownButtonFormField<String> &&
+          widget.decoration.labelText == label);
+      await wait(tester, field);
+      final dropdown = find.descendant(
+          of: field, matching: find.byType(DropdownButton<String>));
+      for (var n = 0; n < 225; n++) {
+        if (tester.widget<DropdownButton<String>>(dropdown).items?.isNotEmpty ==
+            true) {
+          break;
+        }
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      await tester.ensureVisible(field);
+      final option = tester
+          .widget<DropdownButton<String>>(dropdown)
+          .items!
+          .first
+          .child as Text;
+      await tester.tap(field);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(option.data!).last);
+      await tester.pumpAndSettle();
+    }
+  }
+
+  testWidgets('Android: forms, offline account queue and all roles through UI',
       (tester) async {
     app.main();
     await tester.pumpAndSettle();
@@ -88,31 +140,7 @@ void main() {
 
     await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
-    for (final label in ['Подрядчик', 'Место добычи', 'Материал']) {
-      final field = find.byWidgetPredicate((widget) =>
-          widget is DropdownButtonFormField<String> &&
-          widget.decoration.labelText == label);
-      await wait(tester, field);
-      final dropdown = find.descendant(
-          of: field, matching: find.byType(DropdownButton<String>));
-      for (var n = 0; n < 100; n++) {
-        if (tester.widget<DropdownButton<String>>(dropdown).items?.isNotEmpty ==
-            true) {
-          break;
-        }
-        await tester.pump(const Duration(milliseconds: 200));
-      }
-      await tester.ensureVisible(field);
-      final option = tester
-          .widget<DropdownButton<String>>(dropdown)
-          .items!
-          .first
-          .child as Text;
-      await tester.tap(field);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text(option.data!).last);
-      await tester.pumpAndSettle();
-    }
+    await selectReferences(tester);
     final quantity = find.widgetWithText(TextFormField, 'Количество, т');
     await tester.ensureVisible(quantity);
     await tester.enterText(quantity, '-1');
@@ -121,16 +149,14 @@ void main() {
     await tester.enterText(method, 'Android emulator UI');
     FocusManager.instance.primaryFocus?.unfocus();
     await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
-    await tester.ensureVisible(find.text('Сохранить'));
-    await tester.tap(find.text('Сохранить'));
+    await saveForm(tester);
     await wait(tester, find.text('Недопустимая масса'));
     await shot(tester, 'batch-negative-mass');
     await tester.ensureVisible(quantity);
     await tester.enterText(quantity, '1.001');
     FocusManager.instance.primaryFocus?.unfocus();
     await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
-    await tester.ensureVisible(find.text('Сохранить'));
-    await tester.tap(find.text('Сохранить'));
+    await saveForm(tester);
     await wait(tester, find.text('Сохранено'));
     final savedNumber = tester
         .widgetList<SelectableText>(find.byType(SelectableText))
@@ -141,6 +167,88 @@ void main() {
     await wait(tester, find.byType(NavigationBar));
     await wait(tester, find.text(savedNumber));
     await shot(tester, 'batch-in-list');
+
+    final control = HttpClient();
+    final controlRequest =
+        await control.postUrl(Uri.parse('http://10.0.2.2:4200/offline'));
+    controlRequest.headers.set('X-Bioflow-Test', 'isolated-android-ui');
+    final controlResponse = await controlRequest.close();
+    expect(controlResponse.statusCode, 200);
+    await controlResponse.drain<void>();
+    control.close(force: true);
+    await tester
+        .runAsync(() => Future<void>.delayed(const Duration(seconds: 3)));
+    final healthClient = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 3);
+    var disconnected = false;
+    try {
+      final request = await healthClient
+          .getUrl(Uri.parse('http://10.0.2.2:4100/api/v1/health'));
+      final response =
+          await request.close().timeout(const Duration(seconds: 3));
+      await response.drain<void>();
+    } catch (_) {
+      disconnected = true;
+    } finally {
+      healthClient.close(force: true);
+    }
+    expect(disconnected, isTrue,
+        reason: 'Offline test must use a genuinely disconnected emulator');
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+    await selectReferences(tester);
+    await tester
+        .ensureVisible(find.widgetWithText(TextFormField, 'Количество, т'));
+    await tester.enterText(
+        find.widgetWithText(TextFormField, 'Количество, т'), '2.002');
+    await tester
+        .ensureVisible(find.widgetWithText(TextFormField, 'Способ измерения'));
+    await tester.enterText(
+        find.widgetWithText(TextFormField, 'Способ измерения'),
+        'Android offline queue');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+    await saveForm(tester);
+    await wait(tester, find.text('Сохранено офлайн'));
+    await shot(tester, 'offline-command-queued');
+    await tester.tap(find.text('Закрыть'));
+    await wait(tester, find.byType(NavigationBar));
+    await queueScreen(tester);
+    await wait(tester, find.text('/ledger/batches'));
+    await shot(tester, 'offline-owner-queue');
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    for (var n = 0; n < 19; n++) {
+      await tester
+          .runAsync(() => Future<void>.delayed(const Duration(seconds: 5)));
+    }
+    await logout(tester);
+    await login(tester, 'ADMIN');
+    await queueScreen(tester);
+    await wait(tester, find.text('Очередь пуста'));
+    expect(find.text('/ledger/batches'), findsNothing);
+    await shot(tester, 'offline-other-account-empty');
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await logout(tester);
+    await login(tester, 'OWNER');
+    await queueScreen(tester);
+    await wait(tester, find.text('/ledger/batches'));
+    await tester.tap(find.text('Синхронизировать'));
+    await wait(tester, find.text('Очередь пуста'));
+    await tester.tap(find.text('Синхронизировать'));
+    await tester.pumpAndSettle();
+    expect(find.text('Очередь пуста'), findsOneWidget);
+    await shot(tester, 'offline-owner-synced');
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(NavigationDestination, 'Рейсы'));
+    await ready(tester);
+    await tester.tap(find.widgetWithText(NavigationDestination, 'Добыча'));
+    await ready(tester);
+    expect(find.textContaining('Доступно к распределению 2.002 т'),
+        findsOneWidget);
+    await shot(tester, 'offline-batch-persisted-once');
 
     const roles = [
       'OWNER',
