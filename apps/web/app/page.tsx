@@ -172,14 +172,28 @@ function Login({ onToken }: { onToken: (token: string) => void }) {
         <h1>BIOFLOW</h1>
         <p className="metric">Вход в систему контроля биоматериала</p>
         <div className="toolbar">
-          <input value={email} onChange={(e) => setEmail(e.target.value)} />
+          <label className="login-field" htmlFor="login-email">
+            Электронная почта
+            <input
+              id="login-email"
+              type="email"
+              autoComplete="username"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
         </div>
         <div className="toolbar">
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <label className="login-field" htmlFor="login-password">
+            Пароль
+            <input
+              id="login-password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
         </div>
         <button className="button" disabled={login.isPending}>
           Войти

@@ -236,6 +236,12 @@ th {
   gap: 16px;
   padding-top: 20px;
 }
+.login-field {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
 .ledger-form label {
   display: flex;
   flex-direction: column;
