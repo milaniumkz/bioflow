@@ -46,6 +46,11 @@ void main() {
 
   Future<void> shot(WidgetTester tester, String name) async {
     await tester.pumpAndSettle();
+    // Android PixelCopy can still see the preceding frame after Flutter has
+    // completed its widget pumps. Wait for the platform to present this state.
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await tester.pump();
     await binding.takeScreenshot(name);
   }
 
