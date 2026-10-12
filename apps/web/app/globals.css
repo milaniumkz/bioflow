@@ -247,6 +247,17 @@ th {
   border: 1px solid #64748b;
   border-radius: 8px;
 }
+
+.saved-dialog {
+  color: var(--text);
+  max-width: min(520px, calc(100vw - 32px));
+  max-height: 85vh;
+  overflow: auto;
+  border: 1px solid #64748b;
+}
+.saved-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.65);
+}
 .role-choice {
   display: flex;
   align-items: flex-start;

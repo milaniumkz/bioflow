@@ -111,6 +111,18 @@ export function Ledger({
     [revision, setRevision] = useState(0),
     [result, setResult] = useState<Row | null>(null);
   const has = (p: string) => permissions.includes(p);
+  const resultDialog = useRef<HTMLDialogElement>(null);
+  const batchErrorElement = useRef<HTMLParagraphElement>(null);
+  const errorElement = useRef<HTMLDivElement>(null);
+  const [batchError, setBatchError] = useState("");
+  useEffect(() => {
+    if (error) errorElement.current?.scrollIntoView({ block: "center" });
+  }, [error]);
+  useEffect(() => {
+    if (result && resultDialog.current && !resultDialog.current.open) {
+      resultDialog.current.showModal();
+    }
+  }, [result]);
   const call = <T,>(path: string, data?: unknown) =>
     webRequest<T>(
       path,
@@ -228,6 +240,7 @@ export function Ledger({
     <label key={key}>
       {label}
       <input
+        name={key}
         type={type}
         required={required}
         step={type === "number" ? "0.001" : undefined}
@@ -245,6 +258,7 @@ export function Ledger({
     <label key={key}>
       {label}
       <select
+        name={key}
         required={required}
         value={values[key] ?? ""}
         onChange={(e) => set(key, e.target.value)}
@@ -377,7 +391,7 @@ export function Ledger({
       )}
       <p className="metric">Все массы — в тоннах с точностью 0,001 т</p>
       {error && (
-        <div role="alert" className="error">
+        <div role="alert" className="error" ref={errorElement}>
           {error}
         </div>
       )}
@@ -430,11 +444,51 @@ export function Ledger({
           <summary>Новая партия добычи</summary>
           <form
             className="ledger-form"
+            noValidate
             onSubmit={(e) => {
               e.preventDefault();
+              setBatchError("");
+              const controls = Array.from(e.currentTarget.elements).filter(
+                (element): element is HTMLInputElement | HTMLSelectElement =>
+                  element instanceof HTMLInputElement ||
+                  element instanceof HTMLSelectElement,
+              );
+              const invalid = controls.find(
+                (element) => !element.validity.valid,
+              );
+              if (invalid) {
+                const labels: Record<string, string> = {
+                  counterpartyId: "Подрядчик",
+                  extractionSiteId: "Место добычи",
+                  materialTypeId: "Материал",
+                  quantity: "Объём, т",
+                  measurementMethod: "Способ измерения",
+                  measuredAt: "Дата и время",
+                };
+                setBatchError(
+                  invalid.validity.stepMismatch
+                    ? "Укажите объём с точностью до 0,001 т."
+                    : `Заполните корректно поле «${labels[invalid.name] ?? "Документ"}».`,
+                );
+                invalid.focus();
+                requestAnimationFrame(() =>
+                  batchErrorElement.current?.scrollIntoView({
+                    block: "center",
+                  }),
+                );
+                return;
+              }
+              const data = Object.fromEntries(
+                new FormData(e.currentTarget).entries(),
+              );
+              const measuredAt = new Date(String(data.measuredAt));
+              if (!Number.isFinite(measuredAt.getTime())) {
+                setBatchError("Укажите корректные дату и время измерения.");
+                return;
+              }
               command("/ledger/batches", {
-                ...values,
-                measuredAt: new Date(values.measuredAt).toISOString(),
+                ...data,
+                measuredAt: measuredAt.toISOString(),
                 fileIds: files,
               });
             }}
@@ -446,6 +500,11 @@ export function Ledger({
             {field("measurementMethod", "Способ измерения")}
             {field("measuredAt", "Дата и время", "datetime-local")}
             {documents}
+            {batchError && (
+              <p className="error" role="alert" ref={batchErrorElement}>
+                {batchError}
+              </p>
+            )}
             <button className="button" disabled={busy}>
               Создать черновик
             </button>
@@ -1178,7 +1237,12 @@ export function Ledger({
         </section>
       )}
       {result && (
-        <section className="panel" role="status">
+        <dialog
+          className="panel saved-dialog"
+          ref={resultDialog}
+          aria-label="Документ сохранён"
+          onCancel={() => setResult(null)}
+        >
           <p>Операция сохранена: {result.number ?? result.id ?? "готово"}</p>
           {result.qrImage && (
             <div>
@@ -1204,7 +1268,7 @@ export function Ledger({
           <button className="button secondary" onClick={() => setResult(null)}>
             Закрыть
           </button>
-        </section>
+        </dialog>
       )}
     </>
   );
