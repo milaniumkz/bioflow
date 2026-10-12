@@ -466,7 +466,7 @@ export function Ledger({
                   measuredAt: "Дата и время",
                 };
                 setBatchError(
-                  invalid.validity.stepMismatch
+                  invalid.name === "quantity" && invalid.validity.stepMismatch
                     ? "Укажите объём с точностью до 0,001 т."
                     : `Заполните корректно поле «${labels[invalid.name] ?? "Документ"}».`,
                 );
