@@ -2,6 +2,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { webRequest, downloadReport, networkFetch } from "./session";
+import { createCommandId } from "./command-id.mjs";
 type Row = Record<string, any>;
 const url = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 const names: Record<string, string> = {
@@ -200,7 +201,7 @@ export function Ledger({
       );
       const fingerprint = JSON.stringify({ path, clean });
       const idempotencyKey =
-        pending.current.get(fingerprint) ?? crypto.randomUUID();
+        pending.current.get(fingerprint) ?? createCommandId();
       pending.current.set(fingerprint, idempotencyKey);
       const x = await call<Row>(
         path,
