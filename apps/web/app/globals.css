@@ -242,6 +242,29 @@ th {
   width: 100%;
 }
 
+.role-choices {
+  grid-column: 1 / -1;
+  border: 1px solid #64748b;
+  border-radius: 8px;
+}
+.role-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 12px 0;
+}
+.role-choice input {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.role-choice small {
+  display: block;
+  margin-top: 4px;
+  color: #dbe8ff;
+}
+
 .ledger-form label {
   display: flex;
   flex-direction: column;

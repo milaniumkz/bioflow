@@ -7,6 +7,7 @@ import {
   currentSessionId,
 } from "./session";
 import { Ledger } from "./ledger";
+import { createCommandId } from "./command-id.mjs";
 import { BioflowApiClient } from "@bioflow/api-client";
 import {
   QueryClient,
@@ -30,6 +31,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { FormEvent, useMemo, useState, useEffect } from "react";
+import { roleLabel, roleDescription } from "./role-labels";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
@@ -352,6 +354,8 @@ const fieldNames: Record<string, string> = {
   updatedAt: "Дата изменения",
   name: "Название",
   code: "Код",
+  userRoles: "Роли",
+  roleDescription: "Назначение роли",
   category: "Категория",
   email: "Email",
   phone: "Телефон",
@@ -409,6 +413,13 @@ function Table({
   const read = (row: any, path: string) =>
     path.split(".").reduce((acc, key) => acc?.[key], row);
   const cell = (row: any, path: string) => {
+    if (path === "roleDescription") return roleDescription(row.code);
+    if (path === "userRoles")
+      return (
+        (row.userRoles ?? [])
+          .map((entry: any) => roleLabel(entry.role))
+          .join(", ") || "Роли не назначены"
+      );
     if (path === "items.summary") {
       return (row.items ?? [])
         .map(
@@ -621,6 +632,7 @@ function DataSection({ token, section }: { token: string; section: string }) {
                               : section === "users"
                                 ? [
                                     "fullName",
+                                    "userRoles",
                                     "email",
                                     "phone",
                                     "isBlocked",
@@ -628,7 +640,7 @@ function DataSection({ token, section }: { token: string; section: string }) {
                                     "createdAt",
                                   ]
                                 : section === "roles"
-                                  ? ["code", "name"]
+                                  ? ["name", "roleDescription"]
                                   : section === "settings"
                                     ? ["key", "value"]
                                     : [
@@ -919,7 +931,7 @@ function ReferenceEditForm({
     mutationFn: () =>
       request(`/ledger/archive/${entity}/${id}`, token, {
         method: "POST",
-        body: JSON.stringify({ reason, idempotencyKey: crypto.randomUUID() }),
+        body: JSON.stringify({ reason, idempotencyKey: createCommandId() }),
       }),
     onSuccess: () => {
       setMessage("Запись архивирована, история сохранена");
@@ -1609,14 +1621,23 @@ function UserForm({ token }: { token: string }) {
     queryKey: ["userChoices", token],
     queryFn: () => request<any>("/users?pageSize=100", token),
   });
+  const roles = useQuery({
+    queryKey: ["roleChoices", token],
+    queryFn: () => request<any>("/roles?pageSize=100", token),
+  });
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [fullName, setFullName] = useState("");
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const [userId, setUserId] = useState("");
-  const [roleCodes, setRoleCodes] = useState("AUDITOR");
+  const [roleCodes, setRoleCodes] = useState<string[]>(["AUDITOR"]);
   const [blockReason, setBlockReason] = useState("");
   const [message, setMessage] = useState("");
+  function selectUser(id: string) {
+    setUserId(id);
+    const user = users.data?.data?.find((user: any) => user.id === id);
+    setRoleCodes((user?.userRoles ?? []).map((entry: any) => entry.role.code));
+  }
   const create = useMutation({
     mutationFn: () =>
       request<any>("/users", token, {
@@ -1632,6 +1653,7 @@ function UserForm({ token }: { token: string }) {
       setMessage(`Пользователь создан: ${data.fullName}`);
       setTemporaryPassword("");
       setUserId(data.id);
+      setRoleCodes(["AUDITOR"]);
       void queryClient.invalidateQueries({ queryKey: ["users"] });
       void queryClient.invalidateQueries({ queryKey: ["userChoices"] });
     },
@@ -1641,10 +1663,7 @@ function UserForm({ token }: { token: string }) {
       request<any>(`/users/${userId}/roles`, token, {
         method: "POST",
         body: JSON.stringify({
-          roleCodes: roleCodes
-            .split(",")
-            .map((item) => item.trim())
-            .filter(Boolean),
+          roleCodes,
         }),
       }),
     onSuccess: () => {
@@ -1717,7 +1736,7 @@ function UserForm({ token }: { token: string }) {
         <select
           aria-label="Пользователь"
           value={userId}
-          onChange={(e) => setUserId(e.target.value)}
+          onChange={(e) => selectUser(e.target.value)}
         >
           <option value="">Выберите пользователя</option>
           {(users.data?.data ?? []).map((user: any) => (
@@ -1726,12 +1745,45 @@ function UserForm({ token }: { token: string }) {
             </option>
           ))}
         </select>
-        <input
-          value={roleCodes}
-          onChange={(e) => setRoleCodes(e.target.value)}
-          placeholder="Роли через запятую"
-        />
-        <button className="button secondary" disabled={assignRoles.isPending}>
+        <fieldset className="role-choices">
+          <legend>Роли пользователя</legend>
+          <p>
+            Отметьте нужные роли. После назначения сохранится выбранный набор.
+            Доступ к объектам задаётся отдельно.
+          </p>
+          {(roles.data?.data ?? []).map((role: any) => (
+            <label key={role.id} className="role-choice">
+              <input
+                type="checkbox"
+                checked={roleCodes.includes(role.code)}
+                disabled={assignRoles.isPending}
+                onChange={(e) =>
+                  setRoleCodes((codes) =>
+                    e.target.checked
+                      ? [...codes, role.code]
+                      : codes.filter((code) => code !== role.code),
+                  )
+                }
+              />
+              <span>
+                <strong>{roleLabel(role)}</strong>
+                <small>{roleDescription(role.code)}</small>
+              </span>
+            </label>
+          ))}
+          {roles.isLoading && <p>Загрузка ролей…</p>}
+          {roles.error && <p role="alert">{roles.error.message}</p>}
+        </fieldset>
+        <button
+          className="button secondary"
+          disabled={
+            assignRoles.isPending ||
+            !userId ||
+            roleCodes.length === 0 ||
+            roles.isLoading ||
+            !!roles.error
+          }
+        >
           Назначить
         </button>
       </form>
@@ -1740,7 +1792,7 @@ function UserForm({ token }: { token: string }) {
         <select
           aria-label="Пользователь"
           value={userId}
-          onChange={(e) => setUserId(e.target.value)}
+          onChange={(e) => selectUser(e.target.value)}
         >
           <option value="">Выберите пользователя</option>
           {(users.data?.data ?? []).map((user: any) => (
@@ -1956,7 +2008,7 @@ function WaybillActions({ token }: { token: string }) {
         body: JSON.stringify({
           warehouseId: refs.warehouseId,
           actualWeight: refs.actualWeight,
-          idempotencyKey: crypto.randomUUID(),
+          idempotencyKey: createCommandId(),
           reason: refs.reason || undefined,
         }),
       }),

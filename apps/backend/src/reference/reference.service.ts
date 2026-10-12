@@ -97,6 +97,9 @@ export class ReferenceService {
     const [data, total] = await this.prisma.$transaction([
       model.findMany({
         where,
+        ...(entity === "users"
+          ? { include: { userRoles: { include: { role: true } } } }
+          : {}),
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
         orderBy: this.referenceOrderBy(entity, query),

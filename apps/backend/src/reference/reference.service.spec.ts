@@ -5,6 +5,40 @@ import { ReferenceService } from "./reference.service";
 const user = { id: "u1", organizationId: "o1", permissions: [] };
 
 describe("ReferenceService", () => {
+  it("loads existing user roles for administrators without exposing password hashes", async () => {
+    const role = { code: "AUDITOR", name: "Наблюдатель/аудитор" };
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([
+        { id: "target", passwordHash: "private-hash", userRoles: [{ role }] },
+      ]);
+    const service = new ReferenceService({
+      $transaction: (ops: Promise<unknown>[]) => Promise.all(ops),
+      user: { findMany, count: jest.fn().mockResolvedValue(1) },
+    } as any);
+    const result = await service.list(
+      "users",
+      { page: 1, pageSize: 20 } as any,
+      { ...user, permissions: ["users.manage"] },
+    );
+    expect(result.data[0].userRoles[0].role).toEqual(role);
+    expect(result.data[0]).not.toHaveProperty("passwordHash");
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: { userRoles: { include: { role: true } } },
+      }),
+    );
+  });
+
+  it("does not query user roles without user-management permission", async () => {
+    const findMany = jest.fn();
+    const service = new ReferenceService({ user: { findMany } } as any);
+    await expect(
+      service.list("users", { page: 1, pageSize: 20 } as any, user),
+    ).rejects.toThrow("Недостаточно прав управления пользователями");
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
   it("uses entity-specific search fields for reference lists", async () => {
     const vehicleFindMany = jest.fn().mockResolvedValue([]);
     const settingFindMany = jest.fn().mockResolvedValue([]);
