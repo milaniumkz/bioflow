@@ -1,6 +1,7 @@
 "use client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { webRequest, downloadReport, networkFetch } from "./session";
 import { createCommandId } from "./command-id.mjs";
 type Row = Record<string, any>;
@@ -153,8 +154,22 @@ export function Ledger({
             "ledger/batches",
             "ledger/stocks",
           ].map(async (entity) => {
-            const x = await call<any>(`/${entity}?pageSize=100`);
-            return [entity, Array.isArray(x) ? x : (x.data ?? [])];
+            const items: Row[] = [];
+            let page = 1;
+            while (true) {
+              const x = await call<any>(`/${entity}?pageSize=100&page=${page}`);
+              const data = Array.isArray(x) ? x : (x.data ?? x.rows ?? []);
+              items.push(...data);
+              if (
+                entity !== "ledger/batches" ||
+                Array.isArray(x) ||
+                !data.length ||
+                items.length >= x.total
+              )
+                break;
+              page += 1;
+            }
+            return [entity, items];
           }),
         ),
       ),
@@ -276,6 +291,7 @@ export function Ledger({
     <label>
       {label}
       <select
+        name={key}
         required
         value={values[key] ?? ""}
         onChange={(e) => set(key, e.target.value)}
@@ -284,12 +300,15 @@ export function Ledger({
         {(refs["ledger/batches"] ?? [])
           .filter(
             (x) =>
-              ["CONFIRMED", "PARTIALLY_SHIPPED"].includes(x.status) &&
+              ["DRAFT", "CONFIRMED", "PARTIALLY_SHIPPED"].includes(x.status) &&
               Number(x.availableSourceQuantity) > 0,
           )
           .map((x) => (
-            <option key={x.id} value={x.id}>
-              {x.number} · доступно {x.availableSourceQuantity} т
+            <option key={x.id} value={x.id} disabled={x.status === "DRAFT"}>
+              {x.number} ·{" "}
+              {x.status === "DRAFT"
+                ? "черновик — сначала подтвердите"
+                : `доступно ${x.availableSourceQuantity} т`}
             </option>
           ))}
       </select>
@@ -525,6 +544,42 @@ export function Ledger({
             }}
           >
             {batchSelect("batchId", "Партия добычи")}
+            <div className="trip-batch-help">
+              <p>
+                Для перевозки выберите подтверждённую партию с доступным
+                остатком. Новая партия сначала сохраняется как черновик:
+                откройте «Партии добычи» и нажмите «Подтвердить» у нужной
+                партии.
+              </p>
+              {has("batches.manage") && (
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => {
+                    setTab("batches");
+                    setPage(1);
+                    setFilter({
+                      search: "",
+                      status: "",
+                      warehouseId: "",
+                      dateFrom: "",
+                      dateTo: "",
+                    });
+                  }}
+                >
+                  Перейти к партиям добычи
+                </button>
+              )}
+              {referenceQuery.isLoading && (
+                <p role="status">Загрузка партий…</p>
+              )}
+              {referenceQuery.error && (
+                <p className="error" role="alert">
+                  Не удалось загрузить список партий:{" "}
+                  {referenceQuery.error.message}
+                </p>
+              )}
+            </div>
             {select("vehicleId", "Транспорт", "vehicles")}
             {select("driverId", "Водитель", "drivers", false)}
             {select("destinationWarehouseId", "Склад назначения", "warehouses")}
@@ -1270,6 +1325,13 @@ export function Ledger({
           </button>
         </dialog>
       )}
+      {result?.qrImage &&
+        createPortal(
+          <div className="qr-print-sheet" aria-hidden="true">
+            <img src={result.qrImage} alt="" width="220" height="220" />
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
