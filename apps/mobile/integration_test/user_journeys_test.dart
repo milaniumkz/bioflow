@@ -19,7 +19,7 @@ void main() {
     await tester.runAsync(() async {
       final c = HttpClient();
       try {
-        final r = await c.postUrl(Uri.parse('http://10.0.2.2:4200/screenshot'));
+        final r = await c.postUrl(Uri.parse('http://127.0.0.1:4200/screenshot'));
         r.headers.set('X-Bioflow-Test', 'isolated-android-ui');
         r.headers.contentType = ContentType.json;
         final body = utf8.encode(jsonEncode({'name': name}));
@@ -166,7 +166,7 @@ void main() {
         {bool post = false}) async {
       final c = HttpClient()..connectionTimeout = const Duration(seconds: 3);
       try {
-        final uri = Uri.parse('http://10.0.2.2:4200/$endpoint');
+        final uri = Uri.parse('http://127.0.0.1:4200/$endpoint');
         final r = post ? await c.postUrl(uri) : await c.getUrl(uri);
         r.headers.set('X-Bioflow-Test', 'isolated-android-ui');
         final response = await r.close().timeout(const Duration(seconds: 5));
@@ -382,7 +382,7 @@ void main() {
 
     final control = HttpClient();
     final controlRequest =
-        await control.postUrl(Uri.parse('http://10.0.2.2:4200/offline'));
+        await control.postUrl(Uri.parse('http://127.0.0.1:4200/offline'));
     controlRequest.headers.set('X-Bioflow-Test', 'isolated-android-ui');
     final controlResponse = await controlRequest.close();
     expect(controlResponse.statusCode, 200);
