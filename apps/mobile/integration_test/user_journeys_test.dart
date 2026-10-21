@@ -481,6 +481,7 @@ void main() {
     await tester.enterText(
         find.widgetWithText(TextFormField, 'Новый пароль'), '123456');
     await saveForm(tester);
+    await tester.pump();
     expect(find.text('Пароль должен содержать не менее 8 символов'),
         findsOneWidget);
     await nativeShot(tester, 'first-password-short-rejected');

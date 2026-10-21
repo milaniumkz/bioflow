@@ -23,6 +23,21 @@ document_lock = threading.Lock()
 document_result = {"state": "IDLE", "id": 0}
 
 
+def stop_launcher_after_app_start():
+    # AOSP Quickstep can ANR on a headless CI GPU and obscure unrelated app UI.
+    # Stop only this emulator launcher after BIOFLOW starts; never dismiss an app ANR.
+    for _ in range(600):
+        probe = subprocess.run([adb, "-s", serial, "shell", "pidof", "kz.milanium.bioflow_mobile"], capture_output=True, text=True, timeout=10)
+        if probe.returncode == 0 and probe.stdout.strip():
+            for package in ("com.android.launcher3", "com.google.android.apps.nexuslauncher"):
+                subprocess.run([adb, "-s", serial, "shell", "am", "force-stop", package], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+            print("Disposable emulator launcher stopped after BIOFLOW start (app/system dialogs untouched)", flush=True)
+            return
+        time.sleep(1)
+
+threading.Thread(target=stop_launcher_after_app_start, daemon=True).start()
+
+
 def network(state):
     for service in ("wifi", "data"):
         subprocess.run(
@@ -72,7 +87,9 @@ def save_system_document():
 
 
 def print_system_pdf():
-    for _ in range(12):
+    destinations_open = False
+    pdf_selected = False
+    for _ in range(20):
         nodes = ui_nodes()
         for node in nodes:
             if "printspooler" in node.get("package", "") and node.get("resource-id", "").endswith("/print_button") and node.get("enabled") == "true":
@@ -82,6 +99,18 @@ def print_system_pdf():
                 tap_node(node)
                 save_system_document()
                 return
+        if destinations_open and not pdf_selected:
+            for node in nodes:
+                if node.get("text", "").casefold() in ("save as pdf", "сохранить как pdf", "сохранить в pdf"):
+                    tap_node(node)
+                    pdf_selected = True
+                    break
+        elif not destinations_open:
+            for node in nodes:
+                if "printspooler" in node.get("package", "") and node.get("text", "").casefold() in ("select a printer", "выберите принтер", "выбрать принтер"):
+                    tap_node(node)
+                    destinations_open = True
+                    break
         time.sleep(1)
     raise RuntimeError("Native QR print button not ready")
 
@@ -151,6 +180,7 @@ class Handler(BaseHTTPRequestHandler):
                     output = Path(__file__).resolve().parent.parent / "apps/mobile/artifacts/screenshots"
                     output.mkdir(parents=True, exist_ok=True)
                     (output / "native-document-error.png").write_bytes(subprocess.check_output([adb, "-s", serial, "exec-out", "screencap", "-p"], timeout=15))
+                    (output / "native-document-error-nodes.json").write_text(json.dumps([node.attrib for node in ui_nodes()], indent=2))
                 finally:
                     document_lock.release()
             body = json.dumps(dict(document_result)).encode()
@@ -175,6 +205,10 @@ class Handler(BaseHTTPRequestHandler):
             output.mkdir(parents=True, exist_ok=True)
             image = subprocess.check_output([adb, "-s", serial, "exec-out", "screencap", "-p"], timeout=15)
             (output / (name + ".png")).write_bytes(image)
+            if any(any(message in node.get("text", "").casefold() for message in ("isn't responding", "is not responding", "не отвечает")) for node in ui_nodes()):
+                print("Unexpected system/app ANR obscures BIOFLOW; screenshot preserved", flush=True)
+                self.send_error(500, "ANR obscures the tested application")
+                return
             self.send_response(200)
             self.send_header("Content-Length", "0")
             self.end_headers()

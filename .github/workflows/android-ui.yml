@@ -92,12 +92,12 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: bash infrastructure/run-android-ui.sh
       - uses: actions/cache/save@v4
-        if: always() && steps.gradle-cache.outputs.cache-primary-key != '' && steps.gradle-cache.outputs.cache-hit != 'true'
+        if: always() && steps.gradle-cache.outcome == 'success' && steps.gradle-cache.outputs.cache-hit != 'true'
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
+          key: ${{ runner.os }}-bioflow-android-ui-gradle-${{ hashFiles('apps/mobile/pubspec.lock', 'apps/mobile/android/gradle/wrapper/gradle-wrapper.properties', 'apps/mobile/android/**/*.gradle.kts') }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
