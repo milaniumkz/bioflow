@@ -184,10 +184,11 @@ void main() {
       await tester.runAsync(() async {
         try {
           result = await control('document-status');
-        } on HttpException {
-          /* Android can suspend app networking while DocumentsUI is foreground. */
-        } on SocketException {
-        } on TimeoutException {}
+        } on IOException {
+          // Retry only controller I/O while Android has backgrounded this app.
+        } on TimeoutException {
+          // The host worker continues independently and records PASS/FAIL.
+        }
         await Future<void>.delayed(const Duration(milliseconds: 300));
       });
       await tester.pump();
