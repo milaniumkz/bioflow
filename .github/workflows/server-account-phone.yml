@@ -1,0 +1,72 @@
+name: server-account-phone
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: "Prepare public encryption key or bind owner phone without publishing its plaintext"
+        type: choice
+        required: true
+        options: [prepare-key, bind-owner]
+      phone_ciphertext:
+        description: "Base64 RSA-OAEP-SHA256 encrypted phone; never enter a plaintext phone"
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: production-ops
+  cancel-in-progress: false
+jobs:
+  account:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      PROD_SSH_HOST: "109.235.118.171"
+      PROD_SSH_PORT: ${{ secrets.PROD_SSH_PORT || '22' }}
+      PROD_SSH_USER: ${{ secrets.PROD_SSH_USER || 'root' }}
+      PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+      SSHPASS: ${{ secrets.PROD_SSH_PASSWORD }}
+      PROD_SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+      PHONE_CIPHERTEXT: ${{ inputs.phone_ciphertext }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y sshpass
+      - name: Prepare private account key and export only public key
+        if: inputs.operation == 'prepare-key'
+        run: |
+          source infrastructure/ci-ssh.sh
+          bioflow_ssh 'bash -s' > "$RUNNER_TEMP/BIOFLOW-account-public.pem" <<'REMOTE'
+          set -euo pipefail
+          private=/opt/bioflow-test/shared/private-account-ops
+          install -d -m 700 "$private"
+          if [ ! -f "$private/phone-key.pem" ]; then
+            umask 077
+            openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out "$private/phone-key.pem" 2>/dev/null
+          fi
+          chmod 600 "$private/phone-key.pem"
+          openssl pkey -in "$private/phone-key.pem" -pubout
+          REMOTE
+          openssl pkey -pubin -in "$RUNNER_TEMP/BIOFLOW-account-public.pem" -noout
+      - uses: actions/upload-artifact@v4
+        if: inputs.operation == 'prepare-key'
+        with:
+          name: BIOFLOW-account-public-key
+          path: ${{ runner.temp }}/BIOFLOW-account-public.pem
+          if-no-files-found: error
+          retention-days: 1
+      - name: Bind requested phone to existing owner, preserving password
+        if: inputs.operation == 'bind-owner'
+        run: |
+          source infrastructure/ci-ssh.sh
+          [[ "$PHONE_CIPHERTEXT" =~ ^[A-Za-z0-9+/]{512}$ ]] || { echo 'Expected encrypted phone'; exit 2; }
+          bioflow_scp infrastructure/bind-owner-phone.cjs "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/bioflow-test/shared/private-account-ops/bind-owner-phone.cjs"
+          bioflow_ssh bash -s -- "$PHONE_CIPHERTEXT" <<'REMOTE'
+          set -euo pipefail
+          private=/opt/bioflow-test/shared/private-account-ops
+          phone=$(printf '%s' "$1" | base64 -d | openssl pkeyutl -decrypt -inkey "$private/phone-key.pem" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256)
+          [[ "$phone" =~ ^\+[1-9][0-9]{6,14}$ ]] || exit 2
+          cd /opt/bioflow-test/current
+          compose=(docker compose -p bioflow-test --env-file /opt/bioflow-test/shared/server.env -f docker-compose.test-server.yml)
+          "${compose[@]}" exec -T -e BIOFLOW_OWNER_PHONE="$phone" backend node - < "$private/bind-owner-phone.cjs"
+          unset phone
+          REMOTE
