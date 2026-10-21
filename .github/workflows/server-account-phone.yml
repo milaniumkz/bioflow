@@ -1,5 +1,14 @@
 name: server-account-phone
 on:
+  workflow_call:
+    inputs:
+      operation:
+        type: string
+        required: true
+      phone_ciphertext:
+        type: string
+        required: false
+        default: ""
   workflow_dispatch:
     inputs:
       operation:
@@ -13,7 +22,9 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: production-ops
+  # server-ops already owns production-ops when this workflow is called.
+  # Reacquiring its caller's lock would deadlock the protected account job.
+  group: ${{ github.workflow == 'server-account-phone' && 'production-ops' || format('account-call-{0}', github.run_id) }}
   cancel-in-progress: false
 jobs:
   account:
