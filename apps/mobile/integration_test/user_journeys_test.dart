@@ -275,14 +275,14 @@ void main() {
     FocusManager.instance.primaryFocus?.unfocus();
     await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
     await tester.pumpAndSettle();
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Назад').first);
     await tester.pumpAndSettle();
     expect(find.text('Оставить несохранённые изменения?'), findsOneWidget);
     await shot(tester, 'draft-back-warning');
     await tester.tap(find.text('Продолжить ввод'));
     await tester.pumpAndSettle();
     expect(find.text('Android unsaved draft'), findsOneWidget);
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Назад').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Выйти без сохранения'));
     await wait(tester, find.byType(NavigationBar));
@@ -365,7 +365,7 @@ void main() {
     await queueScreen(tester);
     await wait(tester, find.text('/ledger/batches'));
     await shot(tester, 'offline-owner-queue');
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Назад').first);
     await tester.pumpAndSettle();
     for (var n = 0; n < 19; n++) {
       await tester
@@ -377,7 +377,7 @@ void main() {
     await wait(tester, find.text('Очередь пуста'));
     expect(find.text('/ledger/batches'), findsNothing);
     await shot(tester, 'offline-other-account-empty');
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Назад').first);
     await tester.pumpAndSettle();
     await logout(tester);
     await login(tester, 'OWNER');
@@ -389,7 +389,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Очередь пуста'), findsOneWidget);
     await shot(tester, 'offline-owner-synced');
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Назад').first);
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(NavigationDestination, 'Рейсы'));
     await ready(tester);
