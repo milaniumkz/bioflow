@@ -40,7 +40,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci && npm run prisma:generate && npm run prisma:deploy && npm run seed
-      - run: npx tsx apps/backend/test/ui-fixture.ts && NEXT_PUBLIC_API_URL=/api/v1 npm run build
+      - run: npx tsx apps/backend/test/ui-fixture.ts && npm run build -w @bioflow/shared-types && npm run build -w @bioflow/api-client && npm run build -w @bioflow/backend && NEXT_PUBLIC_API_URL=/api/v1 npm run build -w @bioflow/web
       - name: Start isolated API
         run: |
           nohup node apps/backend/dist/main.js > "$RUNNER_TEMP/android-ui-api.log" 2>&1 &
