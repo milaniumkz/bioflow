@@ -64,7 +64,7 @@ jobs:
           mkdir -p /tmp/bioflow-compose-check
           cp .env.production.example /tmp/bioflow-compose-check/server.env
           BIOFLOW_SHARED_DIR=/tmp/bioflow-compose-check BIOFLOW_IMAGE_TAG=validation POSTGRES_PASSWORD=validation docker compose -f docker-compose.test-server.yml config --quiet
-          bash -n infrastructure/ci-ssh.sh infrastructure/launch-test-server.sh
+          bash -n infrastructure/ci-ssh.sh infrastructure/launch-test-server.sh infrastructure/prepare-test-android-signing.sh
       - run: docker build -f apps/backend/Dockerfile . && docker build -f apps/web/Dockerfile .
   android:
     runs-on: ubuntu-latest
