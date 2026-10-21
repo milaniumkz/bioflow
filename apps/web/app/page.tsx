@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useMemo, useState, useEffect } from "react";
 import { roleLabel, roleDescription } from "./role-labels";
+import { isMobileWorkspace, mobileNotify, saveBlob } from "./mobile-bridge";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
@@ -133,7 +134,13 @@ function Login({ onToken }: { onToken: (token: string) => void }) {
         undefined,
         {
           method: "POST",
-          body: JSON.stringify({ email, password, platform: "web" }),
+          body: JSON.stringify({
+            ...(email.includes("@")
+              ? { email: email.trim() }
+              : { phone: email.trim() }),
+            password,
+            platform: "web",
+          }),
         },
       ),
     onSuccess: (data) => {
@@ -145,7 +152,11 @@ function Login({ onToken }: { onToken: (token: string) => void }) {
     mutationFn: () =>
       request<any>("/auth/forgot-password", undefined, {
         method: "POST",
-        body: JSON.stringify({ email }),
+        body: JSON.stringify(
+          email.includes("@")
+            ? { email: email.trim() }
+            : { phone: email.trim() },
+        ),
       }),
     onSuccess: (data) =>
       setMessage(
@@ -175,10 +186,10 @@ function Login({ onToken }: { onToken: (token: string) => void }) {
         <p className="metric">Вход в систему контроля биоматериала</p>
         <div className="toolbar">
           <label className="login-field" htmlFor="login-email">
-            Электронная почта
+            Номер телефона
             <input
               id="login-email"
-              type="email"
+              type="tel"
               autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -1628,7 +1639,7 @@ function UserForm({ token }: { token: string }) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [fullName, setFullName] = useState("");
-  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [temporaryPassword, setTemporaryPassword] = useState("123456");
   const [userId, setUserId] = useState("");
   const [roleCodes, setRoleCodes] = useState<string[]>(["AUDITOR"]);
   const [blockReason, setBlockReason] = useState("");
@@ -1651,7 +1662,7 @@ function UserForm({ token }: { token: string }) {
       }),
     onSuccess: (data) => {
       setMessage(`Пользователь создан: ${data.fullName}`);
-      setTemporaryPassword("");
+      setTemporaryPassword("123456");
       setUserId(data.id);
       setRoleCodes(["AUDITOR"]);
       void queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -1692,6 +1703,10 @@ function UserForm({ token }: { token: string }) {
   return (
     <section className="tableWrap">
       <h2>Новый пользователь</h2>
+      <p>
+        Вход по номеру телефона. Временный пароль — 123456. При первом входе
+        пользователь обязан сменить пароль (не менее 8 символов).
+      </p>
       <form
         className="formGrid compact"
         onSubmit={(e) => {
@@ -1713,6 +1728,8 @@ function UserForm({ token }: { token: string }) {
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="Телефон"
+          type="tel"
+          required
         />
         <input
           type="password"
@@ -1863,12 +1880,7 @@ function ReportExport({ token }: { token: string }) {
       return;
     }
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `bioflow-${type}.${format}`;
-    link.click();
-    URL.revokeObjectURL(url);
+    await saveBlob(blob, `bioflow-${type}.${format}`);
     setStatus(`${format.toUpperCase()} сформирован`);
   }
   const rows = report.data?.rows ?? [];
@@ -2552,6 +2564,35 @@ function App() {
   const queryClient = useQueryClient();
   const [token, setToken] = useState("");
   useEffect(() => {
+    if (!isMobileWorkspace()) return;
+    document.documentElement.dataset.mobileApp = "true";
+    const receive = (event: Event) => {
+      const data = (event as CustomEvent).detail;
+      if (
+        !data ||
+        typeof data.accessToken !== "string" ||
+        typeof data.refreshToken !== "string"
+      )
+        return;
+      void queryClient.cancelQueries();
+      queryClient.clear();
+      dirty.value = false;
+      setSession(data);
+      setSection(
+        sections.some(([id]) => id === data.section)
+          ? data.section
+          : "dashboard",
+      );
+      setToken(data.accessToken);
+    };
+    window.addEventListener("bioflow:mobile-login", receive);
+    mobileNotify({ action: "ready" });
+    return () => {
+      window.removeEventListener("bioflow:mobile-login", receive);
+      delete document.documentElement.dataset.mobileApp;
+    };
+  }, [queryClient, dirty]);
+  useEffect(() => {
     const expire = () => {
       void queryClient.cancelQueries();
       queryClient.clear();
@@ -2569,6 +2610,16 @@ function App() {
     queryFn: () => request<any>("/auth/me", token),
     enabled: !!token,
   });
+  useEffect(() => {
+    if (profile.data)
+      mobileNotify({
+        action: "profileReady",
+        userId: profile.data.id,
+        sections: sections
+          .filter(([id]) => allowed(id))
+          .map(([id, title]) => ({ id, title })),
+      });
+  }, [profile.data]);
   useEffect(() => {
     localStorage.removeItem("token");
   }, []);
@@ -2654,6 +2705,15 @@ function App() {
     window.history.pushState({ bioflowIndex: navigation.index }, "", `#${id}`);
   };
   const title = sections.find(([id]) => id === section)?.[1] ?? "Обзор";
+  useEffect(() => {
+    if (!isMobileWorkspace()) return;
+    const change = (event: Event) => {
+      const id = (event as CustomEvent).detail;
+      if (sections.some(([key]) => key === id) && allowed(id)) navigate(id);
+    };
+    window.addEventListener("bioflow:mobile-section", change);
+    return () => window.removeEventListener("bioflow:mobile-section", change);
+  });
   if (!token)
     return (
       <Login
@@ -2716,6 +2776,7 @@ function App() {
               }).catch(() => {});
               void queryClient.cancelQueries();
               queryClient.clear();
+              mobileNotify({ action: "signedOut" });
               clearSession();
               setSection("dashboard");
               setToken("");

@@ -1,4 +1,10 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:convert';
+import 'package:dio/dio.dart';
+import 'package:bioflow_mobile/client.dart' show errorText;
+import 'package:bioflow_mobile/full_workspace.dart';
+import 'package:bioflow_mobile/role_access.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,12 +12,41 @@ import 'package:integration_test/integration_test.dart';
 import 'package:bioflow_mobile/main.dart' as app;
 
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  String? createdMobilePhone;
+  Future<void> nativeShot(WidgetTester tester, String name) async {
+    int? status;
+    await tester.runAsync(() async {
+      final c = HttpClient();
+      try {
+        final r = await c.postUrl(Uri.parse('http://127.0.0.1:4200/screenshot'));
+        r.headers.set('X-Bioflow-Test', 'isolated-android-ui');
+        r.headers.contentType = ContentType.json;
+        final body = utf8.encode(jsonEncode({'name': name}));
+        r.contentLength = body.length;
+        r.add(body);
+        final response = await r.close();
+        status = response.statusCode;
+        await response.drain<void>();
+      } finally {
+        c.close(force: true);
+      }
+    });
+    expect(status, 200);
+  }
+
   Future<void> wait(WidgetTester tester, Finder finder) async {
     for (var n = 0; n < 225; n++) {
       await tester.pump(const Duration(milliseconds: 200));
       if (finder.evaluate().isNotEmpty) return;
     }
+    final red = tester
+        .widgetList<Text>(find.byType(Text))
+        .where((w) => w.style?.color == Colors.redAccent)
+        .map((w) => w.data ?? '')
+        .toList();
+    debugPrint('Visible form errors: $red');
+    await nativeShot(tester, 'failed-wait');
     expect(finder, findsWidgets);
   }
 
@@ -39,7 +74,7 @@ void main() {
   }
 
   Future<void> logout(WidgetTester tester) async {
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byTooltip('Аккаунт'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Выйти'));
     await wait(tester, find.text('Войти'));
@@ -52,7 +87,7 @@ void main() {
     await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 300)));
     await tester.pump();
-    await binding.takeScreenshot(name);
+    await nativeShot(tester, name);
   }
 
   Future<void> queueScreen(WidgetTester tester) async {
@@ -102,14 +137,232 @@ void main() {
     }
   }
 
+  Future<void> webWait(
+      WidgetTester tester, FullWorkspaceState state, String condition) async {
+    for (var n = 0; n < 200; n++) {
+      Object? value;
+      await tester.runAsync(() async {
+        value = await state.controller
+            .runJavaScriptReturningResult('Boolean($condition)');
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      });
+      await tester.pump();
+      if (value == true || value == 'true') return;
+    }
+    fail('Mobile WebView condition not satisfied: $condition');
+  }
+
+  Future<void> webAction(
+      WidgetTester tester, FullWorkspaceState state, String script) async {
+    await tester.runAsync(() async {
+      await state.controller.runJavaScript(script);
+    });
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+
+  Future<void> nativeDocument(WidgetTester tester, String path,
+      Future<void> Function() openDialog) async {
+    Future<Map<String, dynamic>> control(String endpoint,
+        {bool post = false}) async {
+      final c = HttpClient()..connectionTimeout = const Duration(seconds: 3);
+      try {
+        final uri = Uri.parse('http://127.0.0.1:4200/$endpoint');
+        final r = post ? await c.postUrl(uri) : await c.getUrl(uri);
+        r.headers.set('X-Bioflow-Test', 'isolated-android-ui');
+        final response = await r.close().timeout(const Duration(seconds: 5));
+        final text = await utf8.decoder.bind(response).join();
+        if (response.statusCode != (post ? 202 : 200)) {
+          throw StateError(
+              'Native document controller: ${response.statusCode}');
+        }
+        return Map<String, dynamic>.from(jsonDecode(text));
+      } finally {
+        c.close(force: true);
+      }
+    }
+
+    Map<String, dynamic>? armed;
+    await tester.runAsync(() async {
+      armed = await control(path, post: true);
+    });
+    expect(armed?['state'], 'PENDING');
+    await openDialog();
+    Map<String, dynamic>? result;
+    final deadline = DateTime.now().add(const Duration(seconds: 90));
+    while (DateTime.now().isBefore(deadline)) {
+      await tester.runAsync(() async {
+        try {
+          result = await control('document-status');
+        } on IOException {
+          // Retry only controller I/O while Android has backgrounded this app.
+        } on TimeoutException {
+          // The host worker continues independently and records PASS/FAIL.
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      await tester.pump();
+      if (result?['state'] == 'PASS' || result?['state'] == 'FAIL') break;
+    }
+    expect(result?['id'], armed?['id']);
+    expect(result?['state'], 'PASS');
+    expect(result?['bytes'], greaterThan(0));
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+
+  Future<void> fullCabinet(WidgetTester tester, String role) async {
+    expect(find.textContaining(roleNames[role]!), findsWidgets);
+    await tester.tap(find.byTooltip('Разделы моей роли'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, 'Партии и операции'));
+    await wait(tester, find.byType(FullWorkspace));
+    final state = tester.state<FullWorkspaceState>(find.byType(FullWorkspace));
+    await webWait(tester, state,
+        'document.querySelector("main h1")?.textContent === "Партии и операции"');
+    expect(state.authenticated, true);
+    await nativeShot(tester, 'full-cabinet-$role');
+    if (role == 'OWNER') {
+      await webAction(tester, state,
+          'window.dispatchEvent(new CustomEvent("bioflow:mobile-section", {detail:"users"}));');
+      await webWait(tester, state,
+          'document.body.innerText.includes("Новый пользователь")');
+      createdMobilePhone =
+          "+7${DateTime.now().millisecondsSinceEpoch.toString().substring(3)}";
+      final fields = {
+        'ФИО': 'Мобильный пользователь',
+        'Телефон': createdMobilePhone!
+      };
+      for (final field in fields.entries) {
+        await webAction(tester, state,
+            '(function(){const el=document.querySelector("input[placeholder="+CSS.escape(${jsonEncode(field.key)})+"]");el.focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(el,${jsonEncode(field.value)});el.dispatchEvent(new Event("input",{bubbles:true}));})()');
+      }
+      await webAction(tester, state,
+          'document.querySelector("main form button[type=submit], main form button").focus();document.querySelector("main form button[type=submit], main form button").click();');
+      await webWait(tester, state,
+          'document.querySelector("table")?.innerText.includes(${jsonEncode(createdMobilePhone)})');
+      for (final name in ['Администратор', 'Наблюдатель/аудитор']) {
+        await webAction(tester, state,
+            '(function(){const el=[...document.querySelectorAll(".role-choice")].find(x=>x.querySelector("strong")?.textContent===${jsonEncode(name)}).querySelector("input");el.focus();if(!el.checked)el.click();})()');
+      }
+      await webAction(tester, state,
+          'document.querySelectorAll("main form")[1].querySelector("button").focus();document.querySelectorAll("main form")[1].querySelector("button").click();');
+      await webWait(
+          tester, state, 'document.body.innerText.includes("Роли назначены")');
+      await nativeShot(tester, 'full-cabinet-users-and-russian-roles');
+      await webAction(tester, state,
+          'window.dispatchEvent(new CustomEvent("bioflow:mobile-section", {detail:"reports"}));');
+      await webWait(
+          tester, state, 'document.body.innerText.includes("Скачать CSV")');
+      await nativeShot(tester, 'full-cabinet-reports');
+      await nativeDocument(
+          tester,
+          'save-document',
+          () => webAction(tester, state,
+              '[...document.querySelectorAll("button")].find(x=>x.textContent.trim()==="Скачать CSV").click();'));
+      await nativeShot(tester, 'full-cabinet-report-saved');
+      await webAction(tester, state,
+          'window.dispatchEvent(new CustomEvent("bioflow:mobile-section", {detail:"ledger"}));');
+      await webWait(tester, state,
+          'document.querySelector("details summary")?.textContent === "Новая партия добычи"');
+      await webAction(
+          tester, state, 'document.querySelector("details summary").click();');
+      await webAction(tester, state,
+          '[...document.querySelectorAll("details form select")].forEach(el=>{el.focus();Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,"value").set.call(el,el.options[1].value);el.dispatchEvent(new Event("change",{bubbles:true}));});');
+      for (final field in {
+        'quantity': '0.123',
+        'measurementMethod': 'Android full cabinet QR',
+        'measuredAt': '2026-10-21T16:30'
+      }.entries) {
+        await webAction(tester, state,
+            '(function(){const el=document.querySelector("details form input[name="+CSS.escape(${jsonEncode(field.key)})+"]");el.focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(el,${jsonEncode(field.value)});el.dispatchEvent(new Event("input",{bubbles:true}));})()');
+      }
+      await webAction(tester, state,
+          'document.querySelector("details form button").focus();document.querySelector("details form button").click();');
+      await webWait(
+          tester, state, 'document.querySelector("dialog[open] img") != null');
+      await nativeDocument(
+          tester,
+          'print-to-pdf',
+          () => webAction(tester, state,
+              '[...document.querySelectorAll("dialog button")].find(x=>x.textContent.trim()==="Печать QR").click();'));
+      await webAction(tester, state,
+          '[...document.querySelectorAll("dialog button")].find(x=>x.textContent.trim()==="Закрыть").click();');
+    } else if (!app.api.can('users.manage')) {
+      await webAction(tester, state,
+          'window.dispatchEvent(new CustomEvent("bioflow:mobile-section", {detail:"users"}));');
+      await webWait(tester, state,
+          'document.querySelector("main h1")?.textContent === "Партии и операции"');
+      expect(
+          await state.controller.runJavaScriptReturningResult(
+              'document.body.innerText.includes("Новый пользователь")'),
+          false);
+    }
+    await tester.tap(find.byTooltip('Назад'));
+    await wait(tester, find.byType(NavigationBar));
+    await tester.pumpAndSettle();
+    expect(find.byType(FullWorkspace), findsNothing);
+    await ready(tester);
+  }
+
+  Future<void> firstPhoneLogin(WidgetTester tester) async {
+    expect(createdMobilePhone, isNotNull);
+    await tester.enterText(find.byType(TextField).at(0), createdMobilePhone!);
+    await tester.enterText(find.byType(TextField).at(1), '123456');
+    await tester.tap(find.text('Войти'));
+    await wait(tester, find.text('Смена временного пароля'));
+    await tester.enterText(
+        find.widgetWithText(TextFormField, 'Текущий пароль'), '123456');
+    await tester.enterText(
+        find.widgetWithText(TextFormField, 'Новый пароль'), '123456');
+    await tester.tap(find.text('Сохранить'));
+    await tester.pump();
+    expect(find.text('Пароль должен содержать не менее 8 символов'),
+        findsOneWidget);
+    await nativeShot(tester, 'first-password-short-rejected');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Новый пароль'),
+        'UpdatedMobile2026!');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Сохранить'));
+    await wait(tester, find.text('Сохранено'));
+    await tester.tap(find.text('Закрыть'));
+    await wait(tester, find.text('Войти'));
+    await tester.enterText(find.byType(TextField).at(0), createdMobilePhone!);
+    await tester.enterText(find.byType(TextField).at(1), 'UpdatedMobile2026!');
+    await tester.tap(find.text('Войти'));
+    await wait(tester, find.byType(NavigationBar));
+    await ready(tester);
+    expect(find.textContaining('Администратор'), findsWidgets);
+    expect(find.textContaining('Наблюдатель/аудитор'), findsWidgets);
+    await nativeShot(
+        tester, 'full-cabinet-multiple-roles-after-password-change');
+    await tester.tap(find.byTooltip('Разделы моей роли'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -1200));
+    await tester.pumpAndSettle();
+    expect(find.text('Пользователи'), findsWidgets);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await logout(tester);
+  }
+
   testWidgets('Android: forms, offline account queue and all roles through UI',
       (tester) async {
+    app.api.dio.interceptors.add(InterceptorsWrapper(onResponse: (r, h) {
+      if (r.requestOptions.path.endsWith('/auth/change-password')) {
+        debugPrint('Password change HTTP ${r.statusCode}');
+      }
+      h.next(r);
+    }, onError: (e, h) {
+      if (e.requestOptions.path.endsWith('/auth/change-password')) {
+        debugPrint(
+            'Password change HTTP ${e.response?.statusCode}: ${errorText(e)}');
+      }
+      h.next(e);
+    }));
     app.main();
     await tester.pumpAndSettle();
-    await binding.convertFlutterSurfaceToImage();
     await tester.pump();
     await tester.tap(find.text('Войти'));
-    await wait(tester, find.textContaining('email'));
+    await wait(tester, find.text('Укажите номер телефона и пароль'));
     await shot(tester, 'login-empty-error');
     await login(tester, 'OWNER');
     await tester.tap(find.byType(FloatingActionButton));
@@ -126,14 +379,14 @@ void main() {
     FocusManager.instance.primaryFocus?.unfocus();
     await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
     await tester.pumpAndSettle();
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Назад').first);
     await tester.pumpAndSettle();
     expect(find.text('Оставить несохранённые изменения?'), findsOneWidget);
     await shot(tester, 'draft-back-warning');
     await tester.tap(find.text('Продолжить ввод'));
     await tester.pumpAndSettle();
     expect(find.text('Android unsaved draft'), findsOneWidget);
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Назад').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Выйти без сохранения'));
     await wait(tester, find.byType(NavigationBar));
@@ -170,7 +423,7 @@ void main() {
 
     final control = HttpClient();
     final controlRequest =
-        await control.postUrl(Uri.parse('http://10.0.2.2:4200/offline'));
+        await control.postUrl(Uri.parse('http://127.0.0.1:4200/offline'));
     controlRequest.headers.set('X-Bioflow-Test', 'isolated-android-ui');
     final controlResponse = await controlRequest.close();
     expect(controlResponse.statusCode, 200);
@@ -216,7 +469,7 @@ void main() {
     await queueScreen(tester);
     await wait(tester, find.text('/ledger/batches'));
     await shot(tester, 'offline-owner-queue');
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Назад').first);
     await tester.pumpAndSettle();
     for (var n = 0; n < 19; n++) {
       await tester
@@ -228,7 +481,7 @@ void main() {
     await wait(tester, find.text('Очередь пуста'));
     expect(find.text('/ledger/batches'), findsNothing);
     await shot(tester, 'offline-other-account-empty');
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Назад').first);
     await tester.pumpAndSettle();
     await logout(tester);
     await login(tester, 'OWNER');
@@ -240,7 +493,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Очередь пуста'), findsOneWidget);
     await shot(tester, 'offline-owner-synced');
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Назад').first);
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(NavigationDestination, 'Рейсы'));
     await ready(tester);
@@ -272,10 +525,14 @@ void main() {
         expect(find.textContaining('Ошибка 500'), findsNothing);
         await shot(tester, '$role-$tab');
       }
+      await fullCabinet(tester, role);
       await logout(tester);
+      if (role == 'OWNER') await firstPhoneLogin(tester);
       // Keep the real backend's rate limit enabled during the role sweep.
       await tester
           .runAsync(() => Future<void>.delayed(const Duration(seconds: 6)));
     }
+
+
   });
 }

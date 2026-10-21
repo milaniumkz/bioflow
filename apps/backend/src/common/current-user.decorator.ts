@@ -10,6 +10,7 @@ export interface CurrentUser {
   warehouseScopeIds?: string[];
   extractionScopeIds?: string[];
   deviceId?: string;
+  sessionId?: string;
 }
 
 export const CurrentUser = createParamDecorator(

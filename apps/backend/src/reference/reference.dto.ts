@@ -1,3 +1,5 @@
+import { Transform } from "class-transformer";
+import { normalizePhone } from "../auth/phone";
 import {
   Allow,
   IsBoolean,
@@ -6,6 +8,7 @@ import {
   IsOptional,
   IsString,
   MinLength,
+  Matches,
 } from "class-validator";
 
 export class CreateReferenceDto {
@@ -29,14 +32,19 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsString()
+  @Matches(/^\+[1-9]\d{6,14}$/, {
+    message: "Укажите корректный номер телефона",
+  })
+  @Transform(({ value }) => normalizePhone(value))
   phone?: string;
 
   @IsString()
   fullName!: string;
 
   @IsString()
-  @MinLength(8)
-  temporaryPassword!: string;
+  @IsOptional()
+  @MinLength(6)
+  temporaryPassword: string = "123456";
 }
 
 export class AssignRolesDto {

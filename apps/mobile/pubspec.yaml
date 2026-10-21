@@ -1,7 +1,7 @@
 name: bioflow_mobile
 description: BIOFLOW mobile app
 publish_to: "none"
-version: 0.1.0+1
+version: 0.2.0+2
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -18,6 +18,10 @@ dependencies:
   flutter_secure_storage: ^9.2.2
   mobile_scanner: ^6.0.2
   connectivity_plus: ^6.1.0
+  webview_flutter: ^4.14.1
+  webview_flutter_android: ^4.14.1
+  flutter_localizations:
+    sdk: flutter
 
 dev_dependencies:
   integration_test:

@@ -535,6 +535,46 @@
         ]
       }
     },
+    "/api/v1/auth/mobile-web-session": {
+      "post": {
+        "operationId": "AuthController_mobileWebSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "refreshToken"
+                ],
+                "properties": {
+                  "refreshToken": {
+                    "type": "string",
+                    "writeOnly": true,
+                    "description": "Действующий refresh token той же нативной сессии, что Bearer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/me": {
       "get": {
         "operationId": "AuthController_me",

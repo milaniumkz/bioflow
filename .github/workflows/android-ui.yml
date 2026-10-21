@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - "apps/mobile/**"
+      - "apps/web/**"
+      - "apps/backend/src/auth/**"
+      - "infrastructure/mobile-web-proxy.cjs"
       - "apps/backend/test/ui-fixture.ts"
       - ".github/workflows/android-ui.yml"
 permissions:
@@ -28,7 +31,7 @@ jobs:
       NODE_ENV: test
       DATABASE_URL: postgresql://bioflow:bioflow-ui-test-only@localhost:5432/bioflow_android_ui_spec?schema=public
       REDIS_URL: redis://localhost:6379
-      WEB_ORIGIN: http://localhost:3000
+      WEB_ORIGIN: http://localhost:3000,http://10.0.2.2:4199
       PORT: 4100
     steps:
       - uses: actions/checkout@v4
@@ -37,12 +40,21 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci && npm run prisma:generate && npm run prisma:deploy && npm run seed
-      - run: npx tsx apps/backend/test/ui-fixture.ts && npm run build -w @bioflow/backend
+      - run: npx tsx apps/backend/test/ui-fixture.ts && npm run build -w @bioflow/shared-types && npm run build -w @bioflow/api-client && npm run build -w @bioflow/backend && NEXT_PUBLIC_API_URL=/api/v1 npm run build -w @bioflow/web
       - name: Start isolated API
         run: |
           nohup node apps/backend/dist/main.js > "$RUNNER_TEMP/android-ui-api.log" 2>&1 &
           for attempt in $(seq 1 60); do
             if curl --fail --silent http://localhost:4100/api/v1/health; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Start full mobile cabinet with isolated API
+        run: |
+          nohup node node_modules/next/dist/bin/next start apps/web -p 3040 > "$RUNNER_TEMP/android-ui-web.log" 2>&1 &
+          nohup node infrastructure/mobile-web-proxy.cjs > "$RUNNER_TEMP/android-ui-web-proxy.log" 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://localhost:4199/ > /dev/null; then exit 0; fi
             sleep 1
           done
           exit 1
@@ -55,8 +67,17 @@ jobs:
           flutter-version: 3.47.6
           channel: stable
           cache: true
+      - uses: actions/cache@v4
+        id: gradle-cache
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-bioflow-android-ui-gradle-${{ hashFiles('apps/mobile/pubspec.lock', 'apps/mobile/android/gradle/wrapper/gradle-wrapper.properties', 'apps/mobile/android/**/*.gradle.kts') }}
+          restore-keys: ${{ runner.os }}-bioflow-android-ui-gradle-
       - run: flutter pub get --enforce-lockfile
         working-directory: apps/mobile
+      - run: sudo apt-get update -qq && sudo apt-get install -y poppler-utils
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -70,6 +91,13 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: bash infrastructure/run-android-ui.sh
+      - uses: actions/cache/save@v4
+        if: always() && steps.gradle-cache.outcome == 'success' && steps.gradle-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-bioflow-android-ui-gradle-${{ hashFiles('apps/mobile/pubspec.lock', 'apps/mobile/android/gradle/wrapper/gradle-wrapper.properties', 'apps/mobile/android/**/*.gradle.kts') }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -78,5 +106,6 @@ jobs:
             apps/mobile/artifacts
             ${{ runner.temp }}/android-ui-api.log
             ${{ runner.temp }}/android-network-control.log
+            ${{ runner.temp }}/android-ui-web.log
           if-no-files-found: warn
           retention-days: 14

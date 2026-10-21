@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiBody, ApiTags } from "@nestjs/swagger";
 import {
   CurrentUser as CurrentUserDecorator,
   CurrentUser,
@@ -12,6 +12,7 @@ import {
   ChangePasswordDto,
   ForgotPasswordDto,
   LoginDto,
+  MobileWebSessionDto,
   RefreshDto,
   RegisterDeviceDto,
   ResetPasswordDto,
@@ -57,18 +58,40 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
+  @Post("mobile-web-session")
+  @ApiBody({
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["refreshToken"],
+      properties: {
+        refreshToken: {
+          type: "string",
+          writeOnly: true,
+          description:
+            "Действующий refresh token той же нативной сессии, что Bearer",
+        },
+      },
+    },
+  })
+  mobileWebSession(
+    @CurrentUserDecorator() user: CurrentUser,
+    @Body() dto: MobileWebSessionDto,
+  ) {
+    return this.auth.mobileWebSession(user, dto.refreshToken);
+  }
+
+  @ApiBearerAuth()
   @Get("me")
   me(@CurrentUserDecorator() user: CurrentUser) {
-    return this.auth
-      .me(user.id)
-      .then((profile) => ({
-        ...profile,
-        permissions: user.permissions,
-        accessAllObjects: user.accessAllObjects,
-        warehouseScopeIds: user.warehouseScopeIds,
-        extractionScopeIds: user.extractionScopeIds,
-        counterpartyScopeId: user.counterpartyScopeId,
-      }));
+    return this.auth.me(user.id).then((profile) => ({
+      ...profile,
+      permissions: user.permissions,
+      accessAllObjects: user.accessAllObjects,
+      warehouseScopeIds: user.warehouseScopeIds,
+      extractionScopeIds: user.extractionScopeIds,
+      counterpartyScopeId: user.counterpartyScopeId,
+    }));
   }
 
   @ApiBearerAuth()

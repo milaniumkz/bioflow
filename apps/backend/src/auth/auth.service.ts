@@ -8,6 +8,7 @@ import { JwtService } from "@nestjs/jwt";
 import * as argon2 from "argon2";
 import { createHash, randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
+import { CurrentUser } from "../common/current-user.decorator";
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
@@ -30,7 +31,15 @@ export class AuthService {
       where: {
         OR: [
           { email: dto.email ?? undefined },
-          { phone: dto.phone ?? undefined },
+          ...(dto.phone
+            ? [
+                { phone: dto.phone },
+                { phone: dto.phone.replace(/^\+/, "") },
+                ...(dto.phone.startsWith("+7")
+                  ? [{ phone: "8" + dto.phone.slice(2) }]
+                  : []),
+              ]
+            : []),
         ],
       },
     });
@@ -94,6 +103,27 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
     return { ok: true };
+  }
+
+  // A separate session avoids sharing/rotating the native app's refresh token.
+  // Actor identity comes only from the guarded bearer token, never request data.
+  async mobileWebSession(user: CurrentUser, refreshToken: string) {
+    const parent = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash: await this.hashToken(refreshToken) },
+    });
+    // A short-lived access token alone must not mint a long-lived credential.
+    if (
+      !parent ||
+      parent.userId !== user.id ||
+      parent.id !== user.sessionId ||
+      parent.revokedAt ||
+      parent.expiresAt < new Date()
+    ) {
+      throw new UnauthorizedException(
+        "Не удалось подтвердить сессию приложения",
+      );
+    }
+    return this.issueTokens(user.id, user.organizationId);
   }
 
   async me(userId: string) {
@@ -230,7 +260,15 @@ export class AuthService {
       where: {
         OR: [
           { email: dto.email ?? undefined },
-          { phone: dto.phone ?? undefined },
+          ...(dto.phone
+            ? [
+                { phone: dto.phone },
+                { phone: dto.phone.replace(/^\+/, "") },
+                ...(dto.phone.startsWith("+7")
+                  ? [{ phone: "8" + dto.phone.slice(2) }]
+                  : []),
+              ]
+            : []),
         ],
       },
     });

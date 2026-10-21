@@ -59,7 +59,12 @@ class BioflowClient {
     }, onError: (e, h) async {
       if (e.response?.statusCode == 401 &&
           e.requestOptions.extra['retried'] != true &&
-          !e.requestOptions.path.startsWith('/auth/') &&
+          ![
+            '/auth/login',
+            '/auth/refresh',
+            '/auth/forgot-password',
+            '/auth/reset-password'
+          ].contains(e.requestOptions.path) &&
           (e.requestOptions.extra['sessionEpoch'] == null ||
               e.requestOptions.extra['sessionEpoch'] == _sessionEpoch)) {
         _refreshing ??= _refresh();
@@ -112,7 +117,7 @@ class BioflowClient {
     device ??= commandId();
     await storage.write(key: 'deviceId', value: device);
     final r = await dio.post('/auth/login', data: {
-      'email': email,
+      if (email.contains('@')) 'email': email.trim() else 'phone': email.trim(),
       'password': password,
       'platform': 'android',
       'deviceId': device
@@ -128,13 +133,85 @@ class BioflowClient {
   }
 
   Future<bool> restore() async {
-    final p = await storage.read(key: 'profile');
-    if (p != null) profile = Map<String, dynamic>.from(jsonDecode(p));
-    return profile != null && await storage.read(key: 'accessToken') != null;
+    final epoch = _sessionEpoch;
+    final cached = await storage.read(key: 'profile');
+    if (epoch != _sessionEpoch || cached == null) return false;
+    final access = await storage.read(key: 'accessToken');
+    if (epoch != _sessionEpoch || access == null) return false;
+    final restored = Map<String, dynamic>.from(jsonDecode(cached));
+    return _authLocked(() async {
+      if (epoch != _sessionEpoch) return false;
+      profile = restored;
+      return true;
+    });
   }
 
   bool can(String p) => (profile?['permissions'] as List? ?? []).contains(p);
+  Future<dynamic> workspaceSession() async {
+    final epoch = _sessionEpoch, user = owner;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final proof = await _authLocked(() => storage.read(key: 'refreshToken'));
+      _checkIdentity(epoch, user);
+      if (proof == null) throw StateError('Войдите в приложение заново');
+      try {
+        final data = await send(
+            '/auth/mobile-web-session', {'refreshToken': proof},
+            queue: false);
+        _checkIdentity(epoch, user);
+        return data;
+      } on DioException catch (e) {
+        _checkIdentity(epoch, user);
+        final latest =
+            await _authLocked(() => storage.read(key: 'refreshToken'));
+        _checkIdentity(epoch, user);
+        // The interceptor may have rotated native credentials during a retry.
+        if (attempt == 0 &&
+            e.response?.statusCode == 401 &&
+            latest != null &&
+            latest != proof) {
+          continue;
+        }
+        rethrow;
+      }
+    }
+    throw StateError('Войдите в приложение заново');
+  }
+
+  Future<void> refreshProfile() async {
+    final epoch = _sessionEpoch, user = owner;
+    final response = await dio.get('/auth/me',
+        options: Options(extra: {'sessionEpoch': epoch}));
+    _checkIdentity(epoch, user);
+    await _authLocked(() async {
+      _checkIdentity(epoch, user);
+      profile = Map<String, dynamic>.from(response.data);
+      await storage.write(key: 'profile', value: jsonEncode(profile));
+      _checkIdentity(epoch, user);
+    });
+  }
+
   String get owner => profile?['id'] as String? ?? 'anonymous';
+  Future<List<dynamic>> referenceOptions(String entity) async {
+    final epoch = _sessionEpoch, user = owner;
+    var page = 1;
+    final rows = <dynamic>[];
+    while (true) {
+      final data =
+          await get('/$entity?pageSize=100${page == 1 ? '' : '&page=$page'}');
+      _checkIdentity(epoch, user);
+      final chunk = data is List ? data : data['data'] as List? ?? [];
+      rows.addAll(chunk);
+      if (entity != 'ledger/batches' ||
+          data is List ||
+          chunk.isEmpty ||
+          rows.length >= (data['total'] as int? ?? rows.length)) {
+        break;
+      }
+      page++;
+    }
+    return rows;
+  }
+
   Future<dynamic> get(String path) async {
     final epoch = _sessionEpoch, user = owner;
     final k = 'cache:$user:$path';
@@ -281,10 +358,14 @@ String errorText(Object e) {
           if (text.contains('fileIds must contain')) {
             return 'Добавьте фотографию весов или документа';
           }
-          if (text.contains('password') && text.contains('longer than')) {
+          if (text.toLowerCase().contains('password') &&
+              text.contains('longer than')) {
             return 'Пароль должен содержать не менее 8 символов';
           }
-          if (text == 'Invalid credentials') return 'Неверный email или пароль';
+          if (text == 'Current password is invalid') {
+            return 'Неверный текущий пароль';
+          }
+          if (text == 'Invalid credentials') return 'Неверный логин или пароль';
           if (text == 'Forbidden resource') {
             return 'Нет доступа к этому действию';
           }

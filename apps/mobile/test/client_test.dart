@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
@@ -37,6 +38,28 @@ class DelayedTokenStorage extends FlutterSecureStorage {
   }
 }
 
+class SnapshotProfileStorage extends FlutterSecureStorage {
+  final started = Completer<void>(), release = Completer<void>();
+  bool delayed = false;
+  @override
+  Future<String?> read(
+      {required String key,
+      IOSOptions? iOptions,
+      AndroidOptions? aOptions,
+      LinuxOptions? lOptions,
+      WebOptions? webOptions,
+      MacOsOptions? mOptions,
+      WindowsOptions? wOptions}) async {
+    final value = await super.read(key: key);
+    if (key == 'profile' && !delayed) {
+      delayed = true;
+      started.complete();
+      await release.future;
+    }
+    return value;
+  }
+}
+
 class DelayedTokenClient extends BioflowClient {
   final FlutterSecureStorage testStorage;
   DelayedTokenClient(this.testStorage);
@@ -47,6 +70,23 @@ class DelayedTokenClient extends BioflowClient {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+  test('Delayed session restore cannot resurrect the user after logout',
+      () async {
+    final storage = SnapshotProfileStorage();
+    final api = DelayedTokenClient(storage)..profile = {'id': 'old-user'};
+    await storage.write(key: 'profile', value: jsonEncode({'id': 'old-user'}));
+    await storage.write(key: 'accessToken', value: 'old-token');
+    api.dio.interceptors.add(InterceptorsWrapper(
+        onRequest: (o, h) => h.resolve(
+            Response(requestOptions: o, statusCode: 200, data: {'ok': true}))));
+    final restoring = api.restore();
+    await storage.started.future;
+    await api.logout();
+    storage.release.complete();
+    expect(await restoring, false);
+    expect(api.profile, isNull);
+    expect(await storage.read(key: 'profile'), isNull);
+  });
   test('Network errors queue commands under the current user', () async {
     final api = BioflowClient()..profile = {'id': 'user-a'};
     api.dio.interceptors.add(InterceptorsWrapper(
@@ -187,6 +227,92 @@ void main() {
     await api.login('user-b@unit.test', 'fake-unit-password');
     delayed.release.complete();
     await rejected;
+  });
+  test('Batch reference pagination keeps older source batches available',
+      () async {
+    final api = BioflowClient()..profile = {'id': 'user-a'};
+    final seen = <String>[];
+    api.dio.interceptors.add(InterceptorsWrapper(onRequest: (o, h) {
+      seen.add(o.uri.toString());
+      final second =
+          o.queryParameters['page'] == '2' || o.path.contains('page=2');
+      h.resolve(Response(requestOptions: o, statusCode: 200, data: {
+        'data': second
+            ? [
+                {'id': 'older-confirmed'}
+              ]
+            : [
+                {'id': 'new-draft'}
+              ],
+        'total': 2
+      }));
+    }));
+    expect((await api.referenceOptions('ledger/batches')).map((x) => x['id']),
+        ['new-draft', 'older-confirmed']);
+    expect(seen.length, 2);
+    expect(seen.last, contains('page=2'));
+  });
+  test('A permission/profile refresh cannot overwrite a newer account',
+      () async {
+    final api = BioflowClient()..profile = {'id': 'user-a'};
+    final started = Completer<void>(), release = Completer<void>();
+    api.dio.interceptors.add(InterceptorsWrapper(onRequest: (o, h) async {
+      started.complete();
+      await release.future;
+      h.resolve(Response(requestOptions: o, statusCode: 200, data: {
+        'id': 'user-a',
+        'permissions': ['users.manage']
+      }));
+    }));
+    final request = api.refreshProfile();
+    final rejected = expectLater(request, throwsA(isA<StateError>()));
+    await started.future;
+    api.profile = {'id': 'user-b', 'permissions': <String>[]};
+    release.complete();
+    await rejected;
+    expect(api.owner, 'user-b');
+    expect(api.can('users.manage'), false);
+  });
+  test(
+      'Workspace session requires native proof without replacing native tokens',
+      () async {
+    FlutterSecureStorage.setMockInitialValues(
+        {'accessToken': 'native-access', 'refreshToken': 'native-proof'});
+    final api = BioflowClient()..profile = {'id': 'user-a'};
+    api.dio.interceptors.add(InterceptorsWrapper(onRequest: (o, h) {
+      expect(o.path, '/auth/mobile-web-session');
+      expect(o.data['refreshToken'], 'native-proof');
+      h.resolve(Response(
+          requestOptions: o,
+          statusCode: 201,
+          data: {'accessToken': 'web-access', 'refreshToken': 'web-refresh'}));
+    }));
+    final web = await api.workspaceSession();
+    expect(web['accessToken'], 'web-access');
+    expect(await api.storage.read(key: 'accessToken'), 'native-access');
+    expect(await api.storage.read(key: 'refreshToken'), 'native-proof');
+    expect(await api.pending(), isEmpty);
+  });
+  test('A delayed proof cannot start a workspace after logout', () async {
+    FlutterSecureStorage.setMockInitialValues(
+        {'accessToken': 'native-access', 'refreshToken': 'native-proof'});
+    final delayed = DelayedTokenStorage(blockedKey: 'refreshToken');
+    final api = DelayedTokenClient(delayed)..profile = {'id': 'user-a'};
+    final paths = <String>[];
+    api.dio.interceptors.add(InterceptorsWrapper(onRequest: (o, h) {
+      paths.add(o.path);
+      h.resolve(
+          Response(requestOptions: o, statusCode: 200, data: {'ok': true}));
+    }));
+    final request = api.workspaceSession();
+    final rejected = expectLater(request, throwsA(isA<StateError>()));
+    await delayed.started.future;
+    final logout = api.logout();
+    delayed.release.complete();
+    await rejected;
+    await logout;
+    expect(paths, isNot(contains('/auth/mobile-web-session')));
+    expect(api.profile, isNull);
   });
   testWidgets('Login has no prefilled demo credentials', (tester) async {
     await tester.pumpWidget(const BioflowApp());

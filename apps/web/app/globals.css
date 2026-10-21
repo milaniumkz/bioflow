@@ -241,6 +241,12 @@ th {
   gap: 8px;
   width: 100%;
 }
+html[data-mobile-app="true"] .shell {
+  display: block;
+}
+html[data-mobile-app="true"] .sidebar {
+  display: none;
+}
 
 .role-choices {
   grid-column: 1 / -1;
