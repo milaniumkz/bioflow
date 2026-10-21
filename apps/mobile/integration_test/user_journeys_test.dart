@@ -216,13 +216,10 @@ void main() {
           'window.dispatchEvent(new CustomEvent("bioflow:mobile-section", {detail:"users"}));');
       await webWait(tester, state,
           'document.body.innerText.includes("Новый пользователь")');
-      final email =
-          'mobile-full-${DateTime.now().millisecondsSinceEpoch}@uat.local';
       createdMobilePhone =
           "+7${DateTime.now().millisecondsSinceEpoch.toString().substring(3)}";
       final fields = {
         'ФИО': 'Мобильный пользователь',
-        'Email': email,
         'Телефон': createdMobilePhone!
       };
       for (final field in fields.entries) {
@@ -232,7 +229,7 @@ void main() {
       await webAction(tester, state,
           'document.querySelector("main form button[type=submit], main form button").focus();document.querySelector("main form button[type=submit], main form button").click();');
       await webWait(tester, state,
-          'document.querySelector("table")?.innerText.includes(${jsonEncode(email)})');
+          'document.querySelector("table")?.innerText.includes(${jsonEncode(createdMobilePhone)})');
       for (final name in ['Администратор', 'Наблюдатель/аудитор']) {
         await webAction(tester, state,
             '(function(){const el=[...document.querySelectorAll(".role-choice")].find(x=>x.querySelector("strong")?.textContent===${jsonEncode(name)}).querySelector("input");el.focus();el.click();})()');
