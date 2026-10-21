@@ -31,7 +31,15 @@ export class AuthService {
       where: {
         OR: [
           { email: dto.email ?? undefined },
-          { phone: dto.phone ?? undefined },
+          ...(dto.phone
+            ? [
+                { phone: dto.phone },
+                { phone: dto.phone.replace(/^\+/, "") },
+                ...(dto.phone.startsWith("+7")
+                  ? [{ phone: "8" + dto.phone.slice(2) }]
+                  : []),
+              ]
+            : []),
         ],
       },
     });
@@ -99,7 +107,22 @@ export class AuthService {
 
   // A separate session avoids sharing/rotating the native app's refresh token.
   // Actor identity comes only from the guarded bearer token, never request data.
-  mobileWebSession(user: CurrentUser) {
+  async mobileWebSession(user: CurrentUser, refreshToken: string) {
+    const parent = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash: await this.hashToken(refreshToken) },
+    });
+    // A short-lived access token alone must not mint a long-lived credential.
+    if (
+      !parent ||
+      parent.userId !== user.id ||
+      parent.id !== user.sessionId ||
+      parent.revokedAt ||
+      parent.expiresAt < new Date()
+    ) {
+      throw new UnauthorizedException(
+        "Не удалось подтвердить сессию приложения",
+      );
+    }
     return this.issueTokens(user.id, user.organizationId);
   }
 
@@ -237,7 +260,15 @@ export class AuthService {
       where: {
         OR: [
           { email: dto.email ?? undefined },
-          { phone: dto.phone ?? undefined },
+          ...(dto.phone
+            ? [
+                { phone: dto.phone },
+                { phone: dto.phone.replace(/^\+/, "") },
+                ...(dto.phone.startsWith("+7")
+                  ? [{ phone: "8" + dto.phone.slice(2) }]
+                  : []),
+              ]
+            : []),
         ],
       },
     });

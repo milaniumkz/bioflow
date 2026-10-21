@@ -28,6 +28,8 @@ class FullWorkspaceState extends State<FullWorkspace> {
   List<MapEntry<String, String>>? webSections;
   bool authenticating = false, authenticated = false, leaving = false;
   Timer? readiness;
+  int pageGeneration = 0;
+  bool queuedReady = false;
 
   bool trusted(String? value) {
     final uri = Uri.tryParse(value ?? '');
@@ -59,6 +61,8 @@ class FullWorkspaceState extends State<FullWorkspace> {
             ? NavigationDecision.navigate
             : NavigationDecision.prevent,
         onPageStarted: (_) {
+          pageGeneration++;
+          queuedReady = false;
           if (mounted) {
             setState(() {
               authenticated = false;
@@ -139,19 +143,28 @@ class FullWorkspaceState extends State<FullWorkspace> {
   Future<void> authenticate() async {
     if (authenticating || !mounted || widget.client.owner != identity) return;
     authenticating = true;
+    final generation = pageGeneration;
     try {
       await widget.client.refreshProfile();
       if (!canOpenSection(widget.section, widget.client.profile)) {
         throw StateError('Недостаточно прав');
       }
       await revokeChild();
-      final tokens = await widget.client
-          .send('/auth/mobile-web-session', {}, queue: false);
+      final tokens = await widget.client.workspaceSession();
+      final claim = jsonDecode(utf8.decode(base64Url.decode(base64Url
+          .normalize((tokens['accessToken'] as String).split('.')[1])))) as Map;
+      final issued = claim['sessionId'] as String?;
+      if (issued != null &&
+          RegExp(r'^[A-Za-z0-9_-]{1,100}$').hasMatch(issued)) {
+        childSession = issued;
+      }
       final currentUrl = await controller.currentUrl();
       if (!mounted ||
           leaving ||
+          generation != pageGeneration ||
           widget.client.owner != identity ||
           !trusted(currentUrl)) {
+        await revokeChild();
         return;
       }
       final payload = jsonEncode(
@@ -165,6 +178,13 @@ class FullWorkspaceState extends State<FullWorkspace> {
       }
     } finally {
       authenticating = false;
+      if (queuedReady &&
+          mounted &&
+          !leaving &&
+          widget.client.owner == identity) {
+        queuedReady = false;
+        unawaited(authenticate());
+      }
     }
   }
 
@@ -192,7 +212,11 @@ class FullWorkspaceState extends State<FullWorkspace> {
       final data = jsonDecode(message.message) as Map<String, dynamic>;
       switch (data['action']) {
         case 'ready':
-          await authenticate();
+          if (authenticating) {
+            queuedReady = true;
+          } else {
+            await authenticate();
+          }
         case 'session':
           final id = data['sessionId'] as String?;
           if (id != null && RegExp(r'^[A-Za-z0-9_-]{1,100}$').hasMatch(id)) {

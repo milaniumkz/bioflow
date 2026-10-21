@@ -86,6 +86,7 @@ export class JwtAuthGuard implements CanActivate {
       warehouseScopeIds: user.warehouseScopeIds,
       extractionScopeIds: user.extractionScopeIds,
       deviceId: payload.deviceId,
+      sessionId: payload.sessionId,
       organizationId: user.organizationId,
       permissions: user.userRoles.flatMap((ur) =>
         ur.role.permissions.map((rp) => rp.permission.code),

@@ -539,6 +539,27 @@
       "post": {
         "operationId": "AuthController_mobileWebSession",
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "refreshToken"
+                ],
+                "properties": {
+                  "refreshToken": {
+                    "type": "string",
+                    "writeOnly": true,
+                    "description": "Действующий refresh token той же нативной сессии, что Bearer"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": ""

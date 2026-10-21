@@ -233,6 +233,47 @@ void main() {
     expect(api.owner, 'user-b');
     expect(api.can('users.manage'), false);
   });
+  test(
+      'Workspace session requires native proof without replacing native tokens',
+      () async {
+    FlutterSecureStorage.setMockInitialValues(
+        {'accessToken': 'native-access', 'refreshToken': 'native-proof'});
+    final api = BioflowClient()..profile = {'id': 'user-a'};
+    api.dio.interceptors.add(InterceptorsWrapper(onRequest: (o, h) {
+      expect(o.path, '/auth/mobile-web-session');
+      expect(o.data['refreshToken'], 'native-proof');
+      h.resolve(Response(
+          requestOptions: o,
+          statusCode: 201,
+          data: {'accessToken': 'web-access', 'refreshToken': 'web-refresh'}));
+    }));
+    final web = await api.workspaceSession();
+    expect(web['accessToken'], 'web-access');
+    expect(await api.storage.read(key: 'accessToken'), 'native-access');
+    expect(await api.storage.read(key: 'refreshToken'), 'native-proof');
+    expect(await api.pending(), isEmpty);
+  });
+  test('A delayed proof cannot start a workspace after logout', () async {
+    FlutterSecureStorage.setMockInitialValues(
+        {'accessToken': 'native-access', 'refreshToken': 'native-proof'});
+    final delayed = DelayedTokenStorage(blockedKey: 'refreshToken');
+    final api = DelayedTokenClient(delayed)..profile = {'id': 'user-a'};
+    final paths = <String>[];
+    api.dio.interceptors.add(InterceptorsWrapper(onRequest: (o, h) {
+      paths.add(o.path);
+      h.resolve(
+          Response(requestOptions: o, statusCode: 200, data: {'ok': true}));
+    }));
+    final request = api.workspaceSession();
+    final rejected = expectLater(request, throwsA(isA<StateError>()));
+    await delayed.started.future;
+    final logout = api.logout();
+    delayed.release.complete();
+    await rejected;
+    await logout;
+    expect(paths, isNot(contains('/auth/mobile-web-session')));
+    expect(api.profile, isNull);
+  });
   testWidgets('Login has no prefilled demo credentials', (tester) async {
     await tester.pumpWidget(const BioflowApp());
     await tester.pumpAndSettle();

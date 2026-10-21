@@ -93,7 +93,8 @@ def collect_document(extension):
                 raise RuntimeError("Unexpected test document location")
             data = subprocess.check_output([adb, "-s", serial, "exec-out", "cat", source], timeout=15)
             if not data:
-                raise RuntimeError("Empty saved document")
+                time.sleep(1)
+                continue
             output = Path(__file__).resolve().parent.parent / "apps/mobile/artifacts/downloads"
             output.mkdir(parents=True, exist_ok=True)
             target = output / ("mobile-report.csv" if extension == "csv" else "mobile-QR.pdf")
@@ -142,6 +143,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(body)
             except Exception as error:
                 print("Native document UI failed: " + str(error), flush=True)
+                output = Path(__file__).resolve().parent.parent / "apps/mobile/artifacts/screenshots"
+                output.mkdir(parents=True, exist_ok=True)
+                (output / "native-document-error.png").write_bytes(subprocess.check_output([adb, "-s", serial, "exec-out", "screencap", "-p"], timeout=15))
                 self.send_error(500, "Native test document operation failed")
             return
         if self.path == "/screenshot":

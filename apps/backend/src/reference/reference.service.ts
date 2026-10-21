@@ -147,7 +147,7 @@ export class ReferenceService {
   async createUser(dto: CreateUserDto, user: CurrentUser) {
     if (!dto.email && !dto.phone)
       throw new BadRequestException("Email or phone is required");
-    const passwordHash = await argon2.hash(dto.temporaryPassword);
+    const passwordHash = await argon2.hash(dto.temporaryPassword ?? "123456");
     const created = await this.writeWithConflict(() =>
       this.prisma.user.create({
         data: {

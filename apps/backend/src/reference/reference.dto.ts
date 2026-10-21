@@ -1,3 +1,5 @@
+import { Transform } from "class-transformer";
+import { normalizePhone } from "../auth/phone";
 import {
   Allow,
   IsBoolean,
@@ -29,14 +31,16 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => normalizePhone(value))
   phone?: string;
 
   @IsString()
   fullName!: string;
 
   @IsString()
-  @MinLength(8)
-  temporaryPassword!: string;
+  @IsOptional()
+  @MinLength(6)
+  temporaryPassword: string = "123456";
 }
 
 export class AssignRolesDto {

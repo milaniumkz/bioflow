@@ -1,3 +1,5 @@
+import { Transform } from "class-transformer";
+import { normalizePhone } from "./phone";
 import { IsEmail, IsOptional, IsString, MinLength } from "class-validator";
 
 export class LoginDto {
@@ -7,10 +9,11 @@ export class LoginDto {
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => normalizePhone(value))
   phone?: string;
 
   @IsString()
-  @MinLength(8)
+  @MinLength(1)
   password!: string;
 
   @IsOptional()
@@ -37,7 +40,7 @@ export class RefreshDto {
 
 export class ChangePasswordDto {
   @IsString()
-  @MinLength(8)
+  @MinLength(1)
   currentPassword!: string;
 
   @IsString()
@@ -52,6 +55,7 @@ export class ForgotPasswordDto {
 
   @IsOptional()
   @IsString()
+  @Transform(({ value }) => normalizePhone(value))
   phone?: string;
 }
 
@@ -75,4 +79,10 @@ export class RegisterDeviceDto {
   @IsOptional()
   @IsString()
   pushToken?: string;
+}
+
+/** Proof of the existing native session; actor identity is supplied by JWT guard. */
+export class MobileWebSessionDto {
+  @IsString()
+  refreshToken!: string;
 }

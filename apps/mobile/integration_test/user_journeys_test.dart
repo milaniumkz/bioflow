@@ -10,7 +10,7 @@ import 'package:bioflow_mobile/main.dart' as app;
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  String? createdMobileEmail;
+  String? createdMobilePhone;
   Future<void> wait(WidgetTester tester, Finder finder) async {
     for (var n = 0; n < 225; n++) {
       await tester.pump(const Duration(milliseconds: 200));
@@ -130,35 +130,41 @@ void main() {
   }
 
   Future<void> nativeShot(WidgetTester tester, String name) async {
+    int? status;
     await tester.runAsync(() async {
       final c = HttpClient();
       try {
         final r = await c.postUrl(Uri.parse('http://10.0.2.2:4200/screenshot'));
         r.headers.set('X-Bioflow-Test', 'isolated-android-ui');
         r.headers.contentType = ContentType.json;
-        r.write(jsonEncode({'name': name}));
+        final body = utf8.encode(jsonEncode({'name': name}));
+        r.contentLength = body.length;
+        r.add(body);
         final response = await r.close();
-        expect(response.statusCode, 200);
+        status = response.statusCode;
         await response.drain<void>();
       } finally {
         c.close(force: true);
       }
     });
+    expect(status, 200);
   }
 
   Future<void> nativeDocument(WidgetTester tester, String path) async {
+    int? status;
     await tester.runAsync(() async {
       final c = HttpClient();
       try {
         final r = await c.postUrl(Uri.parse('http://10.0.2.2:4200/$path'));
         r.headers.set('X-Bioflow-Test', 'isolated-android-ui');
         final response = await r.close();
-        expect(response.statusCode, 200);
+        status = response.statusCode;
         await response.drain<void>();
       } finally {
         c.close(force: true);
       }
     });
+    expect(status, 200);
     await tester.pump(const Duration(milliseconds: 300));
   }
 
@@ -180,11 +186,12 @@ void main() {
           'document.body.innerText.includes("Новый пользователь")');
       final email =
           'mobile-full-${DateTime.now().millisecondsSinceEpoch}@uat.local';
-      createdMobileEmail = email;
+      createdMobilePhone =
+          "+7${DateTime.now().millisecondsSinceEpoch.toString().substring(3)}";
       final fields = {
         'ФИО': 'Мобильный пользователь',
         'Email': email,
-        'Временный пароль': 'IntegrationOnly2026!'
+        'Телефон': createdMobilePhone!
       };
       for (final field in fields.entries) {
         await webAction(tester, state,
@@ -428,21 +435,20 @@ void main() {
           .runAsync(() => Future<void>.delayed(const Duration(seconds: 6)));
     }
 
-    expect(createdMobileEmail, isNotNull);
-    await tester.enterText(find.byType(TextField).at(0), createdMobileEmail!);
-    await tester.enterText(
-        find.byType(TextField).at(1), 'IntegrationOnly2026!');
+    expect(createdMobilePhone, isNotNull);
+    await tester.enterText(find.byType(TextField).at(0), createdMobilePhone!);
+    await tester.enterText(find.byType(TextField).at(1), '123456');
     await tester.tap(find.text('Войти'));
     await wait(tester, find.text('Смена временного пароля'));
-    await tester.enterText(find.widgetWithText(TextFormField, 'Текущий пароль'),
-        'IntegrationOnly2026!');
+    await tester.enterText(
+        find.widgetWithText(TextFormField, 'Текущий пароль'), '123456');
     await tester.enterText(find.widgetWithText(TextFormField, 'Новый пароль'),
         'UpdatedMobile2026!');
     await saveForm(tester);
     await wait(tester, find.text('Сохранено'));
     await tester.tap(find.text('Закрыть'));
     await wait(tester, find.text('Войти'));
-    await tester.enterText(find.byType(TextField).at(0), createdMobileEmail!);
+    await tester.enterText(find.byType(TextField).at(0), createdMobilePhone!);
     await tester.enterText(find.byType(TextField).at(1), 'UpdatedMobile2026!');
     await tester.tap(find.text('Войти'));
     await wait(tester, find.byType(NavigationBar));

@@ -134,7 +134,13 @@ function Login({ onToken }: { onToken: (token: string) => void }) {
         undefined,
         {
           method: "POST",
-          body: JSON.stringify({ email, password, platform: "web" }),
+          body: JSON.stringify({
+            ...(email.includes("@")
+              ? { email: email.trim() }
+              : { phone: email.trim() }),
+            password,
+            platform: "web",
+          }),
         },
       ),
     onSuccess: (data) => {
@@ -146,7 +152,11 @@ function Login({ onToken }: { onToken: (token: string) => void }) {
     mutationFn: () =>
       request<any>("/auth/forgot-password", undefined, {
         method: "POST",
-        body: JSON.stringify({ email }),
+        body: JSON.stringify(
+          email.includes("@")
+            ? { email: email.trim() }
+            : { phone: email.trim() },
+        ),
       }),
     onSuccess: (data) =>
       setMessage(
@@ -176,10 +186,10 @@ function Login({ onToken }: { onToken: (token: string) => void }) {
         <p className="metric">Вход в систему контроля биоматериала</p>
         <div className="toolbar">
           <label className="login-field" htmlFor="login-email">
-            Электронная почта
+            Номер телефона
             <input
               id="login-email"
-              type="email"
+              type="tel"
               autoComplete="username"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -1629,7 +1639,7 @@ function UserForm({ token }: { token: string }) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [fullName, setFullName] = useState("");
-  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [temporaryPassword, setTemporaryPassword] = useState("123456");
   const [userId, setUserId] = useState("");
   const [roleCodes, setRoleCodes] = useState<string[]>(["AUDITOR"]);
   const [blockReason, setBlockReason] = useState("");
@@ -1652,7 +1662,7 @@ function UserForm({ token }: { token: string }) {
       }),
     onSuccess: (data) => {
       setMessage(`Пользователь создан: ${data.fullName}`);
-      setTemporaryPassword("");
+      setTemporaryPassword("123456");
       setUserId(data.id);
       setRoleCodes(["AUDITOR"]);
       void queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -1693,6 +1703,10 @@ function UserForm({ token }: { token: string }) {
   return (
     <section className="tableWrap">
       <h2>Новый пользователь</h2>
+      <p>
+        Вход по номеру телефона. Временный пароль — 123456. При первом входе
+        пользователь обязан сменить пароль (не менее 8 символов).
+      </p>
       <form
         className="formGrid compact"
         onSubmit={(e) => {
@@ -1714,6 +1728,8 @@ function UserForm({ token }: { token: string }) {
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="Телефон"
+          type="tel"
+          required
         />
         <input
           type="password"

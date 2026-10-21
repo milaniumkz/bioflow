@@ -117,7 +117,7 @@ class BioflowClient {
     device ??= commandId();
     await storage.write(key: 'deviceId', value: device);
     final r = await dio.post('/auth/login', data: {
-      'email': email,
+      if (email.contains('@')) 'email': email.trim() else 'phone': email.trim(),
       'password': password,
       'platform': 'android',
       'deviceId': device
@@ -139,6 +139,36 @@ class BioflowClient {
   }
 
   bool can(String p) => (profile?['permissions'] as List? ?? []).contains(p);
+  Future<dynamic> workspaceSession() async {
+    final epoch = _sessionEpoch, user = owner;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final proof = await _authLocked(() => storage.read(key: 'refreshToken'));
+      _checkIdentity(epoch, user);
+      if (proof == null) throw StateError('Войдите в приложение заново');
+      try {
+        final data = await send(
+            '/auth/mobile-web-session', {'refreshToken': proof},
+            queue: false);
+        _checkIdentity(epoch, user);
+        return data;
+      } on DioException catch (e) {
+        _checkIdentity(epoch, user);
+        final latest =
+            await _authLocked(() => storage.read(key: 'refreshToken'));
+        _checkIdentity(epoch, user);
+        // The interceptor may have rotated native credentials during a retry.
+        if (attempt == 0 &&
+            e.response?.statusCode == 401 &&
+            latest != null &&
+            latest != proof) {
+          continue;
+        }
+        rethrow;
+      }
+    }
+    throw StateError('Войдите в приложение заново');
+  }
+
   Future<void> refreshProfile() async {
     final epoch = _sessionEpoch, user = owner;
     final response = await dio.get('/auth/me',
