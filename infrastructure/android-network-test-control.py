@@ -198,7 +198,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_error(400)
                 return
             name = json.loads(self.rfile.read(size)).get("name", "")
-            if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", name):
+            if not re.fullmatch(r"[A-Za-zА-Яа-яЁё0-9_-]{1,80}", name):
                 self.send_error(400)
                 return
             output = Path(__file__).resolve().parent.parent / "apps/mobile/artifacts/screenshots"

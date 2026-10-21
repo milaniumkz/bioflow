@@ -303,6 +303,47 @@ void main() {
     await ready(tester);
   }
 
+  Future<void> firstPhoneLogin(WidgetTester tester) async {
+    expect(createdMobilePhone, isNotNull);
+    await tester.enterText(find.byType(TextField).at(0), createdMobilePhone!);
+    await tester.enterText(find.byType(TextField).at(1), '123456');
+    await tester.tap(find.text('Войти'));
+    await wait(tester, find.text('Смена временного пароля'));
+    await tester.enterText(
+        find.widgetWithText(TextFormField, 'Текущий пароль'), '123456');
+    await tester.enterText(
+        find.widgetWithText(TextFormField, 'Новый пароль'), '123456');
+    await tester.tap(find.text('Сохранить'));
+    await tester.pump();
+    expect(find.text('Пароль должен содержать не менее 8 символов'),
+        findsOneWidget);
+    await nativeShot(tester, 'first-password-short-rejected');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Новый пароль'),
+        'UpdatedMobile2026!');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Сохранить'));
+    await wait(tester, find.text('Сохранено'));
+    await tester.tap(find.text('Закрыть'));
+    await wait(tester, find.text('Войти'));
+    await tester.enterText(find.byType(TextField).at(0), createdMobilePhone!);
+    await tester.enterText(find.byType(TextField).at(1), 'UpdatedMobile2026!');
+    await tester.tap(find.text('Войти'));
+    await wait(tester, find.byType(NavigationBar));
+    await ready(tester);
+    expect(find.textContaining('Администратор'), findsWidgets);
+    expect(find.textContaining('Наблюдатель/аудитор'), findsWidgets);
+    await nativeShot(
+        tester, 'full-cabinet-multiple-roles-after-password-change');
+    await tester.tap(find.byTooltip('Разделы моей роли'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -1200));
+    await tester.pumpAndSettle();
+    expect(find.text('Пользователи'), findsWidgets);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await logout(tester);
+  }
+
   testWidgets('Android: forms, offline account queue and all roles through UI',
       (tester) async {
     app.api.dio.interceptors.add(InterceptorsWrapper(onResponse: (r, h) {
@@ -486,45 +527,12 @@ void main() {
       }
       await fullCabinet(tester, role);
       await logout(tester);
+      if (role == 'OWNER') await firstPhoneLogin(tester);
       // Keep the real backend's rate limit enabled during the role sweep.
       await tester
           .runAsync(() => Future<void>.delayed(const Duration(seconds: 6)));
     }
 
-    expect(createdMobilePhone, isNotNull);
-    await tester.enterText(find.byType(TextField).at(0), createdMobilePhone!);
-    await tester.enterText(find.byType(TextField).at(1), '123456');
-    await tester.tap(find.text('Войти'));
-    await wait(tester, find.text('Смена временного пароля'));
-    await tester.enterText(
-        find.widgetWithText(TextFormField, 'Текущий пароль'), '123456');
-    await tester.enterText(
-        find.widgetWithText(TextFormField, 'Новый пароль'), '123456');
-    await tester.tap(find.text('Сохранить'));
-    await tester.pump();
-    expect(find.text('Пароль должен содержать не менее 8 символов'),
-        findsOneWidget);
-    await nativeShot(tester, 'first-password-short-rejected');
-    await tester.enterText(find.widgetWithText(TextFormField, 'Новый пароль'),
-        'UpdatedMobile2026!');
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Сохранить'));
-    await wait(tester, find.text('Сохранено'));
-    await tester.tap(find.text('Закрыть'));
-    await wait(tester, find.text('Войти'));
-    await tester.enterText(find.byType(TextField).at(0), createdMobilePhone!);
-    await tester.enterText(find.byType(TextField).at(1), 'UpdatedMobile2026!');
-    await tester.tap(find.text('Войти'));
-    await wait(tester, find.byType(NavigationBar));
-    await ready(tester);
-    expect(find.textContaining('Администратор'), findsWidgets);
-    expect(find.textContaining('Наблюдатель/аудитор'), findsWidgets);
-    await nativeShot(
-        tester, 'full-cabinet-multiple-roles-after-password-change');
-    await tester.tap(find.byTooltip('Разделы моей роли'));
-    await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView).last, const Offset(0, -1200));
-    await tester.pumpAndSettle();
-    expect(find.text('Пользователи'), findsWidgets);
+
   });
 }
