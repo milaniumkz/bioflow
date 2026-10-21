@@ -1010,7 +1010,8 @@ class _CommandFormState extends State<CommandForm> {
                 if (!dirty) setState(() => dirty = true);
               },
               child: ListView(padding: const EdgeInsets.all(20), children: [
-                const Text('Масса в тоннах · точность 0,001'),
+                if (widget.path.startsWith('/ledger/'))
+                  const Text('Масса в тоннах · точность 0,001'),
                 ...widget.fields.map((f) => Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: field(f))),

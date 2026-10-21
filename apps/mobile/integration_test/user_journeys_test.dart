@@ -339,7 +339,7 @@ void main() {
     await tester.drag(find.byType(ListView).last, const Offset(0, -1200));
     await tester.pumpAndSettle();
     expect(find.text('Пользователи'), findsWidgets);
-    await tester.pageBack();
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
     await logout(tester);
   }
