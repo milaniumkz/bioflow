@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dio/dio.dart';
@@ -37,6 +38,28 @@ class DelayedTokenStorage extends FlutterSecureStorage {
   }
 }
 
+class SnapshotProfileStorage extends FlutterSecureStorage {
+  final started = Completer<void>(), release = Completer<void>();
+  bool delayed = false;
+  @override
+  Future<String?> read(
+      {required String key,
+      IOSOptions? iOptions,
+      AndroidOptions? aOptions,
+      LinuxOptions? lOptions,
+      WebOptions? webOptions,
+      MacOsOptions? mOptions,
+      WindowsOptions? wOptions}) async {
+    final value = await super.read(key: key);
+    if (key == 'profile' && !delayed) {
+      delayed = true;
+      started.complete();
+      await release.future;
+    }
+    return value;
+  }
+}
+
 class DelayedTokenClient extends BioflowClient {
   final FlutterSecureStorage testStorage;
   DelayedTokenClient(this.testStorage);
@@ -47,6 +70,23 @@ class DelayedTokenClient extends BioflowClient {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+  test('Delayed session restore cannot resurrect the user after logout',
+      () async {
+    final storage = SnapshotProfileStorage();
+    final api = DelayedTokenClient(storage)..profile = {'id': 'old-user'};
+    await storage.write(key: 'profile', value: jsonEncode({'id': 'old-user'}));
+    await storage.write(key: 'accessToken', value: 'old-token');
+    api.dio.interceptors.add(InterceptorsWrapper(
+        onRequest: (o, h) => h.resolve(
+            Response(requestOptions: o, statusCode: 200, data: {'ok': true}))));
+    final restoring = api.restore();
+    await storage.started.future;
+    await api.logout();
+    storage.release.complete();
+    expect(await restoring, false);
+    expect(api.profile, isNull);
+    expect(await storage.read(key: 'profile'), isNull);
+  });
   test('Network errors queue commands under the current user', () async {
     final api = BioflowClient()..profile = {'id': 'user-a'};
     api.dio.interceptors.add(InterceptorsWrapper(

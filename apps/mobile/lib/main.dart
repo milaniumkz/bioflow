@@ -40,12 +40,13 @@ class LoginScreen extends StatefulWidget {
 class _LoginState extends State<LoginScreen> {
   final email = TextEditingController(), password = TextEditingController();
   bool busy = false;
+  int loginAttempt = 0;
   String? error;
   @override
   void initState() {
     super.initState();
     api.restore().then((ok) {
-      if (ok && mounted) {
+      if (ok && mounted && loginAttempt == 0 && !busy) {
         Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -76,6 +77,7 @@ class _LoginState extends State<LoginScreen> {
       setState(() => error = "Укажите номер телефона и пароль");
       return;
     }
+    loginAttempt++;
     setState(() {
       busy = true;
       error = null;

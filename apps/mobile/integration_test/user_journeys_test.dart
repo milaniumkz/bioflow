@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
+import 'package:dio/dio.dart';
+import 'package:bioflow_mobile/client.dart' show errorText;
 import 'package:bioflow_mobile/full_workspace.dart';
 import 'package:bioflow_mobile/role_access.dart';
 import 'package:flutter/material.dart';
@@ -10,13 +12,41 @@ import 'package:integration_test/integration_test.dart';
 import 'package:bioflow_mobile/main.dart' as app;
 
 void main() {
-  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   String? createdMobilePhone;
+  Future<void> nativeShot(WidgetTester tester, String name) async {
+    int? status;
+    await tester.runAsync(() async {
+      final c = HttpClient();
+      try {
+        final r = await c.postUrl(Uri.parse('http://10.0.2.2:4200/screenshot'));
+        r.headers.set('X-Bioflow-Test', 'isolated-android-ui');
+        r.headers.contentType = ContentType.json;
+        final body = utf8.encode(jsonEncode({'name': name}));
+        r.contentLength = body.length;
+        r.add(body);
+        final response = await r.close();
+        status = response.statusCode;
+        await response.drain<void>();
+      } finally {
+        c.close(force: true);
+      }
+    });
+    expect(status, 200);
+  }
+
   Future<void> wait(WidgetTester tester, Finder finder) async {
     for (var n = 0; n < 225; n++) {
       await tester.pump(const Duration(milliseconds: 200));
       if (finder.evaluate().isNotEmpty) return;
     }
+    final red = tester
+        .widgetList<Text>(find.byType(Text))
+        .where((w) => w.style?.color == Colors.redAccent)
+        .map((w) => w.data ?? '')
+        .toList();
+    debugPrint('Visible form errors: $red');
+    await nativeShot(tester, 'failed-wait');
     expect(finder, findsWidgets);
   }
 
@@ -57,7 +87,7 @@ void main() {
     await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 300)));
     await tester.pump();
-    await binding.takeScreenshot(name);
+    await nativeShot(tester, name);
   }
 
   Future<void> queueScreen(WidgetTester tester) async {
@@ -128,27 +158,6 @@ void main() {
       await state.controller.runJavaScript(script);
     });
     await tester.pump(const Duration(milliseconds: 300));
-  }
-
-  Future<void> nativeShot(WidgetTester tester, String name) async {
-    int? status;
-    await tester.runAsync(() async {
-      final c = HttpClient();
-      try {
-        final r = await c.postUrl(Uri.parse('http://10.0.2.2:4200/screenshot'));
-        r.headers.set('X-Bioflow-Test', 'isolated-android-ui');
-        r.headers.contentType = ContentType.json;
-        final body = utf8.encode(jsonEncode({'name': name}));
-        r.contentLength = body.length;
-        r.add(body);
-        final response = await r.close();
-        status = response.statusCode;
-        await response.drain<void>();
-      } finally {
-        c.close(force: true);
-      }
-    });
-    expect(status, 200);
   }
 
   Future<void> nativeDocument(WidgetTester tester, String path,
@@ -296,9 +305,20 @@ void main() {
 
   testWidgets('Android: forms, offline account queue and all roles through UI',
       (tester) async {
+    app.api.dio.interceptors.add(InterceptorsWrapper(onResponse: (r, h) {
+      if (r.requestOptions.path.endsWith('/auth/change-password')) {
+        debugPrint('Password change HTTP ${r.statusCode}');
+      }
+      h.next(r);
+    }, onError: (e, h) {
+      if (e.requestOptions.path.endsWith('/auth/change-password')) {
+        debugPrint(
+            'Password change HTTP ${e.response?.statusCode}: ${errorText(e)}');
+      }
+      h.next(e);
+    }));
     app.main();
     await tester.pumpAndSettle();
-    await binding.convertFlutterSurfaceToImage();
     await tester.pump();
     await tester.tap(find.text('Войти'));
     await wait(tester, find.text('Укажите номер телефона и пароль'));
@@ -480,14 +500,15 @@ void main() {
         find.widgetWithText(TextFormField, 'Текущий пароль'), '123456');
     await tester.enterText(
         find.widgetWithText(TextFormField, 'Новый пароль'), '123456');
-    await saveForm(tester);
+    await tester.tap(find.text('Сохранить'));
     await tester.pump();
     expect(find.text('Пароль должен содержать не менее 8 символов'),
         findsOneWidget);
     await nativeShot(tester, 'first-password-short-rejected');
     await tester.enterText(find.widgetWithText(TextFormField, 'Новый пароль'),
         'UpdatedMobile2026!');
-    await saveForm(tester);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Сохранить'));
     await wait(tester, find.text('Сохранено'));
     await tester.tap(find.text('Закрыть'));
     await wait(tester, find.text('Войти'));

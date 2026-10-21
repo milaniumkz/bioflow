@@ -133,9 +133,17 @@ class BioflowClient {
   }
 
   Future<bool> restore() async {
-    final p = await storage.read(key: 'profile');
-    if (p != null) profile = Map<String, dynamic>.from(jsonDecode(p));
-    return profile != null && await storage.read(key: 'accessToken') != null;
+    final epoch = _sessionEpoch;
+    final cached = await storage.read(key: 'profile');
+    if (epoch != _sessionEpoch || cached == null) return false;
+    final access = await storage.read(key: 'accessToken');
+    if (epoch != _sessionEpoch || access == null) return false;
+    final restored = Map<String, dynamic>.from(jsonDecode(cached));
+    return _authLocked(() async {
+      if (epoch != _sessionEpoch) return false;
+      profile = restored;
+      return true;
+    });
   }
 
   bool can(String p) => (profile?['permissions'] as List? ?? []).contains(p);
