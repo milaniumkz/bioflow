@@ -536,6 +536,7 @@ class _WorkspaceState extends State<Workspace> {
                 },
                 icon: const Icon(Icons.sync)),
             PopupMenuButton<String>(
+                tooltip: 'Аккаунт',
                 onSelected: (x) async {
                   if (x == 'logout') {
                     await api.logout();

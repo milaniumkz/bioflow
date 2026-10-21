@@ -44,7 +44,7 @@ void main() {
   }
 
   Future<void> logout(WidgetTester tester) async {
-    await tester.tap(find.byType(PopupMenuButton<String>));
+    await tester.tap(find.byTooltip('Аккаунт'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Выйти'));
     await wait(tester, find.text('Войти'));
@@ -292,6 +292,9 @@ void main() {
     }
     await tester.tap(find.byTooltip('Назад'));
     await wait(tester, find.byType(NavigationBar));
+    await tester.pumpAndSettle();
+    expect(find.byType(FullWorkspace), findsNothing);
+    await ready(tester);
   }
 
   testWidgets('Android: forms, offline account queue and all roles through UI',
