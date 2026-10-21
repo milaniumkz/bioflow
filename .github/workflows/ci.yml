@@ -1,5 +1,6 @@
 name: ci
 on:
+  workflow_dispatch:
   push:
     branches-ignore: [codex/mac-ci-pilot, codex/ci-split-pilot]
   pull_request:
