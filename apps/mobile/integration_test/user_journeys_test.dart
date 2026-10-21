@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:bioflow_mobile/full_workspace.dart';
@@ -150,21 +151,51 @@ void main() {
     expect(status, 200);
   }
 
-  Future<void> nativeDocument(WidgetTester tester, String path) async {
-    int? status;
-    await tester.runAsync(() async {
-      final c = HttpClient();
+  Future<void> nativeDocument(WidgetTester tester, String path,
+      Future<void> Function() openDialog) async {
+    Future<Map<String, dynamic>> control(String endpoint,
+        {bool post = false}) async {
+      final c = HttpClient()..connectionTimeout = const Duration(seconds: 3);
       try {
-        final r = await c.postUrl(Uri.parse('http://10.0.2.2:4200/$path'));
+        final uri = Uri.parse('http://10.0.2.2:4200/$endpoint');
+        final r = post ? await c.postUrl(uri) : await c.getUrl(uri);
         r.headers.set('X-Bioflow-Test', 'isolated-android-ui');
-        final response = await r.close();
-        status = response.statusCode;
-        await response.drain<void>();
+        final response = await r.close().timeout(const Duration(seconds: 5));
+        final text = await utf8.decoder.bind(response).join();
+        if (response.statusCode != (post ? 202 : 200)) {
+          throw StateError(
+              'Native document controller: ${response.statusCode}');
+        }
+        return Map<String, dynamic>.from(jsonDecode(text));
       } finally {
         c.close(force: true);
       }
+    }
+
+    Map<String, dynamic>? armed;
+    await tester.runAsync(() async {
+      armed = await control(path, post: true);
     });
-    expect(status, 200);
+    expect(armed?['state'], 'PENDING');
+    await openDialog();
+    Map<String, dynamic>? result;
+    final deadline = DateTime.now().add(const Duration(seconds: 90));
+    while (DateTime.now().isBefore(deadline)) {
+      await tester.runAsync(() async {
+        try {
+          result = await control('document-status');
+        } on HttpException {
+          /* Android can suspend app networking while DocumentsUI is foreground. */
+        } on SocketException {
+        } on TimeoutException {}
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      await tester.pump();
+      if (result?['state'] == 'PASS' || result?['state'] == 'FAIL') break;
+    }
+    expect(result?['id'], armed?['id']);
+    expect(result?['state'], 'PASS');
+    expect(result?['bytes'], greaterThan(0));
     await tester.pump(const Duration(milliseconds: 300));
   }
 
@@ -215,9 +246,11 @@ void main() {
       await webWait(
           tester, state, 'document.body.innerText.includes("Скачать CSV")');
       await nativeShot(tester, 'full-cabinet-reports');
-      await webAction(tester, state,
-          '[...document.querySelectorAll("button")].find(x=>x.textContent.trim()==="Скачать CSV").click();');
-      await nativeDocument(tester, 'save-document');
+      await nativeDocument(
+          tester,
+          'save-document',
+          () => webAction(tester, state,
+              '[...document.querySelectorAll("button")].find(x=>x.textContent.trim()==="Скачать CSV").click();'));
       await nativeShot(tester, 'full-cabinet-report-saved');
       await webAction(tester, state,
           'window.dispatchEvent(new CustomEvent("bioflow:mobile-section", {detail:"ledger"}));');
@@ -239,9 +272,11 @@ void main() {
           'document.querySelector("details form button").focus();document.querySelector("details form button").click();');
       await webWait(
           tester, state, 'document.querySelector("dialog[open] img") != null');
-      await webAction(tester, state,
-          '[...document.querySelectorAll("dialog button")].find(x=>x.textContent.trim()==="Печать QR").click();');
-      await nativeDocument(tester, 'print-to-pdf');
+      await nativeDocument(
+          tester,
+          'print-to-pdf',
+          () => webAction(tester, state,
+              '[...document.querySelectorAll("dialog button")].find(x=>x.textContent.trim()==="Печать QR").click();'));
       await webAction(tester, state,
           '[...document.querySelectorAll("dialog button")].find(x=>x.textContent.trim()==="Закрыть").click();');
     } else if (!app.api.can('users.manage')) {
@@ -442,6 +477,12 @@ void main() {
     await wait(tester, find.text('Смена временного пароля'));
     await tester.enterText(
         find.widgetWithText(TextFormField, 'Текущий пароль'), '123456');
+    await tester.enterText(
+        find.widgetWithText(TextFormField, 'Новый пароль'), '123456');
+    await saveForm(tester);
+    expect(find.text('Пароль должен содержать не менее 8 символов'),
+        findsOneWidget);
+    await nativeShot(tester, 'first-password-short-rejected');
     await tester.enterText(find.widgetWithText(TextFormField, 'Новый пароль'),
         'UpdatedMobile2026!');
     await saveForm(tester);

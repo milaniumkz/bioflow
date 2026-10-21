@@ -19,6 +19,8 @@ if len(serials) != 1 or not serials[0].startswith("emulator-"):
     raise SystemExit("Exactly one disposable emulator is required")
 serial = serials[0]
 lock = threading.Lock()
+document_lock = threading.Lock()
+document_result = {"state": "IDLE", "id": 0}
 
 
 def network(state):
@@ -128,25 +130,37 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(403)
             return
         if self.path in ("/save-document", "/print-to-pdf"):
-            try:
-                if self.path == "/print-to-pdf":
-                    print_system_pdf()
-                    result = collect_document("pdf")
-                else:
-                    save_system_document()
-                    result = collect_document("csv")
-                body = json.dumps(result).encode()
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-            except Exception as error:
-                print("Native document UI failed: " + str(error), flush=True)
-                output = Path(__file__).resolve().parent.parent / "apps/mobile/artifacts/screenshots"
-                output.mkdir(parents=True, exist_ok=True)
-                (output / "native-document-error.png").write_bytes(subprocess.check_output([adb, "-s", serial, "exec-out", "screencap", "-p"], timeout=15))
-                self.send_error(500, "Native test document operation failed")
+            if not document_lock.acquire(blocking=False):
+                self.send_error(409)
+                return
+            document_result.clear()
+            document_result.update({"state": "PENDING", "id": time.monotonic_ns()})
+            action = self.path
+            def run_document():
+                try:
+                    if action == "/print-to-pdf":
+                        print_system_pdf()
+                        result = collect_document("pdf")
+                    else:
+                        save_system_document()
+                        result = collect_document("csv")
+                    document_result.update({**result, "state": "PASS"})
+                except Exception as error:
+                    print("Native document UI failed: " + str(error), flush=True)
+                    document_result.update({"state": "FAIL"})
+                    output = Path(__file__).resolve().parent.parent / "apps/mobile/artifacts/screenshots"
+                    output.mkdir(parents=True, exist_ok=True)
+                    (output / "native-document-error.png").write_bytes(subprocess.check_output([adb, "-s", serial, "exec-out", "screencap", "-p"], timeout=15))
+                finally:
+                    document_lock.release()
+            body = json.dumps(dict(document_result)).encode()
+            self.send_response(202)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            self.wfile.flush()
+            threading.Thread(target=run_document, daemon=True).start()
             return
         if self.path == "/screenshot":
             size = int(self.headers.get("Content-Length", "0"))
@@ -176,6 +190,17 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
         self.wfile.flush()
         threading.Thread(target=offline_cycle, daemon=True).start()
+
+    def do_GET(self):
+        if self.path != "/document-status" or self.headers.get("X-Bioflow-Test") != "isolated-android-ui":
+            self.send_error(403)
+            return
+        body = json.dumps(dict(document_result)).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def log_message(self, *_args):
         pass

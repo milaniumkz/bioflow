@@ -947,7 +947,9 @@ class _CommandFormState extends State<CommandForm> {
     }
     return TextFormField(
         initialValue: values[f.key]?.toString(),
-        decoration: InputDecoration(labelText: f.label),
+        decoration: InputDecoration(
+            labelText: f.label,
+            helperText: f.key == 'newPassword' ? 'Не менее 8 символов' : null),
         keyboardType: f.numeric
             ? const TextInputType.numberWithOptions(decimal: true, signed: true)
             : TextInputType.text,
@@ -957,6 +959,9 @@ class _CommandFormState extends State<CommandForm> {
         validator: (v) {
           if (f.required && (v == null || v.trim().isEmpty)) {
             return 'Заполните поле';
+          }
+          if (f.key == 'newPassword' && (v?.length ?? 0) < 8) {
+            return 'Пароль должен содержать не менее 8 символов';
           }
           if (f.numeric &&
               v != null &&

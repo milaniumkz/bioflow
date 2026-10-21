@@ -350,8 +350,12 @@ String errorText(Object e) {
           if (text.contains('fileIds must contain')) {
             return 'Добавьте фотографию весов или документа';
           }
-          if (text.contains('password') && text.contains('longer than')) {
+          if (text.toLowerCase().contains('password') &&
+              text.contains('longer than')) {
             return 'Пароль должен содержать не менее 8 символов';
+          }
+          if (text == 'Current password is invalid') {
+            return 'Неверный текущий пароль';
           }
           if (text == 'Invalid credentials') return 'Неверный логин или пароль';
           if (text == 'Forbidden resource') {
