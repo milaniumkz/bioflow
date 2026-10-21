@@ -241,7 +241,7 @@ void main() {
           'document.querySelector("table")?.innerText.includes(${jsonEncode(createdMobilePhone)})');
       for (final name in ['Администратор', 'Наблюдатель/аудитор']) {
         await webAction(tester, state,
-            '(function(){const el=[...document.querySelectorAll(".role-choice")].find(x=>x.querySelector("strong")?.textContent===${jsonEncode(name)}).querySelector("input");el.focus();el.click();})()');
+            '(function(){const el=[...document.querySelectorAll(".role-choice")].find(x=>x.querySelector("strong")?.textContent===${jsonEncode(name)}).querySelector("input");el.focus();if(!el.checked)el.click();})()');
       }
       await webAction(tester, state,
           'document.querySelectorAll("main form")[1].querySelector("button").focus();document.querySelectorAll("main form")[1].querySelector("button").click();');
