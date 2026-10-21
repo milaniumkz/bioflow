@@ -353,7 +353,7 @@ String errorText(Object e) {
           if (text.contains('password') && text.contains('longer than')) {
             return 'Пароль должен содержать не менее 8 символов';
           }
-          if (text == 'Invalid credentials') return 'Неверный email или пароль';
+          if (text == 'Invalid credentials') return 'Неверный логин или пароль';
           if (text == 'Forbidden resource') {
             return 'Нет доступа к этому действию';
           }

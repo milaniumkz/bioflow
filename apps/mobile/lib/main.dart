@@ -72,6 +72,10 @@ class _LoginState extends State<LoginScreen> {
   }
 
   Future<void> login() async {
+    if (email.text.trim().isEmpty || password.text.isEmpty) {
+      setState(() => error = "Укажите номер телефона и пароль");
+      return;
+    }
     setState(() {
       busy = true;
       error = null;

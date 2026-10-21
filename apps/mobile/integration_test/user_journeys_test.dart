@@ -265,7 +265,7 @@ void main() {
     await binding.convertFlutterSurfaceToImage();
     await tester.pump();
     await tester.tap(find.text('Войти'));
-    await wait(tester, find.textContaining('email'));
+    await wait(tester, find.text('Укажите номер телефона и пароль'));
     await shot(tester, 'login-empty-error');
     await login(tester, 'OWNER');
     await tester.tap(find.byType(FloatingActionButton));

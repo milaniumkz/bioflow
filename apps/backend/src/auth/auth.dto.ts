@@ -1,6 +1,12 @@
 import { Transform } from "class-transformer";
 import { normalizePhone } from "./phone";
-import { IsEmail, IsOptional, IsString, MinLength } from "class-validator";
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  Matches,
+  MinLength,
+} from "class-validator";
 
 export class LoginDto {
   @IsOptional()
@@ -9,6 +15,9 @@ export class LoginDto {
 
   @IsOptional()
   @IsString()
+  @Matches(/^\+[1-9]\d{6,14}$/, {
+    message: "Укажите корректный номер телефона",
+  })
   @Transform(({ value }) => normalizePhone(value))
   phone?: string;
 
@@ -55,6 +64,9 @@ export class ForgotPasswordDto {
 
   @IsOptional()
   @IsString()
+  @Matches(/^\+[1-9]\d{6,14}$/, {
+    message: "Укажите корректный номер телефона",
+  })
   @Transform(({ value }) => normalizePhone(value))
   phone?: string;
 }

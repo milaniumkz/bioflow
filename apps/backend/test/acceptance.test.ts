@@ -74,6 +74,11 @@ test("BIOFLOW specification AT 01–13 on PostgreSQL and private S3", async (t) 
   await t.test(
     "Phone login, default temporary password and mandatory first change",
     async () => {
+      await api(
+        "/users",
+        { phone: "not-a-phone", fullName: "Invalid phone" },
+        400,
+      );
       const phone = "+7" + String(Date.now()).slice(-10);
       const employee = await api(
         "/users",
