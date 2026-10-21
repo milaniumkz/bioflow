@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { webRequest, downloadReport, networkFetch } from "./session";
 import { createCommandId } from "./command-id.mjs";
+import { isMobileWorkspace, printQr, saveBlob } from "./mobile-bridge";
 type Row = Record<string, any>;
 const url = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 const names: Record<string, string> = {
@@ -834,17 +835,11 @@ export function Ledger({
                     ),
                     format,
                   });
-                  const u = URL.createObjectURL(
-                    await downloadReport(
-                      `/ledger/reports/${report}/export?${q}`,
-                      token,
-                    ),
+                  const blob = await downloadReport(
+                    `/ledger/reports/${report}/export?${q}`,
+                    token,
                   );
-                  const a = document.createElement("a");
-                  a.href = u;
-                  a.download = `bioflow-${report}.${format}`;
-                  a.click();
-                  setTimeout(() => URL.revokeObjectURL(u), 1000);
+                  await saveBlob(blob, `bioflow-${report}.${format}`);
                 } catch (e) {
                   setError((e as Error).message);
                 }
@@ -1256,11 +1251,20 @@ export function Ledger({
               key={file.id}
               className="button secondary"
               onClick={async () => {
-                const popup = window.open("", "_blank");
+                const popup = isMobileWorkspace()
+                  ? null
+                  : window.open("", "_blank");
                 try {
                   const data = await call<Row>(
                     `/files/${file.id}/download-url`,
                   );
+                  if (isMobileWorkspace()) {
+                    const response = await networkFetch(data.downloadUrl);
+                    if (!response.ok)
+                      throw Error("Не удалось скачать документ");
+                    await saveBlob(await response.blob(), file.fileName);
+                    return;
+                  }
                   if (popup) {
                     popup.opener = null;
                     popup.location.href = data.downloadUrl;
@@ -1309,7 +1313,7 @@ export function Ledger({
               />
               <button
                 className="button secondary"
-                onClick={() => window.print()}
+                onClick={() => printQr(result.qrImage)}
               >
                 Печать QR
               </button>

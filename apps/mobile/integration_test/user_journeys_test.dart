@@ -1,4 +1,7 @@
 import 'dart:io';
+import 'dart:convert';
+import 'package:bioflow_mobile/full_workspace.dart';
+import 'package:bioflow_mobile/role_access.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +10,7 @@ import 'package:bioflow_mobile/main.dart' as app;
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  String? createdMobileEmail;
   Future<void> wait(WidgetTester tester, Finder finder) async {
     for (var n = 0; n < 225; n++) {
       await tester.pump(const Duration(milliseconds: 200));
@@ -100,6 +104,151 @@ void main() {
       await tester.tap(find.text(option.data!).last);
       await tester.pumpAndSettle();
     }
+  }
+
+  Future<void> webWait(
+      WidgetTester tester, FullWorkspaceState state, String condition) async {
+    for (var n = 0; n < 200; n++) {
+      Object? value;
+      await tester.runAsync(() async {
+        value = await state.controller
+            .runJavaScriptReturningResult('Boolean($condition)');
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+      });
+      await tester.pump();
+      if (value == true || value == 'true') return;
+    }
+    fail('Mobile WebView condition not satisfied: $condition');
+  }
+
+  Future<void> webAction(
+      WidgetTester tester, FullWorkspaceState state, String script) async {
+    await tester.runAsync(() async {
+      await state.controller.runJavaScript(script);
+    });
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+
+  Future<void> nativeShot(WidgetTester tester, String name) async {
+    await tester.runAsync(() async {
+      final c = HttpClient();
+      try {
+        final r = await c.postUrl(Uri.parse('http://10.0.2.2:4200/screenshot'));
+        r.headers.set('X-Bioflow-Test', 'isolated-android-ui');
+        r.headers.contentType = ContentType.json;
+        r.write(jsonEncode({'name': name}));
+        final response = await r.close();
+        expect(response.statusCode, 200);
+        await response.drain<void>();
+      } finally {
+        c.close(force: true);
+      }
+    });
+  }
+
+  Future<void> nativeDocument(WidgetTester tester, String path) async {
+    await tester.runAsync(() async {
+      final c = HttpClient();
+      try {
+        final r = await c.postUrl(Uri.parse('http://10.0.2.2:4200/$path'));
+        r.headers.set('X-Bioflow-Test', 'isolated-android-ui');
+        final response = await r.close();
+        expect(response.statusCode, 200);
+        await response.drain<void>();
+      } finally {
+        c.close(force: true);
+      }
+    });
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+
+  Future<void> fullCabinet(WidgetTester tester, String role) async {
+    expect(find.textContaining(roleNames[role]!), findsWidgets);
+    await tester.tap(find.byTooltip('Разделы моей роли'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, 'Партии и операции'));
+    await wait(tester, find.byType(FullWorkspace));
+    final state = tester.state<FullWorkspaceState>(find.byType(FullWorkspace));
+    await webWait(tester, state,
+        'document.querySelector("main h1")?.textContent === "Партии и операции"');
+    expect(state.authenticated, true);
+    await nativeShot(tester, 'full-cabinet-$role');
+    if (role == 'OWNER') {
+      await webAction(tester, state,
+          'window.dispatchEvent(new CustomEvent("bioflow:mobile-section", {detail:"users"}));');
+      await webWait(tester, state,
+          'document.body.innerText.includes("Новый пользователь")');
+      final email =
+          'mobile-full-${DateTime.now().millisecondsSinceEpoch}@uat.local';
+      createdMobileEmail = email;
+      final fields = {
+        'ФИО': 'Мобильный пользователь',
+        'Email': email,
+        'Временный пароль': 'IntegrationOnly2026!'
+      };
+      for (final field in fields.entries) {
+        await webAction(tester, state,
+            '(function(){const el=document.querySelector("input[placeholder="+CSS.escape(${jsonEncode(field.key)})+"]");el.focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(el,${jsonEncode(field.value)});el.dispatchEvent(new Event("input",{bubbles:true}));})()');
+      }
+      await webAction(tester, state,
+          'document.querySelector("main form button[type=submit], main form button").focus();document.querySelector("main form button[type=submit], main form button").click();');
+      await webWait(tester, state,
+          'document.querySelector("table")?.innerText.includes(${jsonEncode(email)})');
+      for (final name in ['Администратор', 'Наблюдатель/аудитор']) {
+        await webAction(tester, state,
+            '(function(){const el=[...document.querySelectorAll(".role-choice")].find(x=>x.querySelector("strong")?.textContent===${jsonEncode(name)}).querySelector("input");el.focus();el.click();})()');
+      }
+      await webAction(tester, state,
+          'document.querySelectorAll("main form")[1].querySelector("button").focus();document.querySelectorAll("main form")[1].querySelector("button").click();');
+      await webWait(
+          tester, state, 'document.body.innerText.includes("Роли назначены")');
+      await nativeShot(tester, 'full-cabinet-users-and-russian-roles');
+      await webAction(tester, state,
+          'window.dispatchEvent(new CustomEvent("bioflow:mobile-section", {detail:"reports"}));');
+      await webWait(
+          tester, state, 'document.body.innerText.includes("Скачать CSV")');
+      await nativeShot(tester, 'full-cabinet-reports');
+      await webAction(tester, state,
+          '[...document.querySelectorAll("button")].find(x=>x.textContent.trim()==="Скачать CSV").click();');
+      await nativeDocument(tester, 'save-document');
+      await nativeShot(tester, 'full-cabinet-report-saved');
+      await webAction(tester, state,
+          'window.dispatchEvent(new CustomEvent("bioflow:mobile-section", {detail:"ledger"}));');
+      await webWait(tester, state,
+          'document.querySelector("details summary")?.textContent === "Новая партия добычи"');
+      await webAction(
+          tester, state, 'document.querySelector("details summary").click();');
+      await webAction(tester, state,
+          '[...document.querySelectorAll("details form select")].forEach(el=>{el.focus();Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,"value").set.call(el,el.options[1].value);el.dispatchEvent(new Event("change",{bubbles:true}));});');
+      for (final field in {
+        'quantity': '0.123',
+        'measurementMethod': 'Android full cabinet QR',
+        'measuredAt': '2026-10-21T16:30'
+      }.entries) {
+        await webAction(tester, state,
+            '(function(){const el=document.querySelector("details form input[name="+CSS.escape(${jsonEncode(field.key)})+"]");el.focus();Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(el,${jsonEncode(field.value)});el.dispatchEvent(new Event("input",{bubbles:true}));})()');
+      }
+      await webAction(tester, state,
+          'document.querySelector("details form button").focus();document.querySelector("details form button").click();');
+      await webWait(
+          tester, state, 'document.querySelector("dialog[open] img") != null');
+      await webAction(tester, state,
+          '[...document.querySelectorAll("dialog button")].find(x=>x.textContent.trim()==="Печать QR").click();');
+      await nativeDocument(tester, 'print-to-pdf');
+      await webAction(tester, state,
+          '[...document.querySelectorAll("dialog button")].find(x=>x.textContent.trim()==="Закрыть").click();');
+    } else if (!app.api.can('users.manage')) {
+      await webAction(tester, state,
+          'window.dispatchEvent(new CustomEvent("bioflow:mobile-section", {detail:"users"}));');
+      await webWait(tester, state,
+          'document.querySelector("main h1")?.textContent === "Партии и операции"');
+      expect(
+          await state.controller.runJavaScriptReturningResult(
+              'document.body.innerText.includes("Новый пользователь")'),
+          false);
+    }
+    await tester.tap(find.byTooltip('Назад'));
+    await wait(tester, find.byType(NavigationBar));
   }
 
   testWidgets('Android: forms, offline account queue and all roles through UI',
@@ -272,10 +421,40 @@ void main() {
         expect(find.textContaining('Ошибка 500'), findsNothing);
         await shot(tester, '$role-$tab');
       }
+      await fullCabinet(tester, role);
       await logout(tester);
       // Keep the real backend's rate limit enabled during the role sweep.
       await tester
           .runAsync(() => Future<void>.delayed(const Duration(seconds: 6)));
     }
+
+    expect(createdMobileEmail, isNotNull);
+    await tester.enterText(find.byType(TextField).at(0), createdMobileEmail!);
+    await tester.enterText(
+        find.byType(TextField).at(1), 'IntegrationOnly2026!');
+    await tester.tap(find.text('Войти'));
+    await wait(tester, find.text('Смена временного пароля'));
+    await tester.enterText(find.widgetWithText(TextFormField, 'Текущий пароль'),
+        'IntegrationOnly2026!');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Новый пароль'),
+        'UpdatedMobile2026!');
+    await saveForm(tester);
+    await wait(tester, find.text('Сохранено'));
+    await tester.tap(find.text('Закрыть'));
+    await wait(tester, find.text('Войти'));
+    await tester.enterText(find.byType(TextField).at(0), createdMobileEmail!);
+    await tester.enterText(find.byType(TextField).at(1), 'UpdatedMobile2026!');
+    await tester.tap(find.text('Войти'));
+    await wait(tester, find.byType(NavigationBar));
+    await ready(tester);
+    expect(find.textContaining('Администратор'), findsWidgets);
+    expect(find.textContaining('Наблюдатель/аудитор'), findsWidgets);
+    await nativeShot(
+        tester, 'full-cabinet-multiple-roles-after-password-change');
+    await tester.tap(find.byTooltip('Разделы моей роли'));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -1200));
+    await tester.pumpAndSettle();
+    expect(find.text('Пользователи'), findsWidgets);
   });
 }

@@ -1,9 +1,13 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
 import 'client.dart';
 import 'push.dart';
+import 'role_access.dart';
+import 'full_workspace.dart';
 
 const navy950 = Color(0xFF061225),
     navy900 = Color(0xFF0A1C35),
@@ -17,6 +21,9 @@ class BioflowApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MaterialApp(
       title: 'BIOFLOW',
+      locale: const Locale('ru'),
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      supportedLocales: const [Locale('ru'), Locale('en')],
       theme: ThemeData.dark(useMaterial3: true).copyWith(
           scaffoldBackgroundColor: navy950,
           colorScheme: const ColorScheme.dark(
@@ -182,14 +189,34 @@ class _WorkspaceState extends State<Workspace> {
     '/notifications'
   ];
   final titles = ['Добыча', 'Перевозки', 'Остатки', 'Операции', 'Уведомления'];
+  List<int> get visibleTabs => [
+        if (api.can('inventory.read')) ...[0, 1, 2, 3],
+        if (api.can('notifications.read')) 4
+      ];
   @override
   void initState() {
     super.initState();
     configurePush(api).catchError((_) {});
+    api.refreshProfile().then((_) {
+      if (mounted) {
+        setState(() {});
+        load();
+      }
+    }).catchError((_) {});
     load();
   }
 
   Future<void> load() async {
+    if (!(tab == 4
+        ? api.can('notifications.read')
+        : api.can('inventory.read'))) {
+      setState(() {
+        rows = [];
+        total = 0;
+        busy = false;
+      });
+      return;
+    }
     final version = ++loadVersion;
     setState(() {
       busy = true;
@@ -425,48 +452,114 @@ class _WorkspaceState extends State<Workspace> {
     }
   }
 
+  Future<void> openWorkspace(String section) async {
+    final signedOut = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+            builder: (_) => FullWorkspace(client: api, section: section)));
+    if (!mounted) return;
+    if (signedOut == true) {
+      await api.logout();
+      if (mounted) {
+        Navigator.pushReplacement(
+            context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+      }
+      return;
+    }
+    try {
+      await api.refreshProfile();
+    } on DioException catch (e) {
+      if ([401, 403].contains(e.response?.statusCode)) {
+        await api.logout();
+        if (mounted) {
+          Navigator.pushReplacement(
+              context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+        }
+        return;
+      }
+    } catch (_) {}
+    if (mounted) {
+      setState(() {});
+      load();
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
-      appBar: AppBar(title: Text(titles[tab]), actions: [
-        IconButton(
-            onPressed: () => Navigator.push(
-                context, MaterialPageRoute(builder: (_) => const Scanner())),
-            icon: const Icon(Icons.qr_code_scanner)),
-        IconButton(
-            onPressed: () async {
-              await Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const QueueScreen()));
-              load();
-            },
-            icon: const Icon(Icons.sync)),
-        PopupMenuButton<String>(
-            onSelected: (x) async {
-              if (x == 'logout') {
-                await api.logout();
-                if (context.mounted) {
-                  Navigator.pushReplacement(context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()));
-                }
-              } else if (x == 'password') {
-                openForm('Смена пароля', '/auth/change-password', [
-                  const Field('currentPassword', 'Текущий пароль',
-                      secret: true),
-                  const Field('newPassword', 'Новый пароль', secret: true)
-                ]);
-              } else if (x == 'reports') {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const ReportScreen()));
-              }
-            },
-            itemBuilder: (_) => [
-                  if (api.can('reports.read'))
-                    const PopupMenuItem(
-                        value: 'reports', child: Text('Отчёты')),
-                  const PopupMenuItem(
-                      value: 'password', child: Text('Смена пароля')),
-                  const PopupMenuItem(value: 'logout', child: Text('Выйти'))
-                ])
-      ]),
+      drawer: Drawer(
+          child: SafeArea(
+              child: ListView(children: [
+        ListTile(
+            title: Text(api.profile?['fullName'] ?? 'BIOFLOW'),
+            subtitle: Text(roleSummary(api.profile))),
+        const Divider(),
+        const Padding(
+            padding: EdgeInsets.all(16), child: Text('Доступные разделы')),
+        ...roleSections.entries
+            .where((e) => canOpenSection(e.key, api.profile))
+            .map((e) => ListTile(
+                  title: Text(e.value),
+                  onTap: () {
+                    Navigator.pop(context);
+                    openWorkspace(e.key);
+                  },
+                )),
+      ]))),
+      appBar: AppBar(
+          leading: Builder(
+              builder: (ctx) => IconButton(
+                  tooltip: 'Разделы моей роли',
+                  icon: const Icon(Icons.menu),
+                  onPressed: () => Scaffold.of(ctx).openDrawer())),
+          title:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(titles[tab]),
+            Text(roleSummary(api.profile),
+                style: const TextStyle(fontSize: 11),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis)
+          ]),
+          actions: [
+            IconButton(
+                onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const Scanner())),
+                icon: const Icon(Icons.qr_code_scanner)),
+            IconButton(
+                onPressed: () async {
+                  await Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const QueueScreen()));
+                  load();
+                },
+                icon: const Icon(Icons.sync)),
+            PopupMenuButton<String>(
+                onSelected: (x) async {
+                  if (x == 'logout') {
+                    await api.logout();
+                    if (context.mounted) {
+                      Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const LoginScreen()));
+                    }
+                  } else if (x == 'password') {
+                    openForm('Смена пароля', '/auth/change-password', [
+                      const Field('currentPassword', 'Текущий пароль',
+                          secret: true),
+                      const Field('newPassword', 'Новый пароль', secret: true)
+                    ]);
+                  } else if (x == 'reports') {
+                    openWorkspace('reports');
+                  }
+                },
+                itemBuilder: (_) => [
+                      if (api.can('reports.read'))
+                        const PopupMenuItem(
+                            value: 'reports', child: Text('Отчёты')),
+                      const PopupMenuItem(
+                          value: 'password', child: Text('Смена пароля')),
+                      const PopupMenuItem(value: 'logout', child: Text('Выйти'))
+                    ])
+          ]),
       body: Column(children: [
         Padding(
             padding: const EdgeInsets.all(12),
@@ -516,26 +609,37 @@ class _WorkspaceState extends State<Workspace> {
           ? FloatingActionButton(
               onPressed: create, child: const Icon(Icons.add))
           : null,
-      bottomNavigationBar: NavigationBar(
-          selectedIndex: tab,
-          onDestinationSelected: (i) {
-            setState(() {
-              tab = i;
-              page = 1;
-              search = '';
-              rows = [];
-            });
-            load();
-          },
-          destinations: const [
-            NavigationDestination(icon: Icon(Icons.water), label: 'Добыча'),
-            NavigationDestination(
-                icon: Icon(Icons.local_shipping), label: 'Рейсы'),
-            NavigationDestination(icon: Icon(Icons.warehouse), label: 'Склады'),
-            NavigationDestination(icon: Icon(Icons.factory), label: 'Операции'),
-            NavigationDestination(
-                icon: Icon(Icons.notifications), label: 'События')
-          ]));
+      bottomNavigationBar: visibleTabs.length < 2
+          ? null
+          : NavigationBar(
+              selectedIndex:
+                  !visibleTabs.contains(tab) ? 0 : visibleTabs.indexOf(tab),
+              onDestinationSelected: (i) {
+                setState(() {
+                  tab = visibleTabs[i];
+                  page = 1;
+                  search = '';
+                  rows = [];
+                });
+                load();
+              },
+              destinations: [
+                  if (visibleTabs.contains(0))
+                    const NavigationDestination(
+                        icon: Icon(Icons.water), label: 'Добыча'),
+                  if (visibleTabs.contains(1))
+                    const NavigationDestination(
+                        icon: Icon(Icons.local_shipping), label: 'Рейсы'),
+                  if (visibleTabs.contains(2))
+                    const NavigationDestination(
+                        icon: Icon(Icons.warehouse), label: 'Склады'),
+                  if (visibleTabs.contains(3))
+                    const NavigationDestination(
+                        icon: Icon(Icons.factory), label: 'Операции'),
+                  if (visibleTabs.contains(4))
+                    const NavigationDestination(
+                        icon: Icon(Icons.notifications), label: 'События')
+                ]));
 }
 
 class Field {
@@ -563,7 +667,7 @@ const batchFields = [
   Field('materialTypeId', 'Материал', reference: 'material-types'),
   Field('quantity', 'Количество, т', numeric: true),
   Field('measurementMethod', 'Способ измерения'),
-  Field('measuredAt', 'Дата измерения ISO8601')
+  Field('measuredAt', 'Дата и время измерения')
 ];
 const tripFields = [
   Field('batchId', 'Партия добычи', reference: 'ledger/batches'),
@@ -571,7 +675,7 @@ const tripFields = [
   Field('driverId', 'Водитель', reference: 'drivers', required: false),
   Field('destinationWarehouseId', 'Склад назначения', reference: 'warehouses'),
   Field('quantity', 'Количество, т', numeric: true),
-  Field('documentDate', 'Дата документа ISO8601')
+  Field('documentDate', 'Дата и время документа')
 ];
 const operationFields = [
   Field('kind', 'Операция', choices: {
@@ -645,10 +749,9 @@ class _CommandFormState extends State<CommandForm> {
         values[f.key] = DateTime.now().toUtc().toIso8601String();
       }
       if (f.reference != null) {
-        api.get('/${f.reference}?pageSize=100').then((x) {
+        api.referenceOptions(f.reference!).then((x) {
           if (mounted) {
-            setState(() =>
-                refs[f.reference!] = x is List ? x : x['data'] as List? ?? []);
+            setState(() => refs[f.reference!] = x);
           }
         }).catchError((e) {
           if (mounted) setState(() => error = errorText(e));
@@ -708,6 +811,21 @@ class _CommandFormState extends State<CommandForm> {
                           base64Decode(result['qrImage'].split(',').last),
                           width: 220,
                           height: 220),
+                    if (result['qrImage'] != null)
+                      TextButton(
+                          onPressed: () async {
+                            try {
+                              await printMobileQr(result['qrImage']);
+                            } catch (_) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                        content:
+                                            Text('Не удалось открыть печать')));
+                              }
+                            }
+                          },
+                          child: const Text('Печать QR')),
                     if (result['qrToken'] != null)
                       SelectableText('QR: ${result['qrToken']}')
                     else if (result['queued'] == true)
@@ -754,16 +872,26 @@ class _CommandFormState extends State<CommandForm> {
           decoration: InputDecoration(
               labelText: f.label, suffixIcon: const Icon(Icons.calendar_today)),
           onTap: () async {
+            final initial = DateTime.tryParse(values[f.key] ?? '')?.toLocal() ??
+                DateTime.now();
             final date = await showDatePicker(
                 context: context,
-                initialDate: DateTime.now(),
+                initialDate: initial,
                 firstDate: DateTime(2000),
                 lastDate: DateTime(2100));
             if (date != null && mounted) {
-              setState(() {
-                dirty = true;
-                values[f.key] = date.toUtc().toIso8601String();
-              });
+              final time = await showTimePicker(
+                  context: context,
+                  initialTime: TimeOfDay.fromDateTime(initial));
+              if (time != null && mounted) {
+                setState(() {
+                  dirty = true;
+                  values[f.key] = DateTime(date.year, date.month, date.day,
+                          time.hour, time.minute)
+                      .toUtc()
+                      .toIso8601String();
+                });
+              }
             }
           });
     }
@@ -774,20 +902,38 @@ class _CommandFormState extends State<CommandForm> {
           onChanged: (v) => setState(() => values[f.key] = v));
     }
     if (f.reference != null || f.choices != null) {
+      final batchPicker =
+          f.reference == 'ledger/batches' && widget.path == '/ledger/waybills';
+      final references = (refs[f.reference] ?? []).where((x) =>
+          !batchPicker ||
+          (['DRAFT', 'CONFIRMED', 'PARTIALLY_SHIPPED'].contains(x['status']) &&
+              (double.tryParse('${x['availableSourceQuantity']}') ?? 0) > 0));
+      final drafts = batchPicker
+          ? references
+              .where((x) => x['status'] == 'DRAFT')
+              .map((x) => '${x['id']}')
+              .toSet()
+          : <String>{};
       final options = f.choices ??
           {
-            for (final x in refs[f.reference] ?? [])
+            for (final x in references)
               '${x['id']}':
-                  '${x['name'] ?? x['plateNumber'] ?? x['fullName'] ?? x['number']}'
+                  '${x['name'] ?? x['plateNumber'] ?? x['fullName'] ?? x['number']}${batchPicker ? (x['status'] == 'DRAFT' ? ' · черновик — сначала подтвердите' : ' · доступно ${x['availableSourceQuantity']} т') : ''}'
           };
       return DropdownButtonFormField<String>(
           initialValue:
               options.containsKey(values[f.key]) ? values[f.key] : null,
           isExpanded: true,
-          decoration: InputDecoration(labelText: f.label),
+          decoration: InputDecoration(
+              labelText: f.label,
+              helperText: batchPicker
+                  ? 'Черновик сначала подтверждает сотрудник с правом управления партиями.'
+                  : null,
+              helperMaxLines: 3),
           items: options.entries
               .map((x) => DropdownMenuItem(
                   value: x.key,
+                  enabled: !drafts.contains(x.key),
                   child: Text(x.value, overflow: TextOverflow.ellipsis)))
               .toList(),
           onChanged: (v) => setState(() => values[f.key] = v),

@@ -8,6 +8,7 @@ import { JwtService } from "@nestjs/jwt";
 import * as argon2 from "argon2";
 import { createHash, randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
+import { CurrentUser } from "../common/current-user.decorator";
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
@@ -94,6 +95,12 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
     return { ok: true };
+  }
+
+  // A separate session avoids sharing/rotating the native app's refresh token.
+  // Actor identity comes only from the guarded bearer token, never request data.
+  mobileWebSession(user: CurrentUser) {
+    return this.issueTokens(user.id, user.organizationId);
   }
 
   async me(userId: string) {

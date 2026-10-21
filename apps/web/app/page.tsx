@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useMemo, useState, useEffect } from "react";
 import { roleLabel, roleDescription } from "./role-labels";
+import { isMobileWorkspace, mobileNotify, saveBlob } from "./mobile-bridge";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
@@ -1863,12 +1864,7 @@ function ReportExport({ token }: { token: string }) {
       return;
     }
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `bioflow-${type}.${format}`;
-    link.click();
-    URL.revokeObjectURL(url);
+    await saveBlob(blob, `bioflow-${type}.${format}`);
     setStatus(`${format.toUpperCase()} сформирован`);
   }
   const rows = report.data?.rows ?? [];
@@ -2552,6 +2548,35 @@ function App() {
   const queryClient = useQueryClient();
   const [token, setToken] = useState("");
   useEffect(() => {
+    if (!isMobileWorkspace()) return;
+    document.documentElement.dataset.mobileApp = "true";
+    const receive = (event: Event) => {
+      const data = (event as CustomEvent).detail;
+      if (
+        !data ||
+        typeof data.accessToken !== "string" ||
+        typeof data.refreshToken !== "string"
+      )
+        return;
+      void queryClient.cancelQueries();
+      queryClient.clear();
+      dirty.value = false;
+      setSession(data);
+      setSection(
+        sections.some(([id]) => id === data.section)
+          ? data.section
+          : "dashboard",
+      );
+      setToken(data.accessToken);
+    };
+    window.addEventListener("bioflow:mobile-login", receive);
+    mobileNotify({ action: "ready" });
+    return () => {
+      window.removeEventListener("bioflow:mobile-login", receive);
+      delete document.documentElement.dataset.mobileApp;
+    };
+  }, [queryClient, dirty]);
+  useEffect(() => {
     const expire = () => {
       void queryClient.cancelQueries();
       queryClient.clear();
@@ -2569,6 +2594,16 @@ function App() {
     queryFn: () => request<any>("/auth/me", token),
     enabled: !!token,
   });
+  useEffect(() => {
+    if (profile.data)
+      mobileNotify({
+        action: "profileReady",
+        userId: profile.data.id,
+        sections: sections
+          .filter(([id]) => allowed(id))
+          .map(([id, title]) => ({ id, title })),
+      });
+  }, [profile.data]);
   useEffect(() => {
     localStorage.removeItem("token");
   }, []);
@@ -2654,6 +2689,15 @@ function App() {
     window.history.pushState({ bioflowIndex: navigation.index }, "", `#${id}`);
   };
   const title = sections.find(([id]) => id === section)?.[1] ?? "Обзор";
+  useEffect(() => {
+    if (!isMobileWorkspace()) return;
+    const change = (event: Event) => {
+      const id = (event as CustomEvent).detail;
+      if (sections.some(([key]) => key === id) && allowed(id)) navigate(id);
+    };
+    window.addEventListener("bioflow:mobile-section", change);
+    return () => window.removeEventListener("bioflow:mobile-section", change);
+  });
   if (!token)
     return (
       <Login
@@ -2716,6 +2760,7 @@ function App() {
               }).catch(() => {});
               void queryClient.cancelQueries();
               queryClient.clear();
+              mobileNotify({ action: "signedOut" });
               clearSession();
               setSection("dashboard");
               setToken("");

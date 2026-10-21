@@ -64,8 +64,58 @@ test("BIOFLOW specification AT 01–13 on PostgreSQL and private S3", async (t) 
       userRoles: { create: { roleId: ownerRole.id } },
     },
   });
-  token = (await api("/auth/login", { email: user.email, password }, 201, ""))
-    .accessToken;
+  const nativeLogin = await api(
+    "/auth/login",
+    { email: user.email, password },
+    201,
+    "",
+  );
+  token = nativeLogin.accessToken;
+  await t.test(
+    "Mobile cabinet SSO is isolated, actor-bound, revocable and does not rotate native refresh",
+    async () => {
+      await api("/auth/mobile-web-session", {}, 401, "");
+      const web = await api(
+        "/auth/mobile-web-session",
+        { userId: "not-the-actor", organizationId: "not-the-org" },
+        201,
+      );
+      const me = await api("/auth/me", undefined, 200, web.accessToken);
+      assert.equal(me.id, user.id);
+      assert.equal(me.organization.id, org.id);
+      assert(me.roles.includes("OWNER"));
+      const updated = await api(
+        "/auth/refresh",
+        { refreshToken: web.refreshToken },
+        201,
+        "",
+      );
+      assert.equal((await api("/auth/me")).id, user.id);
+      const sessionId = JSON.parse(
+        Buffer.from(updated.accessToken.split(".")[1], "base64url").toString(),
+      ).sessionId;
+      await api(`/auth/sessions/${sessionId}/revoke`, {}, 201);
+      await api("/auth/me", undefined, 401, updated.accessToken);
+      assert.equal((await api("/auth/me")).id, user.id);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { mustChangePassword: true },
+      });
+      await api("/auth/mobile-web-session", {}, 403);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { mustChangePassword: false },
+      });
+      const nativeRenewed = await api(
+        "/auth/refresh",
+        { refreshToken: nativeLogin.refreshToken },
+        201,
+        "",
+      );
+      token = nativeRenewed.accessToken;
+      assert.equal((await api("/auth/me")).id, user.id);
+    },
+  );
   const counterparty = await prisma.counterparty.create({
     data: { organizationId: org.id, name: "AT contractor" },
   });
@@ -502,6 +552,27 @@ test("BIOFLOW specification AT 01–13 on PostgreSQL and private S3", async (t) 
       const restrictedToken = (
         await api("/auth/login", { email: restricted.email, password }, 201, "")
       ).accessToken;
+      const restrictedWeb = await api(
+        "/auth/mobile-web-session",
+        {},
+        201,
+        restrictedToken,
+      );
+      const restrictedProfile = await api(
+        "/auth/me",
+        undefined,
+        200,
+        restrictedWeb.accessToken,
+      );
+      assert.equal(restrictedProfile.accessAllObjects, false);
+      assert.deepEqual(restrictedProfile.warehouseScopeIds, [target.id]);
+      await api(
+        `/ledger/stocks?warehouseId=${warehouse.id}`,
+        undefined,
+        403,
+        restrictedWeb.accessToken,
+      );
+      await api("/users", undefined, 403, restrictedWeb.accessToken);
       await api(
         `/ledger/stocks?warehouseId=${warehouse.id}`,
         undefined,

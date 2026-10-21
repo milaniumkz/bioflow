@@ -188,6 +188,51 @@ void main() {
     delayed.release.complete();
     await rejected;
   });
+  test('Batch reference pagination keeps older source batches available',
+      () async {
+    final api = BioflowClient()..profile = {'id': 'user-a'};
+    final seen = <String>[];
+    api.dio.interceptors.add(InterceptorsWrapper(onRequest: (o, h) {
+      seen.add(o.uri.toString());
+      final second =
+          o.queryParameters['page'] == '2' || o.path.contains('page=2');
+      h.resolve(Response(requestOptions: o, statusCode: 200, data: {
+        'data': second
+            ? [
+                {'id': 'older-confirmed'}
+              ]
+            : [
+                {'id': 'new-draft'}
+              ],
+        'total': 2
+      }));
+    }));
+    expect((await api.referenceOptions('ledger/batches')).map((x) => x['id']),
+        ['new-draft', 'older-confirmed']);
+    expect(seen.length, 2);
+    expect(seen.last, contains('page=2'));
+  });
+  test('A permission/profile refresh cannot overwrite a newer account',
+      () async {
+    final api = BioflowClient()..profile = {'id': 'user-a'};
+    final started = Completer<void>(), release = Completer<void>();
+    api.dio.interceptors.add(InterceptorsWrapper(onRequest: (o, h) async {
+      started.complete();
+      await release.future;
+      h.resolve(Response(requestOptions: o, statusCode: 200, data: {
+        'id': 'user-a',
+        'permissions': ['users.manage']
+      }));
+    }));
+    final request = api.refreshProfile();
+    final rejected = expectLater(request, throwsA(isA<StateError>()));
+    await started.future;
+    api.profile = {'id': 'user-b', 'permissions': <String>[]};
+    release.complete();
+    await rejected;
+    expect(api.owner, 'user-b');
+    expect(api.can('users.manage'), false);
+  });
   testWidgets('Login has no prefilled demo credentials', (tester) async {
     await tester.pumpWidget(const BioflowApp());
     await tester.pumpAndSettle();

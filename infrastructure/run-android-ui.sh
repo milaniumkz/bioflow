@@ -24,4 +24,4 @@ for attempt in $(seq 1 30); do
 done
 [ "$ready" = true ] || { echo 'Emulator network control did not become ready'; exit 1; }
 cd "$repo_root/apps/mobile"
-flutter drive --driver=test_driver/integration_test.dart --target=integration_test/user_journeys_test.dart --dart-define=API_URL=http://10.0.2.2:4100/api/v1
+flutter drive --driver=test_driver/integration_test.dart --target=integration_test/user_journeys_test.dart --dart-define=API_URL=http://10.0.2.2:4100/api/v1 --dart-define=WEB_URL=http://10.0.2.2:4199

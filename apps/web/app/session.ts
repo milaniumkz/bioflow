@@ -1,3 +1,4 @@
+import { mobileNotify } from "./mobile-bridge.ts";
 const base = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 let epoch = 0;
 let access = "",
@@ -13,11 +14,13 @@ export function setSession(
   if (!preserveIdentity) epoch++;
   access = tokens.accessToken;
   refresh = tokens.refreshToken ?? "";
+  mobileNotify({ action: "session", sessionId: currentSessionId() });
 }
 export function clearSession() {
   epoch++;
   access = "";
   refresh = "";
+  mobileNotify({ action: "sessionEnded" });
 }
 async function renew() {
   if (!refresh) return false;

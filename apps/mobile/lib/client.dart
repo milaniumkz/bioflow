@@ -59,7 +59,12 @@ class BioflowClient {
     }, onError: (e, h) async {
       if (e.response?.statusCode == 401 &&
           e.requestOptions.extra['retried'] != true &&
-          !e.requestOptions.path.startsWith('/auth/') &&
+          ![
+            '/auth/login',
+            '/auth/refresh',
+            '/auth/forgot-password',
+            '/auth/reset-password'
+          ].contains(e.requestOptions.path) &&
           (e.requestOptions.extra['sessionEpoch'] == null ||
               e.requestOptions.extra['sessionEpoch'] == _sessionEpoch)) {
         _refreshing ??= _refresh();
@@ -134,7 +139,41 @@ class BioflowClient {
   }
 
   bool can(String p) => (profile?['permissions'] as List? ?? []).contains(p);
+  Future<void> refreshProfile() async {
+    final epoch = _sessionEpoch, user = owner;
+    final response = await dio.get('/auth/me',
+        options: Options(extra: {'sessionEpoch': epoch}));
+    _checkIdentity(epoch, user);
+    await _authLocked(() async {
+      _checkIdentity(epoch, user);
+      profile = Map<String, dynamic>.from(response.data);
+      await storage.write(key: 'profile', value: jsonEncode(profile));
+      _checkIdentity(epoch, user);
+    });
+  }
+
   String get owner => profile?['id'] as String? ?? 'anonymous';
+  Future<List<dynamic>> referenceOptions(String entity) async {
+    final epoch = _sessionEpoch, user = owner;
+    var page = 1;
+    final rows = <dynamic>[];
+    while (true) {
+      final data =
+          await get('/$entity?pageSize=100${page == 1 ? '' : '&page=$page'}');
+      _checkIdentity(epoch, user);
+      final chunk = data is List ? data : data['data'] as List? ?? [];
+      rows.addAll(chunk);
+      if (entity != 'ledger/batches' ||
+          data is List ||
+          chunk.isEmpty ||
+          rows.length >= (data['total'] as int? ?? rows.length)) {
+        break;
+      }
+      page++;
+    }
+    return rows;
+  }
+
   Future<dynamic> get(String path) async {
     final epoch = _sessionEpoch, user = owner;
     final k = 'cache:$user:$path';

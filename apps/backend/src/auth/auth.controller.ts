@@ -57,18 +57,22 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
+  @Post("mobile-web-session")
+  mobileWebSession(@CurrentUserDecorator() user: CurrentUser) {
+    return this.auth.mobileWebSession(user);
+  }
+
+  @ApiBearerAuth()
   @Get("me")
   me(@CurrentUserDecorator() user: CurrentUser) {
-    return this.auth
-      .me(user.id)
-      .then((profile) => ({
-        ...profile,
-        permissions: user.permissions,
-        accessAllObjects: user.accessAllObjects,
-        warehouseScopeIds: user.warehouseScopeIds,
-        extractionScopeIds: user.extractionScopeIds,
-        counterpartyScopeId: user.counterpartyScopeId,
-      }));
+    return this.auth.me(user.id).then((profile) => ({
+      ...profile,
+      permissions: user.permissions,
+      accessAllObjects: user.accessAllObjects,
+      warehouseScopeIds: user.warehouseScopeIds,
+      extractionScopeIds: user.extractionScopeIds,
+      counterpartyScopeId: user.counterpartyScopeId,
+    }));
   }
 
   @ApiBearerAuth()
