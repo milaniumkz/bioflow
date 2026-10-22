@@ -6,6 +6,9 @@ import {
   clearSession,
   currentSessionId,
 } from "./session";
+import { CollectionPanel, DriverPanel } from "./workflow-ui";
+import { ProcessingPanel } from "./processing-panel";
+import { ControlPanel, FleetPanel } from "./control-panel";
 import { Ledger } from "./ledger";
 import { createCommandId } from "./command-id.mjs";
 import { BioflowApiClient } from "@bioflow/api-client";
@@ -45,6 +48,11 @@ function request<T>(
 }
 
 const sections = [
+  ["driver", "Мои рейсы", Truck],
+  ["control", "Контроль и статистика", LayoutDashboard],
+  ["collection", "Сбор и отправка", Truck],
+  ["processing", "Работа с партией по QR", QrCode],
+  ["fleet", "Водители и маршруты", Truck],
   ["dashboard", "Обзор", LayoutDashboard],
   ["ledger", "Партии и операции", Boxes],
   ["waybills", "Поставки", ClipboardList],
@@ -2571,6 +2579,10 @@ function App() {
   }, [dirty]);
   const queryClient = useQueryClient();
   const [token, setToken] = useState("");
+  const [initialQr, setInitialQr] = useState<{
+    token: string;
+    nonce: number;
+  }>();
   useEffect(() => {
     if (!isMobileWorkspace()) return;
     document.documentElement.dataset.mobileApp = "true";
@@ -2591,11 +2603,22 @@ function App() {
           ? data.section
           : "dashboard",
       );
+      if (typeof data.qr === "string" && data.qr.length <= 512)
+        setInitialQr({ token: data.qr, nonce: Date.now() });
       setToken(data.accessToken);
     };
+    const partyQr = (event: Event) => {
+      const qr = (event as CustomEvent).detail;
+      if (typeof qr === "string" && qr.length <= 512) {
+        setInitialQr({ token: qr, nonce: Date.now() });
+        setSection("processing");
+      }
+    };
+    window.addEventListener("bioflow:party-qr", partyQr);
     window.addEventListener("bioflow:mobile-login", receive);
     mobileNotify({ action: "ready" });
     return () => {
+      window.removeEventListener("bioflow:party-qr", partyQr);
       window.removeEventListener("bioflow:mobile-login", receive);
       delete document.documentElement.dataset.mobileApp;
     };
@@ -2633,39 +2656,59 @@ function App() {
   }, []);
   const permissions: string[] = profile.data?.permissions ?? [];
   const [section, setSection] = useState("dashboard");
+  const [mobileMenu, setMobileMenu] = useState(false);
   const allowed = (id: string): boolean =>
-    id === "plants"
-      ? permissions.includes("references.read") &&
-        !!profile.data?.accessAllObjects
-      : id === "audit"
-        ? permissions.includes("audit.read") && !!profile.data?.accessAllObjects
-        : id === "dashboard"
-          ? permissions.includes("dashboard.read") &&
-            !!profile.data?.accessAllObjects
-          : id === "settings"
-            ? permissions.includes("references.manage")
-            : [
-                  "ledger",
-                  "waybills",
-                  "inventory",
-                  "transfers",
-                  "write-offs",
-                  "shipments",
-                  "washing",
-                  "production",
-                ].includes(id)
-              ? permissions.includes("inventory.read")
-              : id === "reports"
-                ? permissions.includes("reports.read")
-                : id === "notifications"
-                  ? permissions.includes("notifications.read")
-                  : id === "sessions"
-                    ? true
-                    : ["users", "roles", "settings", "audit"].includes(id)
-                      ? permissions.includes(
-                          id === "audit" ? "audit.read" : "users.manage",
-                        )
-                      : permissions.includes("references.read");
+    id === "driver"
+      ? permissions.includes("tracking.write") &&
+        !!profile.data?.roles?.includes("DRIVER")
+      : id === "control"
+        ? permissions.includes("processing.overview")
+        : id === "collection"
+          ? permissions.includes("collection.manage")
+          : id === "processing"
+            ? permissions.includes("processing.read")
+            : id === "fleet"
+              ? permissions.includes("tracking.read")
+              : id === "plants"
+                ? permissions.includes("references.read") &&
+                  !!profile.data?.accessAllObjects
+                : id === "audit"
+                  ? permissions.includes("audit.read") &&
+                    !!profile.data?.accessAllObjects
+                  : id === "dashboard"
+                    ? permissions.includes("dashboard.read") &&
+                      !!profile.data?.accessAllObjects
+                    : id === "settings"
+                      ? permissions.includes("references.manage")
+                      : [
+                            "ledger",
+                            "waybills",
+                            "inventory",
+                            "transfers",
+                            "write-offs",
+                            "shipments",
+                            "washing",
+                            "production",
+                          ].includes(id)
+                        ? permissions.includes("inventory.read")
+                        : id === "reports"
+                          ? permissions.includes("reports.read")
+                          : id === "notifications"
+                            ? permissions.includes("notifications.read")
+                            : id === "sessions"
+                              ? true
+                              : [
+                                    "users",
+                                    "roles",
+                                    "settings",
+                                    "audit",
+                                  ].includes(id)
+                                ? permissions.includes(
+                                    id === "audit"
+                                      ? "audit.read"
+                                      : "users.manage",
+                                  )
+                                : permissions.includes("references.read");
   useEffect(() => {
     if (profile.data && !allowed(section))
       setSection(sections.find(([id]) => allowed(id))?.[0] ?? "sessions");
@@ -2705,6 +2748,7 @@ function App() {
       window.history.replaceState(window.history.state, "", `#${section}`);
   }, [section, token]);
   const navigate = (id: string) => {
+    setMobileMenu(false);
     if (id === section) return;
     if (!discardChanges()) return;
     dirty.value = false;
@@ -2728,7 +2772,7 @@ function App() {
         onToken={(next) => {
           void queryClient.cancelQueries();
           queryClient.clear();
-          setSection("dashboard");
+          setSection("control");
           setToken(next);
         }}
       />
@@ -2753,7 +2797,10 @@ function App() {
     );
   return (
     <div className="shell">
-      <aside className="sidebar">
+      <aside
+        className="sidebar"
+        data-mobile-menu={mobileMenu ? "open" : "closed"}
+      >
         <div className="brand collection-logo">
           <img
             src="/branding/collection-symbol.png"
@@ -2763,6 +2810,13 @@ function App() {
           />
           <span>collection</span>
         </div>
+        <button
+          className="button secondary menu-toggle"
+          onClick={() => setMobileMenu((v) => !v)}
+          aria-expanded={mobileMenu}
+        >
+          Меню
+        </button>
         <nav className="nav">
           {sections
             .filter(([id]) => allowed(id))
@@ -2803,6 +2857,20 @@ function App() {
         </div>
         {!allowed(section) ? (
           <p>Загрузка доступного раздела…</p>
+        ) : section === "driver" ? (
+          <DriverPanel token={token} />
+        ) : section === "control" ? (
+          <ControlPanel token={token} />
+        ) : section === "collection" ? (
+          <CollectionPanel token={token} />
+        ) : section === "processing" ? (
+          <ProcessingPanel
+            token={token}
+            permissions={permissions}
+            initialQr={initialQr}
+          />
+        ) : section === "fleet" ? (
+          <FleetPanel token={token} />
         ) : section === "dashboard" ? (
           <Dashboard token={token} />
         ) : [

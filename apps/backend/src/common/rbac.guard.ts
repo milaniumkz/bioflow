@@ -31,6 +31,9 @@ export class RbacGuard implements CanActivate {
       );
     if (
       !actor?.accessAllObjects &&
+      !path.startsWith("/processing") &&
+      !path.startsWith("/collection") &&
+      !path.startsWith("/tracking") &&
       !path.startsWith("/ledger") &&
       !path.startsWith("/auth") &&
       !path.startsWith("/files") &&

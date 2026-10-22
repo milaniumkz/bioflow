@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
 import 'client.dart';
+import 'role_home.dart';
 import 'push.dart';
 import 'role_access.dart';
 import 'full_workspace.dart';
@@ -14,12 +15,14 @@ const navy950 = Color(0xFF061225),
     blue = Color(0xFF2F7DF6),
     platinum = Color(0xFFD8DEE8);
 final api = BioflowClient();
+final appNavigatorKey = GlobalKey<NavigatorState>();
 void main() => runApp(const BioflowApp());
 
 class BioflowApp extends StatelessWidget {
   const BioflowApp({super.key});
   @override
   Widget build(BuildContext context) => MaterialApp(
+      navigatorKey: appNavigatorKey,
       title: 'Collection',
       locale: const Locale('ru'),
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
@@ -46,6 +49,17 @@ class CollectionLogo extends StatelessWidget {
                     letterSpacing: -1))),
       ]);
 }
+
+Widget landingWorkspace() => hasRoleHome(api)
+    ? RoleHome(
+        client: api,
+        legacyBuilder: (_) => const Workspace(),
+        onLogout: () {
+          appNavigatorKey.currentState?.pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+              (_) => false);
+        })
+    : const Workspace();
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -76,7 +90,7 @@ class _LoginState extends State<LoginScreen> {
                           Field('newPassword', 'Новый пароль', secret: true)
                         ],
                         logoutAfter: true)
-                    : const Workspace()));
+                    : landingWorkspace()));
       }
     });
   }
@@ -114,7 +128,7 @@ class _LoginState extends State<LoginScreen> {
                           Field('newPassword', 'Новый пароль', secret: true)
                         ],
                         logoutAfter: true)
-                    : const Workspace()));
+                    : landingWorkspace()));
       }
     } catch (e) {
       setState(() => error = errorText(e));

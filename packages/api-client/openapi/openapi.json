@@ -465,6 +465,405 @@
         ]
       }
     },
+    "/api/v1/collection/dispatch": {
+      "post": {
+        "operationId": "CollectionController_dispatch",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "collection"
+        ]
+      }
+    },
+    "/api/v1/collection/drivers": {
+      "post": {
+        "operationId": "CollectionController_driver",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "collection"
+        ]
+      }
+    },
+    "/api/v1/collection/vehicles": {
+      "post": {
+        "operationId": "CollectionController_vehicle",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "collection"
+        ]
+      }
+    },
+    "/api/v1/collection/trips": {
+      "get": {
+        "operationId": "CollectionController_trips",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "collection"
+        ]
+      }
+    },
+    "/api/v1/tracking/scan": {
+      "post": {
+        "operationId": "TrackingController_scan",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "tracking"
+        ]
+      }
+    },
+    "/api/v1/tracking/trips": {
+      "get": {
+        "operationId": "TrackingController_trips",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "tracking"
+        ]
+      }
+    },
+    "/api/v1/tracking/trips/{id}/route": {
+      "get": {
+        "operationId": "TrackingController_route",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "tracking"
+        ]
+      }
+    },
+    "/api/v1/tracking/trips/{id}/state": {
+      "get": {
+        "operationId": "TrackingController_state",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "tracking"
+        ]
+      }
+    },
+    "/api/v1/tracking/trips/{id}/points": {
+      "post": {
+        "operationId": "TrackingController_points",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "tracking"
+        ]
+      }
+    },
+    "/api/v1/tracking/trips/{id}/status": {
+      "post": {
+        "operationId": "TrackingController_status",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "tracking"
+        ]
+      }
+    },
+    "/api/v1/processing/overview": {
+      "get": {
+        "operationId": "ProcessingController_overview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
+    "/api/v1/processing/scan": {
+      "post": {
+        "operationId": "ProcessingController_scan",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
+    "/api/v1/processing/laboratory": {
+      "post": {
+        "operationId": "ProcessingController_laboratory",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
+    "/api/v1/processing/trips/{id}/receive": {
+      "post": {
+        "operationId": "ProcessingController_receive",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
+    "/api/v1/processing/runs": {
+      "post": {
+        "operationId": "ProcessingController_process",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
+    "/api/v1/processing/bags/{id}/plant-intake": {
+      "post": {
+        "operationId": "ProcessingController_factoryIntake",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
+    "/api/v1/processing/bags/{id}/receive": {
+      "post": {
+        "operationId": "ProcessingController_receiveBag",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
+    "/api/v1/processing/bags/{id}/pack": {
+      "post": {
+        "operationId": "ProcessingController_pack",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
+    "/api/v1/processing/sales": {
+      "post": {
+        "operationId": "ProcessingController_sell",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
+    "/api/v1/processing/packing-stats": {
+      "get": {
+        "operationId": "ProcessingController_stats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
+    "/api/v1/processing/trace/{id}": {
+      "get": {
+        "operationId": "ProcessingController_trace",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "operationId": "AuthController_login",
@@ -560,6 +959,25 @@
             }
           }
         },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/driver-session": {
+      "post": {
+        "operationId": "AuthController_driverSession",
+        "parameters": [],
         "responses": {
           "201": {
             "description": ""

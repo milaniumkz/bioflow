@@ -60,6 +60,7 @@ jobs:
             sleep 2
           done
           npm run test:acceptance -w @bioflow/backend
+          COLLECTION_INTEGRATION=1 npm run test:collection -w @bioflow/backend
       - run: |
           npm audit --omit=dev --audit-level=high
           npm audit --audit-level=high
@@ -73,7 +74,6 @@ jobs:
           bash -n infrastructure/ci-ssh.sh infrastructure/launch-test-server.sh infrastructure/prepare-test-android-signing.sh
       - run: docker build -f apps/backend/Dockerfile . && docker build -f apps/web/Dockerfile .
   android:
-    if: inputs.skip_apk != true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -86,9 +86,23 @@ jobs:
           flutter-version: 3.47.6
           channel: stable
           cache: true
-      - run: flutter pub get && flutter analyze && flutter test && flutter build apk --debug --dart-define=API_URL=http://10.0.2.2:4000/api/v1
+      - run: flutter pub get --enforce-lockfile && flutter analyze && flutter test
+        working-directory: apps/mobile
+      - name: Compile Android native code without packaging an APK
+        if: inputs.skip_apk == true
+        working-directory: apps/mobile/android
+        run: |
+          flutter precache --android
+          install -m 755 "$FLUTTER_ROOT/bin/cache/artifacts/gradle_wrapper/gradlew" ./gradlew
+          install -m 644 "$FLUTTER_ROOT/bin/cache/artifacts/gradle_wrapper/gradle/wrapper/gradle-wrapper.jar" ./gradle/wrapper/gradle-wrapper.jar
+          printf 'flutter.sdk=%s\nsdk.dir=%s\n' "$FLUTTER_ROOT" "$ANDROID_HOME" > local.properties
+          ./gradlew :app:compileDebugKotlin --no-daemon --console=plain
+      - name: Build APK only when requested
+        if: inputs.skip_apk != true
+        run: flutter build apk --debug --dart-define=API_URL=http://10.0.2.2:4000/api/v1
         working-directory: apps/mobile
       - uses: actions/upload-artifact@v4
+        if: inputs.skip_apk != true
         with:
           name: BIOFLOW-test-apk
           path: apps/mobile/build/app/outputs/flutter-apk/app-debug.apk

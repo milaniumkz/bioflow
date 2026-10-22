@@ -82,6 +82,16 @@ export class AuthController {
   }
 
   @ApiBearerAuth()
+  @Permissions("tracking.write")
+  @Post("driver-session")
+  driverSession(
+    @CurrentUserDecorator() user: CurrentUser,
+    @Body() dto: MobileWebSessionDto,
+  ) {
+    return this.auth.mobileWebSession(user, dto.refreshToken);
+  }
+
+  @ApiBearerAuth()
   @Get("me")
   me(@CurrentUserDecorator() user: CurrentUser) {
     return this.auth.me(user.id).then((profile) => ({

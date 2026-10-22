@@ -1,6 +1,18 @@
 import { PrismaClient } from "@prisma/client";
 export async function initializeRoles(prisma: PrismaClient) {
   const permissionCodes = [
+    "processing.overview",
+    "processing.pack",
+    "processing.sell",
+    "laboratory.manage",
+    "processing.receive",
+    "processing.wash",
+    "processing.dry",
+    "processing.finished",
+    "processing.read",
+    "collection.manage",
+    "tracking.read",
+    "tracking.write",
     "batches.manage",
     "loading.manage",
     "inventory.manage",
@@ -26,6 +38,74 @@ export async function initializeRoles(prisma: PrismaClient) {
 
   const roleMatrix: Record<string, { name: string; permissions: string[] }> = {
     OWNER: { name: "Владелец", permissions: permissionCodes },
+    PACKER: {
+      name: "Упаковщик",
+      permissions: [
+        "processing.pack",
+        "processing.read",
+        "references.read",
+        "notifications.read",
+      ],
+    },
+    SALES_STOREKEEPER: {
+      name: "Кладовщик отпуска и продаж",
+      permissions: [
+        "processing.sell",
+        "processing.read",
+        "references.read",
+        "notifications.read",
+      ],
+    },
+    LAB_TECHNICIAN: {
+      name: "Лаборант",
+      permissions: [
+        "laboratory.manage",
+        "processing.read",
+        "references.read",
+        "notifications.read",
+      ],
+    },
+    WASH_RECEIVER: {
+      name: "Приёмщик мойки",
+      permissions: [
+        "processing.receive",
+        "processing.read",
+        "references.read",
+        "notifications.read",
+      ],
+    },
+    DRYING_OPERATOR: {
+      name: "Оператор завода",
+      permissions: [
+        "processing.dry",
+        "processing.read",
+        "references.read",
+        "notifications.read",
+      ],
+    },
+    FINISHED_RECEIVER: {
+      name: "Кладовщик готовой продукции",
+      permissions: [
+        "processing.finished",
+        "processing.read",
+        "references.read",
+        "notifications.read",
+      ],
+    },
+    COLLECTOR: {
+      name: "Сборщик",
+      permissions: [
+        "processing.read",
+        "collection.manage",
+        "tracking.read",
+        "references.read",
+        "notifications.read",
+      ],
+    },
+    DRIVER: {
+      name: "Водитель",
+      permissions: ["tracking.write", "notifications.read"],
+    },
     ADMIN: {
       name: "Администратор",
       permissions: [
@@ -59,6 +139,8 @@ export async function initializeRoles(prisma: PrismaClient) {
     WASH_OPERATOR: {
       name: "Оператор мойки",
       permissions: [
+        "processing.wash",
+        "processing.read",
         "operations.manage",
         "inventory.read",
         "references.read",

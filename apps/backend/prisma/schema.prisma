@@ -90,6 +90,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   devices Device[]
   auditLogs      AuditLog[]
+  driverProfile Driver?
   createdWaybills Waybill[] @relation("WaybillCreatedBy")
   acceptedWaybills Waybill[] @relation("WaybillAcceptedBy")
   counterpartyScopeId String?
@@ -174,6 +175,8 @@ model Vehicle {
 }
 
 model Driver {
+  userId String? @unique
+  user User? @relation(fields: [userId], references: [id])
   id String @id @default(cuid())
   organizationId String
   counterpartyId String?
@@ -253,6 +256,12 @@ model ProductType {
 }
 
 model Waybill {
+  departedAt DateTime?
+  arrivedAt DateTime?
+  bagCount Int?
+  receivedBagCount Int?
+  routePoints RoutePoint[]
+  routeStops RouteStop[]
   batchId String?
   batch MaterialBatch? @relation(fields: [batchId], references: [id])
   tareWeight Decimal? @db.Decimal(14, 3)
@@ -569,6 +578,11 @@ model SystemSetting {
 // Quantities are stored in tonnes with three decimal places. Original measurements
 // are retained with each operation; clients convert kilograms at the boundary.
 model MaterialBatch {
+  actualCollectedQuantity Decimal? @db.Decimal(14, 3)
+  actualBagCount Int?
+  laboratoryAnalyses LaboratoryAnalysis[]
+  processInputs ProcessInput[]
+  bigBag BigBag?
   originCounterpartyIds String[] @default([])
   originExtractionSiteIds String[] @default([])
   id String @id @default(cuid())
@@ -697,4 +711,111 @@ model PushDelivery {
   updatedAt DateTime @default(now()) @updatedAt
   @@unique([notificationId, deviceId])
   @@index([status, createdAt])
+}
+
+
+// Driver telemetry is separate from material stock accounting.
+model RoutePoint {
+  id String @id
+  waybillId String
+  userId String
+  recordedAt DateTime
+  receivedAt DateTime @default(now())
+  latitude Float
+  longitude Float
+  accuracy Float
+  waybill Waybill @relation(fields: [waybillId], references: [id])
+  @@index([waybillId, recordedAt])
+}
+
+model RouteStop {
+  id String @id @default(cuid())
+  waybillId String
+  latitude Float
+  longitude Float
+  startedAt DateTime
+  lastObservedAt DateTime
+  endedAt DateTime?
+  notifiedAt DateTime?
+  waybill Waybill @relation(fields: [waybillId], references: [id])
+  @@index([waybillId, endedAt])
+}
+
+
+model LaboratoryAnalysis {
+  sedimentPercent Decimal @db.Decimal(5, 2)
+  baseQuantity Decimal @db.Decimal(14, 3)
+  actualQuantity Decimal @db.Decimal(14, 3)
+  actualBagCount Int
+  id String @id @default(cuid())
+  batchId String
+  moisturePercent Decimal @db.Decimal(5, 2)
+  measuredAt DateTime
+  notes String?
+  createdById String
+  createdAt DateTime @default(now())
+  batch MaterialBatch @relation(fields: [batchId], references: [id])
+  @@index([batchId, measuredAt])
+}
+
+model ProcessRun {
+  rootBatchId String
+  preparedBatchId String? @unique
+  id String @id @default(cuid())
+  organizationId String
+  number String @unique
+  kind String
+  fromWarehouseId String
+  toWarehouseId String
+  inputQuantity Decimal @db.Decimal(14, 3)
+  outputQuantity Decimal @db.Decimal(14, 3)
+  coefficientPercent Decimal @db.Decimal(8, 3)
+  coefficientBasis String
+  normMinPercent Decimal @db.Decimal(8, 3)
+  normMaxPercent Decimal @db.Decimal(8, 3)
+  deviation String
+  reason String?
+  createdById String
+  createdAt DateTime @default(now())
+  inputs ProcessInput[]
+  bags BigBag[]
+  @@index([organizationId, kind, createdAt])
+  @@index([organizationId, rootBatchId, createdAt])
+}
+
+model ProcessInput {
+  id String @id @default(cuid())
+  processId String
+  batchId String
+  quantity Decimal @db.Decimal(14, 3)
+  process ProcessRun @relation(fields: [processId], references: [id])
+  batch MaterialBatch @relation(fields: [batchId], references: [id])
+  @@unique([processId, batchId])
+}
+
+model BigBag {
+  id String @id @default(cuid())
+  batchId String @unique
+  processId String
+  ordinal Int
+  quantity Decimal @db.Decimal(14, 3)
+  stage String
+  factoryStartedAt DateTime?
+  factoryStartedById String?
+  factoryWarehouseId String?
+  packedAt DateTime?
+  packedById String?
+  packingShift String?
+  packingDate String?
+  soldAt DateTime?
+  soldById String?
+  saleRecipient String?
+  saleDocument String?
+  receivedAt DateTime?
+  receivedById String?
+  receivedWarehouseId String?
+  batch MaterialBatch @relation(fields: [batchId], references: [id])
+  process ProcessRun @relation(fields: [processId], references: [id])
+  @@unique([processId, ordinal])
+  @@index([packedById, packingDate, packingShift])
 }
