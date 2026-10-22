@@ -20,7 +20,7 @@ class BioflowApp extends StatelessWidget {
   const BioflowApp({super.key});
   @override
   Widget build(BuildContext context) => MaterialApp(
-      title: 'BIOFLOW',
+      title: 'Collection',
       locale: const Locale('ru'),
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       supportedLocales: const [Locale('ru'), Locale('en')],
@@ -29,6 +29,22 @@ class BioflowApp extends StatelessWidget {
           colorScheme: const ColorScheme.dark(
               primary: blue, secondary: platinum, surface: navy900)),
       home: const LoginScreen());
+}
+
+class CollectionLogo extends StatelessWidget {
+  const CollectionLogo({super.key});
+  @override
+  Widget build(BuildContext context) => Row(children: [
+        Image.asset('assets/branding/collection-symbol.png',
+            width: 64, height: 64, excludeFromSemantics: true),
+        const SizedBox(width: 12),
+        const Flexible(
+            child: Text('collection',
+                style: TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -1))),
+      ]);
 }
 
 class LoginScreen extends StatefulWidget {
@@ -118,9 +134,7 @@ class _LoginState extends State<LoginScreen> {
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const Text('BIOFLOW',
-                                style: TextStyle(
-                                    fontSize: 36, fontWeight: FontWeight.bold)),
+                            const CollectionLogo(),
                             const Text('Контроль движения биоматериала'),
                             const SizedBox(height: 24),
                             TextField(
@@ -496,7 +510,7 @@ class _WorkspaceState extends State<Workspace> {
           child: SafeArea(
               child: ListView(children: [
         ListTile(
-            title: Text(api.profile?['fullName'] ?? 'BIOFLOW'),
+            title: Text(api.profile?['fullName'] ?? 'Collection'),
             subtitle: Text(roleSummary(api.profile))),
         const Divider(),
         const Padding(

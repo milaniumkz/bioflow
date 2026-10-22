@@ -317,7 +317,7 @@ void main() {
   testWidgets('Login has no prefilled demo credentials', (tester) async {
     await tester.pumpWidget(const BioflowApp());
     await tester.pumpAndSettle();
-    expect(find.text('BIOFLOW'), findsOneWidget);
+    expect(find.text('collection'), findsOneWidget);
     expect(find.text('Войти'), findsOneWidget);
     expect(find.text('owner@bioflow.local'), findsNothing);
   });

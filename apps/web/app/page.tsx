@@ -182,7 +182,15 @@ function Login({ onToken }: { onToken: (token: string) => void }) {
           login.mutate();
         }}
       >
-        <h1>BIOFLOW</h1>
+        <h1 className="collection-logo">
+          <img
+            src="/branding/collection-symbol.png"
+            alt=""
+            width="64"
+            height="64"
+          />
+          <span>collection</span>
+        </h1>
         <p className="metric">Вход в систему контроля биоматериала</p>
         <div className="toolbar">
           <label className="login-field" htmlFor="login-email">
@@ -2746,7 +2754,15 @@ function App() {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="brand">BIOFLOW</div>
+        <div className="brand collection-logo">
+          <img
+            src="/branding/collection-symbol.png"
+            alt=""
+            width="40"
+            height="40"
+          />
+          <span>collection</span>
+        </div>
         <nav className="nav">
           {sections
             .filter(([id]) => allowed(id))

@@ -3,7 +3,7 @@
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application android:usesCleartextTraffic="${allowCleartext}"
-        android:label="BIOFLOW"
+        android:label="Collection"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
