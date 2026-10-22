@@ -1,6 +1,11 @@
 name: deploy-test
 on:
   workflow_call:
+    inputs:
+      skip_apk:
+        description: "Deploy Web and API without building or publishing an APK"
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -59,7 +64,10 @@ jobs:
         run: |
           curl --fail --silent --show-error http://109.235.118.171/api/v1/health
           curl --fail --silent --show-error http://109.235.118.171/ > /tmp/bioflow-page.html
-          grep -q BIOFLOW /tmp/bioflow-page.html
+          grep -q '<title>Collection</title>' /tmp/bioflow-page.html
+          grep -q '/branding/collection-symbol.png' /tmp/bioflow-page.html
+          curl --fail --silent --show-error http://109.235.118.171/branding/icon-192.png -o /tmp/collection-icon.png
+          cmp apps/web/public/branding/icon-192.png /tmp/collection-icon.png
       - uses: actions/upload-artifact@v4
         with:
           name: BIOFLOW-test-access
@@ -67,6 +75,7 @@ jobs:
           retention-days: 7
           if-no-files-found: error
   android:
+    if: inputs.skip_apk != true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
