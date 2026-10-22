@@ -15,7 +15,7 @@ on:
         description: "Prepare public encryption key or bind owner phone without publishing its plaintext"
         type: choice
         required: true
-        options: [prepare-key, bind-owner]
+        options: [prepare-key, bind-owner, reset-owner-password]
       phone_ciphertext:
         description: "Base64 RSA-OAEP-SHA256 encrypted phone; never enter a plaintext phone"
         required: false
@@ -80,4 +80,19 @@ jobs:
           compose=(docker compose -p bioflow-test --env-file /opt/bioflow-test/shared/server.env -f docker-compose.test-server.yml)
           "${compose[@]}" exec -T -e BIOFLOW_OWNER_PHONE="$phone" backend node - < "$private/bind-owner-phone.cjs"
           unset phone
+          REMOTE
+      - name: Apply explicitly requested owner temporary password
+        if: inputs.operation == 'reset-owner-password'
+        run: |
+          source infrastructure/ci-ssh.sh
+          [[ "$PHONE_CIPHERTEXT" =~ ^[A-Za-z0-9+/]{512}$ ]] || { echo 'Expected encrypted reset request'; exit 2; }
+          bioflow_scp infrastructure/reset-owner-password.cjs "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/bioflow-test/shared/private-account-ops/reset-owner-password.cjs"
+          bioflow_ssh bash -s -- "$PHONE_CIPHERTEXT" "$GITHUB_RUN_ID" <<'REMOTE'
+          set -euo pipefail
+          private=/opt/bioflow-test/shared/private-account-ops
+          payload=$(printf '%s' "$1" | base64 -d | openssl pkeyutl -decrypt -inkey "$private/phone-key.pem" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256)
+          cd /opt/bioflow-test/current
+          compose=(docker compose -p bioflow-test --env-file /opt/bioflow-test/shared/server.env -f docker-compose.test-server.yml)
+          "${compose[@]}" exec -T -e BIOFLOW_OWNER_RESET_JSON="$payload" -e BIOFLOW_ACCOUNT_OPERATION_ID="$2" backend node - < "$private/reset-owner-password.cjs"
+          unset payload
           REMOTE
