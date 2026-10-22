@@ -312,7 +312,7 @@ class FullWorkspaceState extends State<FullWorkspace> {
                 icon: const Icon(Icons.arrow_back)),
             title:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(widget.client.profile?['fullName'] ?? 'BIOFLOW',
+              Text(widget.client.profile?['fullName'] ?? 'Collection',
                   style: const TextStyle(fontSize: 16),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis),

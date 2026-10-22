@@ -17,6 +17,10 @@ on:
           - prepare-owner-phone-key
           - bind-owner-phone
           - reset-owner-password
+      skip_apk:
+        description: "Deploy server without building or publishing an APK"
+        type: boolean
+        default: false
       release_sha:
         description: "Required for rollback: existing release SHA"
         required: false
@@ -39,6 +43,8 @@ jobs:
   launch-test:
     if: inputs.operation == 'launch-test'
     uses: ./.github/workflows/deploy-test.yml
+    with:
+      skip_apk: ${{ inputs.skip_apk }}
     secrets: inherit
 
   operate:
