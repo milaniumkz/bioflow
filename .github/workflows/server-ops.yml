@@ -16,6 +16,7 @@ on:
           - rollback
           - prepare-owner-phone-key
           - bind-owner-phone
+          - reset-owner-password
       release_sha:
         description: "Required for rollback: existing release SHA"
         required: false
@@ -29,10 +30,10 @@ concurrency:
 
 jobs:
   account:
-    if: inputs.operation == 'prepare-owner-phone-key' || inputs.operation == 'bind-owner-phone'
+    if: inputs.operation == 'prepare-owner-phone-key' || inputs.operation == 'bind-owner-phone' || inputs.operation == 'reset-owner-password'
     uses: ./.github/workflows/server-account-phone.yml
     with:
-      operation: ${{ inputs.operation == 'prepare-owner-phone-key' && 'prepare-key' || 'bind-owner' }}
+      operation: ${{ inputs.operation == 'prepare-owner-phone-key' && 'prepare-key' || inputs.operation == 'bind-owner-phone' && 'bind-owner' || 'reset-owner-password' }}
       phone_ciphertext: ${{ inputs.phone_ciphertext }}
     secrets: inherit
   launch-test:
