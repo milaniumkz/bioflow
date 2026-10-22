@@ -43,7 +43,7 @@ void main() {
   });
   test('all standard roles have Russian labels and multiple roles are visible',
       () {
-    expect(roleNames.length, 11);
+    expect(roleNames.length, 19);
     expect(
         roleSummary({
           'roles': ['ADMIN', 'AUDITOR']

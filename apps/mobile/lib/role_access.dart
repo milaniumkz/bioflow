@@ -1,4 +1,12 @@
 const roleNames = {
+  'COLLECTOR': 'Сборщик',
+  'DRIVER': 'Водитель',
+  'LAB_TECHNICIAN': 'Лаборант',
+  'WASH_RECEIVER': 'Приёмщик мойки',
+  'DRYING_OPERATOR': 'Оператор завода',
+  'FINISHED_RECEIVER': 'Кладовщик готовой продукции',
+  'PACKER': 'Упаковщик',
+  'SALES_STOREKEEPER': 'Кладовщик отпуска и продаж',
   'OWNER': 'Владелец',
   'ADMIN': 'Администратор',
   'CONTRACTOR_REP': 'Представитель подрядчика',
@@ -20,6 +28,11 @@ String roleSummary(Map<String, dynamic>? profile) {
 }
 
 const roleSections = {
+  'driver': 'Мои рейсы',
+  'control': 'Контроль и статистика',
+  'collection': 'Сбор и отправка',
+  'processing': 'Работа с партией по QR',
+  'fleet': 'Водители и маршруты',
   'dashboard': 'Обзор',
   'ledger': 'Партии и операции',
   'waybills': 'Поставки',
@@ -53,6 +66,14 @@ bool canOpenSection(String id, Map<String, dynamic>? profile) {
   final permissions = profile['permissions'] as List? ?? [];
   bool can(String p) => permissions.contains(p);
   final all = profile['accessAllObjects'] == true;
+  if (id == 'driver') {
+    return can('tracking.write') &&
+        (profile['roles'] as List? ?? []).contains('DRIVER');
+  }
+  if (id == 'control') return can('processing.overview');
+  if (id == 'collection') return can('collection.manage');
+  if (id == 'processing') return can('processing.read');
+  if (id == 'fleet') return can('tracking.read');
   if (id == 'plants') return can('references.read') && all;
   if (id == 'audit') return can('audit.read') && all;
   if (id == 'dashboard') return can('dashboard.read') && all;

@@ -6,6 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'client.dart';
 import 'role_access.dart';
+import 'qr_scan.dart';
 
 const mobileFiles = MethodChannel('bioflow/mobile-files');
 
@@ -13,9 +14,11 @@ Future<void> printMobileQr(String image) =>
     mobileFiles.invokeMethod<void>('printQr', {'image': image});
 
 class FullWorkspace extends StatefulWidget {
-  const FullWorkspace({super.key, required this.client, required this.section});
+  const FullWorkspace(
+      {super.key, required this.client, required this.section, this.initialQr});
   final BioflowClient client;
   final String section;
+  final String? initialQr;
   @override
   FullWorkspaceState createState() => FullWorkspaceState();
 }
@@ -167,8 +170,11 @@ class FullWorkspaceState extends State<FullWorkspace> {
         await revokeChild();
         return;
       }
-      final payload = jsonEncode(
-          {...Map<String, dynamic>.from(tokens), 'section': widget.section});
+      final payload = jsonEncode({
+        ...Map<String, dynamic>.from(tokens),
+        'section': widget.section,
+        if (widget.initialQr != null) 'qr': widget.initialQr
+      });
       await controller.runJavaScript(
           'window.dispatchEvent(new CustomEvent("bioflow:mobile-login", {detail: $payload}));');
     } catch (_) {
@@ -240,6 +246,24 @@ class FullWorkspaceState extends State<FullWorkspace> {
           await finish(false);
         case 'close':
           await finish(false);
+        case 'scanQr':
+          if (!authenticated ||
+              !canOpenSection('processing', widget.client.profile)) {
+            return;
+          }
+          final allowed = await controller.runJavaScriptReturningResult(
+              'window.dispatchEvent(new Event("bioflow:navigate", {cancelable:true}))');
+          if (allowed != true && allowed.toString() != 'true') return;
+          if (!mounted) return;
+          final qr = await Navigator.push<String>(context,
+              MaterialPageRoute(builder: (_) => const PartyQrScanner()));
+          if (qr != null &&
+              mounted &&
+              !leaving &&
+              widget.client.owner == identity) {
+            await controller.runJavaScript(
+                'window.dispatchEvent(new CustomEvent("bioflow:party-qr", {detail:${jsonEncode(qr)}}));');
+          }
         case 'saveFile':
           if (!authenticated) return;
           final saved = await mobileFiles.invokeMethod<bool>('saveFile', {

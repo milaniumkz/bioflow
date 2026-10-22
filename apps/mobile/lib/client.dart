@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'driver_tracking.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -147,7 +148,7 @@ class BioflowClient {
   }
 
   bool can(String p) => (profile?['permissions'] as List? ?? []).contains(p);
-  Future<dynamic> workspaceSession() async {
+  Future<dynamic> workspaceSession({bool driver = false}) async {
     final epoch = _sessionEpoch, user = owner;
     for (var attempt = 0; attempt < 2; attempt++) {
       final proof = await _authLocked(() => storage.read(key: 'refreshToken'));
@@ -155,7 +156,8 @@ class BioflowClient {
       if (proof == null) throw StateError('Войдите в приложение заново');
       try {
         final data = await send(
-            '/auth/mobile-web-session', {'refreshToken': proof},
+            driver ? '/auth/driver-session' : '/auth/mobile-web-session',
+            {'refreshToken': proof},
             queue: false);
         _checkIdentity(epoch, user);
         return data;
@@ -328,6 +330,7 @@ class BioflowClient {
   }
 
   Future<void> logout() async {
+    await stopDriverTracking();
     final epoch = ++_sessionEpoch;
     try {
       await dio.post('/auth/logout-all', data: {});

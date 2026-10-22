@@ -19,6 +19,8 @@ import { ShipmentsModule } from "./shipments/shipments.module";
 import { RbacGuard } from "./common/rbac.guard";
 import { JwtAuthGuard } from "./common/jwt-auth.guard";
 import { RequestIdMiddleware } from "./common/request-id.middleware";
+import { ProcessingModule } from "./processing/processing.module";
+import { CollectionModule } from "./collection/collection.module";
 import { LedgerModule } from "./ledger/ledger.module";
 import { HealthController } from "./health.controller";
 
@@ -28,6 +30,8 @@ import { HealthController } from "./health.controller";
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
     LedgerModule,
+    CollectionModule,
+    ProcessingModule,
     AuthModule,
     ReferenceModule,
     WaybillsModule,

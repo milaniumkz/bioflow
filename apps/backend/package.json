@@ -15,7 +15,8 @@
     "seed": "tsx prisma/seed.ts",
     "test:acceptance": "tsx --test test/acceptance.test.ts",
     "s3:init": "tsx src/files/init-bucket.ts",
-    "bootstrap:production": "tsx prisma/bootstrap-production.ts"
+    "bootstrap:production": "tsx prisma/bootstrap-production.ts",
+    "test:collection": "tsx --test test/collection-workflow.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1142.0",

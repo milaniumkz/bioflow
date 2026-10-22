@@ -5,8 +5,14 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import {
+  CollectionDto,
+  CollectorDriverDto,
+  CollectorVehicleDto,
+} from "../collection/collection.dto";
 import { Prisma } from "@prisma/client";
 import { createHash, randomBytes } from "crypto";
+import * as argon2 from "argon2";
 import * as QRCode from "qrcode";
 import { CurrentUser } from "../common/current-user.decorator";
 import { nextDocumentNumber as nextSequence } from "../common/document-numbers";
@@ -50,9 +56,16 @@ const canonical = (value: unknown): string =>
 
 @Injectable()
 export class LedgerService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(protected readonly prisma: PrismaService) {}
 
-  private async command(
+  protected async validateCommandReplay(
+    _name: string,
+    _result: Prisma.JsonValue,
+    _tx: Tx,
+    _user: CurrentUser,
+  ): Promise<void> {}
+
+  protected async command(
     user: CurrentUser,
     name: string,
     dto: CommandDto,
@@ -98,6 +111,7 @@ export class LedgerService {
                 for (const input of op.inputs)
                   await this.batch(tx, input.batchId, user);
               }
+              await this.validateCommandReplay(name, saved.response, tx, user);
               return saved.response;
             }
             const result = json(await fn(tx));
@@ -135,14 +149,14 @@ export class LedgerService {
     );
   }
 
-  private require(user: CurrentUser, permission: string) {
+  protected require(user: CurrentUser, permission: string) {
     if (!user.permissions.includes(permission))
       throw new ForbiddenException("Недостаточно прав");
   }
-  private reason(reason?: string) {
+  protected reason(reason?: string) {
     if (!reason?.trim()) throw new BadRequestException("Укажите причину");
   }
-  private async warehouse(tx: Tx, id: string, user: CurrentUser) {
+  protected async warehouse(tx: Tx, id: string, user: CurrentUser) {
     allowed(user, id);
     const warehouse = await tx.warehouse.findFirst({
       where: { id, organizationId: user.organizationId, archivedAt: null },
@@ -182,7 +196,7 @@ export class LedgerService {
     }
     return trip;
   }
-  private async audit(
+  protected async audit(
     tx: Tx,
     user: CurrentUser,
     action: string,
@@ -269,7 +283,7 @@ export class LedgerService {
         });
     }
   }
-  private async files(
+  protected async files(
     tx: Tx,
     fileIds: string[] | undefined,
     entityType: string,
@@ -291,6 +305,212 @@ export class LedgerService {
         );
       await tx.file.update({ where: { id }, data: { entityType, entityId } });
     }
+  }
+
+  private async collectionParty(tx: Tx, id: string, user: CurrentUser) {
+    if (!user.accessAllObjects && user.counterpartyScopeId !== id)
+      throw new ForbiddenException("Контрагент не назначен сборщику");
+    const party = await tx.counterparty.findFirst({
+      where: { id, organizationId: user.organizationId, status: "ACTIVE" },
+    });
+    if (!party) throw new BadRequestException("Контрагент недоступен");
+    return party;
+  }
+
+  createCollectorDriver(dto: CollectorDriverDto, user: CurrentUser) {
+    this.require(user, "collection.manage");
+    if (!dto.fullName.trim())
+      throw new BadRequestException("Укажите имя водителя");
+    return this.command(user, "collection.driver", dto, async (tx) => {
+      await this.collectionParty(tx, dto.counterpartyId, user);
+      const phoneVariants = [
+        dto.phone,
+        dto.phone.slice(1),
+        ...(dto.phone.startsWith("+7") ? ["8" + dto.phone.slice(2)] : []),
+      ];
+      // Never adopt an existing account or reset its password via a driver form.
+      if (
+        (await tx.user.findFirst({
+          where: { phone: { in: phoneVariants } },
+        })) ||
+        (await tx.driver.findFirst({
+          where: {
+            organizationId: user.organizationId,
+            phone: { in: phoneVariants },
+          },
+        }))
+      )
+        throw new ConflictException(
+          "Номер уже используется. Выберите существующего водителя или обратитесь к администратору",
+        );
+      const role = await tx.role.findUnique({ where: { code: "DRIVER" } });
+      if (!role)
+        throw new ConflictException(
+          "Роль водителя ещё не установлена администратором",
+        );
+      const account = await tx.user.create({
+        data: {
+          organizationId: user.organizationId,
+          phone: dto.phone,
+          fullName: dto.fullName.trim(),
+          passwordHash: await argon2.hash("123456"),
+          mustChangePassword: true,
+          userRoles: { create: { roleId: role.id } },
+        },
+      });
+      const driver = await tx.driver.create({
+        data: {
+          organizationId: user.organizationId,
+          counterpartyId: dto.counterpartyId,
+          userId: account.id,
+          fullName: account.fullName,
+          phone: dto.phone,
+        },
+      });
+      await this.audit(
+        tx,
+        user,
+        "collection.driver",
+        "Driver",
+        driver.id,
+        null,
+        { id: driver.id, userId: account.id },
+      );
+      return driver;
+    });
+  }
+
+  createCollectorVehicle(dto: CollectorVehicleDto, user: CurrentUser) {
+    this.require(user, "collection.manage");
+    if (![dto.plateNumber, dto.brand, dto.type].every((v) => v.trim()))
+      throw new BadRequestException("Укажите номер, марку и тип машины");
+    return this.command(user, "collection.vehicle", dto, async (tx) => {
+      await this.collectionParty(tx, dto.counterpartyId, user);
+      const plateNumber = dto.plateNumber.replace(/\s+/g, "").toUpperCase();
+      if (await tx.vehicle.findUnique({ where: { plateNumber } }))
+        throw new ConflictException("Машина с таким номером уже существует");
+      const vehicle = await tx.vehicle.create({
+        data: {
+          organizationId: user.organizationId,
+          counterpartyId: dto.counterpartyId,
+          plateNumber,
+          brand: dto.brand.trim(),
+          type: dto.type.trim(),
+        },
+      });
+      await this.audit(
+        tx,
+        user,
+        "collection.vehicle",
+        "Vehicle",
+        vehicle.id,
+        null,
+        vehicle,
+      );
+      return vehicle;
+    });
+  }
+
+  createCollection(dto: CollectionDto, user: CurrentUser) {
+    this.require(user, "collection.manage");
+    const quantity = mass(dto.quantity);
+    return this.command(user, "trip.collection", dto, async (tx) => {
+      await this.collectionParty(tx, dto.counterpartyId, user);
+      if (
+        !user.accessAllObjects &&
+        !(user.extractionScopeIds ?? []).includes(dto.extractionSiteId)
+      )
+        throw new ForbiddenException("Место сбора не назначено");
+      await this.warehouse(tx, dto.destinationWarehouseId, user);
+      const [site, material, vehicle, driver] = await Promise.all([
+        tx.extractionSite.findFirst({
+          where: {
+            id: dto.extractionSiteId,
+            organizationId: user.organizationId,
+            archivedAt: null,
+          },
+        }),
+        tx.materialType.findUnique({ where: { id: dto.materialTypeId } }),
+        tx.vehicle.findFirst({
+          where: {
+            id: dto.vehicleId,
+            organizationId: user.organizationId,
+            counterpartyId: dto.counterpartyId,
+            archivedAt: null,
+            status: "ACTIVE",
+          },
+        }),
+        tx.driver.findFirst({
+          where: {
+            id: dto.driverId,
+            organizationId: user.organizationId,
+            counterpartyId: dto.counterpartyId,
+            archivedAt: null,
+            user: {
+              isBlocked: false,
+              userRoles: { some: { role: { code: "DRIVER" } } },
+            },
+          },
+        }),
+      ]);
+      if (!site || !material || !vehicle || !driver)
+        throw new BadRequestException(
+          "Проверьте место сбора, материал, машину и учётную запись водителя",
+        );
+      if (vehicle.capacity && quantity.gt(vehicle.capacity))
+        throw new BadRequestException("Превышена грузоподъёмность машины");
+      const qrToken = randomBytes(32).toString("base64url");
+      const batch = await tx.materialBatch.create({
+        data: {
+          organizationId: user.organizationId,
+          number: await nextDocumentNumber(tx, user.organizationId, "LOT"),
+          qrTokenHash: hash(randomBytes(32).toString("base64url")),
+          counterpartyId: dto.counterpartyId,
+          extractionSiteId: site.id,
+          materialTypeId: material.id,
+          originCounterpartyIds: [dto.counterpartyId],
+          originExtractionSiteIds: [site.id],
+          initialQuantity: quantity,
+          availableSourceQuantity: new Prisma.Decimal(0),
+          status: "FULLY_SHIPPED",
+          measurementMethod: "Весы",
+          measuredAt: new Date(dto.measuredAt),
+          createdById: user.id,
+        },
+      });
+      const trip = await tx.waybill.create({
+        data: {
+          organizationId: user.organizationId,
+          number: await nextDocumentNumber(tx, user.organizationId, "WB"),
+          batchId: batch.id,
+          counterpartyId: dto.counterpartyId,
+          extractionSiteId: site.id,
+          materialTypeId: material.id,
+          vehicleId: vehicle.id,
+          driverId: driver.id,
+          destinationWarehouseId: dto.destinationWarehouseId,
+          bagCount: dto.bagCount,
+          declaredWeight: quantity,
+          actualWeight: quantity,
+          documentDate: new Date(dto.measuredAt),
+          qrTokenHash: hash(qrToken),
+          status: "IN_TRANSIT",
+          departedAt: new Date(),
+          createdById: user.id,
+        },
+      });
+      await this.files(tx, dto.fileIds, "Waybill", trip.id, user);
+      await this.audit(
+        tx,
+        user,
+        "trip.collection",
+        "Waybill",
+        trip.id,
+        null,
+        trip,
+      );
+      return { ...trip, qrToken, qrImage: await QRCode.toDataURL(qrToken) };
+    });
   }
 
   createBatch(dto: BatchDto, user: CurrentUser) {
@@ -690,6 +910,10 @@ export class LedgerService {
     const received = net(dto.grossWeight, dto.tareWeight);
     return this.command(user, `trip.receipt:${id}`, dto, async (tx) => {
       const trip = await this.trip(tx, id, user);
+      if (trip.bagCount !== null)
+        throw new ConflictException(
+          "Используйте приёмку отправки сборщика по QR, чтобы учесть лабораторию и мешки",
+        );
       if (!["ARRIVED", "PARTIALLY_ACCEPTED"].includes(trip.status))
         throw new ConflictException("Ожидается прибывшая перевозка");
       if (dto.warehouseId !== trip.destinationWarehouseId)
@@ -883,7 +1107,7 @@ export class LedgerService {
     throw new NotFoundException("QR не найден");
   }
 
-  private async move(
+  protected async move(
     tx: Tx,
     user: CurrentUser,
     batchId: string,
@@ -1018,7 +1242,21 @@ export class LedgerService {
     return this.command(user, "operation.create", dto, async (tx) => {
       await this.warehouse(tx, dto.fromWarehouseId, user);
       if (dto.toWarehouseId) await this.warehouse(tx, dto.toWarehouseId, user);
-      for (const input of dto.inputs) await this.batch(tx, input.batchId, user);
+      for (const input of dto.inputs) {
+        await this.batch(tx, input.batchId, user);
+        if (
+          (await tx.bigBag.findUnique({ where: { batchId: input.batchId } })) ||
+          (await tx.processRun.findUnique({
+            where: { preparedBatchId: input.batchId },
+          })) ||
+          (await tx.waybill.findFirst({
+            where: { batchId: input.batchId, bagCount: { not: null } },
+          }))
+        )
+          throw new ConflictException(
+            "Для этой партии используйте действия по QR; общий учёт не должен обходить физические этапы",
+          );
+      }
       if (
         dto.vehicleId &&
         !(await tx.vehicle.findFirst({
@@ -1108,6 +1346,24 @@ export class LedgerService {
       await this.warehouse(tx, op.fromWarehouseId!, user);
       if (op.toWarehouseId) await this.warehouse(tx, op.toWarehouseId, user);
       for (const input of op.inputs) await this.batch(tx, input.batchId, user);
+      if (["WASHING", "PRODUCTION"].includes(op.kind)) {
+        for (const input of op.inputs) {
+          if (
+            (await tx.bigBag.findUnique({
+              where: { batchId: input.batchId },
+            })) ||
+            (await tx.processRun.findUnique({
+              where: { preparedBatchId: input.batchId },
+            })) ||
+            (await tx.waybill.findFirst({
+              where: { batchId: input.batchId, bagCount: { not: null } },
+            }))
+          )
+            throw new ConflictException(
+              "Используйте обработку партии по QR: лаборатория, взвешивание, мойка и сушка",
+            );
+        }
+      }
       let outputBatchId: string | undefined;
       if (["WASHING", "PRODUCTION"].includes(op.kind)) {
         const inputTotal = op.inputs.reduce(

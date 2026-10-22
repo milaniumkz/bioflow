@@ -23,6 +23,7 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.FileOutputStream
 
 class MainActivity : FlutterActivity() {
+    private var driverBridge: DriverLocationBridge? = null
     private var pending: MethodChannel.Result? = null
     private var document: ByteArray? = null
     private val saveRequest = 7301
@@ -30,6 +31,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        driverBridge = DriverLocationBridge(this, flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "bioflow/mobile-files")
             .setMethodCallHandler { call, result ->
                 try {
@@ -86,6 +88,11 @@ class MainActivity : FlutterActivity() {
                     result.error("file_operation", "Не удалось выполнить операцию с файлом", null)
                 }
             }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        driverBridge?.onRequestPermissionsResult(requestCode)
     }
 
     @Deprecated("Activity result bridge for Flutter file operations")

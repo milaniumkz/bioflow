@@ -366,3 +366,154 @@ html[data-mobile-app="true"] .sidebar {
 .collection-logo span {
   color: #f4f7f8;
 }
+.workflow-stack {
+  display: grid;
+  gap: 18px;
+  max-width: 1400px;
+}
+.workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 14px;
+}
+.workflow-form {
+  max-width: 600px;
+  width: 100%;
+}
+.workflow-form fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+.workflow-form label {
+  display: grid;
+  gap: 8px;
+}
+.workflow-form input,
+.workflow-form select,
+.workflow-form textarea {
+  min-height: 48px;
+  max-width: 100%;
+  width: 100%;
+}
+.workflow-form textarea {
+  min-height: 130px;
+  background: #08182d;
+  color: var(--text);
+  border: 1px solid #52667e;
+  border-radius: 8px;
+  padding: 12px;
+}
+.workflow-primary {
+  min-height: 52px;
+  width: 100%;
+  font-size: 17px;
+}
+.workflow-party {
+  border-left: 4px solid #008a62;
+}
+.workflow-metrics {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  font-size: 25px;
+}
+.workflow-event {
+  border: 1px solid #29415c;
+  padding: 16px;
+  border-radius: 12px;
+  margin: 10px 0;
+  overflow-wrap: anywhere;
+}
+.workflow-stat {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 14px;
+  background: #0a1c35;
+  border: 1px solid #29415c;
+}
+.workflow-stat span,
+.eyebrow {
+  color: #a6bbce;
+  font-size: 14px;
+}
+.workflow-stat strong {
+  font-size: 25px;
+}
+.route-map {
+  height: 420px;
+  width: 100%;
+  border-radius: 14px;
+  z-index: 0;
+}
+.qr-result img {
+  display: block;
+  background: white;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: 16px;
+}
+@media (max-width: 600px) {
+  .workflow-form,
+  .workflow-party {
+    padding: 18px;
+  }
+  .route-map {
+    height: 350px;
+  }
+  .workflow-stat strong {
+    font-size: 22px;
+  }
+}
+
+.main,
+.workflow-stack,
+.workflow-stack > .panel {
+  min-width: 0;
+}
+.workflow-party h2,
+.workflow-form h2,
+.title {
+  overflow-wrap: anywhere;
+}
+.workflow-party h2 {
+  font-size: 22px;
+}
+.workflow-form button {
+  white-space: normal;
+}
+.menu-toggle {
+  display: none;
+}
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sidebar {
+    position: static;
+  }
+  .sidebar .brand {
+    margin-bottom: 12px;
+  }
+  .menu-toggle {
+    display: inline-flex;
+    margin-bottom: 10px;
+  }
+  .sidebar[data-mobile-menu="closed"] .nav {
+    display: none;
+  }
+  .nav button {
+    min-width: 0;
+  }
+}
+.workflow-stack .panel {
+  width: 100%;
+  max-width: none;
+}
+.workflow-stack .workflow-form {
+  max-width: 600px;
+}
