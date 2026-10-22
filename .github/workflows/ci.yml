@@ -92,6 +92,9 @@ jobs:
         if: inputs.skip_apk == true
         working-directory: apps/mobile/android
         run: |
+          flutter precache --android
+          install -m 755 "$FLUTTER_ROOT/bin/cache/artifacts/gradle_wrapper/gradlew" ./gradlew
+          install -m 644 "$FLUTTER_ROOT/bin/cache/artifacts/gradle_wrapper/gradle/wrapper/gradle-wrapper.jar" ./gradle/wrapper/gradle-wrapper.jar
           printf 'flutter.sdk=%s\nsdk.dir=%s\n' "$FLUTTER_ROOT" "$ANDROID_HOME" > local.properties
           ./gradlew :app:compileDebugKotlin --no-daemon --console=plain
       - name: Build APK only when requested
