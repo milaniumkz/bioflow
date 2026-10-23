@@ -1220,3 +1220,24 @@ html[data-mobile-app="true"] .workspace-content {
     font-size: 21px;
   }
 }
+
+.audit-change {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  margin: 12px 0;
+  padding: 16px;
+}
+.audit-change h4 {
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+}
+.audit-change-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.audit-change-values p {
+  overflow-wrap: anywhere;
+  margin: 6px 0;
+}

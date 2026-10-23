@@ -1,3 +1,4 @@
+import { AuditController } from "../src/audit/audit.controller";
 import "reflect-metadata";
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -576,6 +577,44 @@ test(
         packDto.workDate,
       );
       assert.equal(stats[0]._count._all, 1);
+      const auditTarget = await p.user.create({
+        data: {
+          organizationId: org.id,
+          email: `audit-${tag}@example.test`,
+          fullName: "Тест доступа к объектам",
+          passwordHash: await argon2.hash("synthetic-audit-target-not-used"),
+        },
+      });
+      await ledger.assignAccess(
+        auditTarget.id,
+        {
+          accessAllObjects: false,
+          warehouseScopeIds: [warehouses[0].id],
+          extractionScopeIds: [site.id],
+          counterpartyScopeId: party.id,
+          reason: "SPEC: проверка истории доступа",
+        },
+        owner,
+      );
+      const auditController = new AuditController(p);
+      const history = await auditController.list(
+        { page: 1, pageSize: 100, search: "user.access" } as any,
+        owner,
+      );
+      assert(history.data.some((row) => row.entityId === auditTarget.id));
+      assert.equal(
+        history.data[0].scopeNames.warehouseScopeIds[warehouses[0].id],
+        warehouses[0].name,
+      );
+      assert.equal(
+        (
+          await auditController.list(
+            { page: 1, pageSize: 100, search: "user.access" } as any,
+            lab,
+          )
+        ).data.length,
+        0,
+      );
       const reportQuery: any = { page: 1, pageSize: 100 };
       const factoryReport: any = await ledger.report(
         "production",

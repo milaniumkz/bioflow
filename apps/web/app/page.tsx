@@ -1,4 +1,5 @@
 "use client";
+import { AuditChanges } from "./audit-changes";
 
 import {
   webRequest,
@@ -427,6 +428,34 @@ const fieldNames: Record<string, string> = {
   PARTIALLY_SHIPPED: "Частично отгружена",
   FULLY_SHIPPED: "Отгружена",
   entityId: "Объект",
+  entityName: "Запись",
+  "user.access": "Изменение доступа",
+  "process.run": "Обработка партии",
+  "process.laboratory": "Лабораторный анализ",
+  "process.receive": "Приёмка на мойку",
+  "process.factory-intake": "Приёмка на завод",
+  "process.finished": "Приёмка готовой продукции",
+  "process.pack": "Упаковка",
+  "process.sell": "Продажа",
+  "trip.collection": "Сбор и отправка",
+  "trip.create": "Создание рейса",
+  "trip.load": "Погрузка",
+  "trip.receipt": "Приёмка рейса",
+  "trip.status": "Статус рейса",
+  "trip.unload": "Разгрузка",
+  "collection.driver": "Добавление водителя",
+  "collection.vehicle": "Добавление машины",
+  "reference.archive": "Архивация записи",
+  "operation.create": "Создание операции",
+  "operation.confirm": "Подтверждение операции",
+  "operation.cancel": "Отмена операции",
+  User: "Пользователь",
+  MaterialBatch: "Партия",
+  ProcessRun: "Обработка партии",
+  Waybill: "Рейс",
+  Driver: "Водитель",
+  Vehicle: "Машина",
+  Warehouse: "Склад",
   userId: "Пользователь",
   "user.fullName": "Пользователь",
   OPERATION_CONFIRMED: "Операция подтверждена",
@@ -518,6 +547,8 @@ function Table({
         .join(", ");
     }
     const value = read(row, path);
+    if (["action", "entity"].includes(path))
+      return fieldLabel(String(value ?? "—"));
     if (Array.isArray(value)) return String(value.length);
     return value == null || value === "" ? (
       "-"
@@ -676,7 +707,14 @@ function DataSection({ token, section }: { token: string; section: string }) {
   const rows = Array.isArray(data) ? data : (data?.rows ?? data?.data ?? []);
   const columns =
     section === "audit"
-      ? ["createdAt", "action", "entity", "entityId", "user.fullName", "reason"]
+      ? [
+          "createdAt",
+          "action",
+          "entity",
+          "entityName",
+          "user.fullName",
+          "reason",
+        ]
       : section === "reference-values"
         ? ["category", "code", "name", "archivedAt"]
         : section === "inventory"
@@ -816,19 +854,39 @@ function DataSection({ token, section }: { token: string; section: string }) {
               placeholder="Поиск"
             />
           )}
-          {statusSections.includes(section) && (
-            <LabeledInput
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              placeholder={
-                section === "inventory"
-                  ? "Тип движения"
-                  : section === "audit"
-                    ? "Action"
-                    : "Статус"
-              }
-            />
-          )}
+          {statusSections.includes(section) &&
+            (section === "audit" ? (
+              <LabeledSelect
+                label="Действие"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+              >
+                <option value="">Все действия</option>
+                {Object.entries(fieldNames)
+                  .filter(([code]) =>
+                    /^(user|process|trip|collection|reference|operation)\.[a-z.-]+$/.test(
+                      code,
+                    ),
+                  )
+                  .map(([code, name]) => (
+                    <option key={code} value={code}>
+                      {name}
+                    </option>
+                  ))}
+              </LabeledSelect>
+            ) : (
+              <LabeledInput
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                placeholder={
+                  section === "inventory"
+                    ? "Тип движения"
+                    : section === "audit"
+                      ? "Action"
+                      : "Статус"
+                }
+              />
+            ))}
           <LabeledSelect
             label="Сортировать по"
             value={sortBy}
@@ -1032,6 +1090,14 @@ function DataSection({ token, section }: { token: string; section: string }) {
               );
             })}
           </dl>
+          {section === "audit" && (
+            <AuditChanges
+              before={detail.oldValue}
+              after={detail.newValue}
+              scopeNames={detail.scopeNames}
+              label={fieldLabel}
+            />
+          )}
           {mayEditReferences && writableReferenceSections.includes(section) && (
             <ReferenceEditForm
               key={detail.id}
