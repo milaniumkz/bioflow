@@ -1,0 +1,315 @@
+[
+  {
+    "id": "layout-ADMIN",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "ADMIN"
+    ],
+    "permissions": [
+      "references.read",
+      "dashboard.read",
+      "references.manage",
+      "inventory.read",
+      "notifications.read",
+      "audit.read",
+      "users.manage"
+    ],
+    "accessAllObjects": true
+  },
+  {
+    "id": "layout-AUDITOR",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "AUDITOR"
+    ],
+    "permissions": [
+      "references.read",
+      "dashboard.read",
+      "inventory.read",
+      "reports.read",
+      "notifications.read",
+      "audit.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-COLLECTOR",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "COLLECTOR"
+    ],
+    "permissions": [
+      "collection.manage",
+      "tracking.read",
+      "processing.read",
+      "references.read",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-CONTRACTOR_REP",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "CONTRACTOR_REP"
+    ],
+    "permissions": [
+      "references.read",
+      "waybills.manage",
+      "inventory.read",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-DISPATCHER",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "DISPATCHER"
+    ],
+    "permissions": [
+      "references.read",
+      "waybills.manage",
+      "inventory.read",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-DRIVER",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "DRIVER"
+    ],
+    "permissions": [
+      "tracking.write",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-DRYING_OPERATOR",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "DRYING_OPERATOR"
+    ],
+    "permissions": [
+      "processing.dry",
+      "processing.read",
+      "references.read",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-EXTRACTION_OPERATOR",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "EXTRACTION_OPERATOR"
+    ],
+    "permissions": [
+      "batches.manage",
+      "references.read",
+      "inventory.read",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-FINISHED_RECEIVER",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "FINISHED_RECEIVER"
+    ],
+    "permissions": [
+      "processing.finished",
+      "processing.read",
+      "references.read",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-LAB_TECHNICIAN",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "LAB_TECHNICIAN"
+    ],
+    "permissions": [
+      "laboratory.manage",
+      "processing.read",
+      "references.read",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-LOADING_OPERATOR",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "LOADING_OPERATOR"
+    ],
+    "permissions": [
+      "loading.manage",
+      "references.read",
+      "inventory.read",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-OWNER",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "OWNER"
+    ],
+    "permissions": [
+      "collection.manage",
+      "tracking.read",
+      "tracking.write",
+      "laboratory.manage",
+      "processing.receive",
+      "processing.wash",
+      "processing.dry",
+      "processing.finished",
+      "processing.pack",
+      "processing.sell",
+      "processing.read",
+      "processing.overview",
+      "batches.manage",
+      "loading.manage",
+      "inventory.manage",
+      "references.read",
+      "dashboard.read",
+      "references.manage",
+      "waybills.manage",
+      "waybills.accept",
+      "inventory.read",
+      "operations.manage",
+      "reports.read",
+      "notifications.read",
+      "audit.read",
+      "users.manage"
+    ],
+    "accessAllObjects": true
+  },
+  {
+    "id": "layout-PACKER",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "PACKER"
+    ],
+    "permissions": [
+      "processing.pack",
+      "processing.read",
+      "references.read",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-PRODUCTION_OPERATOR",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "PRODUCTION_OPERATOR"
+    ],
+    "permissions": [
+      "references.read",
+      "inventory.read",
+      "operations.manage",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-RECEIVER",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "RECEIVER"
+    ],
+    "permissions": [
+      "references.read",
+      "waybills.accept",
+      "inventory.read",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-SALES_STOREKEEPER",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "SALES_STOREKEEPER"
+    ],
+    "permissions": [
+      "processing.sell",
+      "processing.read",
+      "references.read",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-WAREHOUSE_OPERATOR",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "WAREHOUSE_OPERATOR"
+    ],
+    "permissions": [
+      "inventory.manage",
+      "references.read",
+      "inventory.read",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-WASH_OPERATOR",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "WASH_OPERATOR"
+    ],
+    "permissions": [
+      "processing.wash",
+      "processing.read",
+      "references.read",
+      "inventory.read",
+      "operations.manage",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  },
+  {
+    "id": "layout-WASH_RECEIVER",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": [
+      "WASH_RECEIVER"
+    ],
+    "permissions": [
+      "processing.receive",
+      "processing.read",
+      "references.read",
+      "notifications.read"
+    ],
+    "accessAllObjects": false
+  }
+]

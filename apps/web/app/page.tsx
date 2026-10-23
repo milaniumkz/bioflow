@@ -44,6 +44,7 @@ import {
   Users,
   Warehouse,
 } from "lucide-react";
+import { referencePayload } from "./reference-payload.mjs";
 import { FormEvent, useMemo, useState, useEffect } from "react";
 import { roleLabel, roleDescription } from "./role-labels";
 import { isMobileWorkspace, mobileNotify, saveBlob } from "./mobile-bridge";
@@ -705,6 +706,9 @@ function DataSection({ token, section }: { token: string; section: string }) {
     queryFn: () => request<any>(path, token),
   });
   const rows = Array.isArray(data) ? data : (data?.rows ?? data?.data ?? []);
+  const currentDetail = detail
+    ? (rows.find((row: any) => row.id === detail.id) ?? detail)
+    : null;
   const columns =
     section === "audit"
       ? [
@@ -1049,13 +1053,13 @@ function DataSection({ token, section }: { token: string; section: string }) {
           </button>
         </div>
       )}
-      {detail && (
+      {currentDetail && (
         <RecordDrawer
-          key={detail.id}
+          key={currentDetail.id}
           title={
-            detail.name ??
-            detail.fullName ??
-            detail.plateNumber ??
+            currentDetail.name ??
+            currentDetail.fullName ??
+            currentDetail.plateNumber ??
             "Подробности записи"
           }
           onClose={() => setDetail(null)}
@@ -1064,13 +1068,13 @@ function DataSection({ token, section }: { token: string; section: string }) {
             {columns.map((key) => {
               const value = key
                 .split(".")
-                .reduce((v: any, k) => v?.[k], detail);
+                .reduce((v: any, k) => v?.[k], currentDetail);
               return (
                 <div key={key}>
                   <dt>{fieldLabel(key)}</dt>
                   <dd>
                     {key === "userRoles"
-                      ? (detail.userRoles ?? [])
+                      ? (currentDetail.userRoles ?? [])
                           .map((r: any) => roleLabel(r.role))
                           .join(", ")
                       : value == null
@@ -1094,9 +1098,9 @@ function DataSection({ token, section }: { token: string; section: string }) {
           </dl>
           {section === "audit" && (
             <AuditChanges
-              before={detail.oldValue}
-              after={detail.newValue}
-              scopeNames={detail.scopeNames}
+              before={currentDetail.oldValue}
+              after={currentDetail.newValue}
+              scopeNames={currentDetail.scopeNames}
               label={fieldLabel}
             />
           )}
@@ -1105,8 +1109,9 @@ function DataSection({ token, section }: { token: string; section: string }) {
               key={detail.id}
               token={token}
               entity={section}
-              rows={[detail]}
-              initialId={detail.id}
+              rows={[currentDetail]}
+              initialId={currentDetail.id}
+              onUpdated={setDetail}
             />
           )}
         </RecordDrawer>
@@ -1131,9 +1136,7 @@ function ReferenceCreateForm({
       request<any>(`/${entity}`, token, {
         method: "POST",
         body: JSON.stringify({
-          data: Object.fromEntries(
-            Object.entries(values).filter(([, value]) => value !== ""),
-          ),
+          data: referencePayload(entity, values),
         }),
       }),
     onSuccess: () => {
@@ -1193,11 +1196,13 @@ function ReferenceEditForm({
   entity,
   rows,
   initialId,
+  onUpdated,
 }: {
   token: string;
   entity: string;
   rows: any[];
   initialId?: string;
+  onUpdated?: (row: any) => void;
 }) {
   const queryClient = useQueryClient();
   const fields = referenceFields[entity] ?? [];
@@ -1218,13 +1223,12 @@ function ReferenceEditForm({
       request<any>(`/${entity}/${id}`, token, {
         method: "PATCH",
         body: JSON.stringify({
-          data: Object.fromEntries(
-            Object.entries(values).filter(([, value]) => value !== ""),
-          ),
+          data: referencePayload(entity, values, true),
           reason: reason || undefined,
         }),
       }),
-    onSuccess: () => {
+    onSuccess: (row) => {
+      onUpdated?.(row);
       setMessage("Справочник обновлён");
       queryClient.invalidateQueries({ queryKey: [entity] });
     },
@@ -3175,11 +3179,27 @@ function App() {
     );
   if (!profile.data)
     return (
-      <p role="status">
-        {profile.error
-          ? "Не удалось загрузить профиль. Обновите страницу."
-          : "Загрузка профиля…"}
-      </p>
+      <main className="login">
+        <section className="panel">
+          <h1>
+            {profile.error
+              ? "Не удалось открыть кабинет"
+              : "Открываем кабинет…"}
+          </h1>
+          <p role={profile.error ? "alert" : "status"}>
+            {profile.error ? profile.error.message : "Загрузка профиля…"}
+          </p>
+          {profile.error && (
+            <button
+              className="button"
+              disabled={profile.isFetching}
+              onClick={() => void profile.refetch()}
+            >
+              {profile.isFetching ? "Проверяем соединение…" : "Повторить"}
+            </button>
+          )}
+        </section>
+      </main>
     );
   if (profile.data?.mustChangePassword)
     return (
