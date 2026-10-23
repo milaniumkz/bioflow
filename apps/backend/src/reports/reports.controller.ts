@@ -1,3 +1,4 @@
+import { publicAuditValue } from "../common/audit-public";
 import {
   BadRequestException,
   Controller,
@@ -280,7 +281,11 @@ export class ReportsController {
         generatedAt,
         userId: user.id,
         filters: { type: reportType, ...query },
-        rows,
+        rows: rows.map((row) => ({
+          ...row,
+          oldValue: publicAuditValue(row.oldValue),
+          newValue: publicAuditValue(row.newValue),
+        })),
       };
     }
     const rows = await this.prisma.inventoryMovement.findMany({

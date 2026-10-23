@@ -1,3 +1,4 @@
+import { publicAuditValue } from "../common/audit-public";
 import {
   BadRequestException,
   ConflictException,
@@ -2259,6 +2260,15 @@ export class LedgerService {
         );
       });
     }
+    if (type === "audit")
+      rows = rows.map((r) => {
+        const row = r as Record<string, any>;
+        return {
+          ...row,
+          oldValue: publicAuditValue(row.oldValue),
+          newValue: publicAuditValue(row.newValue),
+        };
+      });
     const totals: Record<string, string | number> = { records: rows.length };
     for (const key of [
       "initialQuantity",

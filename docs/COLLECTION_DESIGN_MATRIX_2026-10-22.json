@@ -1407,11 +1407,11 @@
       "reference": "references/png/W22.png",
       "reference_reviewed": "PNG + contact sheet",
       "implementation": "внедрено через общие компоненты; см. фактическую проверку и ограничения",
-      "binding_component": "Audit table / detail",
-      "source": "apps/web/app/page.tsx",
+      "binding_component": "Audit registry / AuditChanges before-after drawer",
+      "source": "apps/web/app/audit-changes.tsx; apps/web/app/page.tsx; apps/backend/src/audit/audit.controller.ts",
       "existing_api_or_adapter": "/audit",
       "verification": "локальные сценарии и команды — см. итоговый отчёт; отдельный вариант не отмечен пройденным без проверки",
-      "remaining": "Общие компоненты внедрены; самостоятельная визуальная приёмка каждого PNG-варианта не заявлена.",
+      "remaining": "Фактические было/стало, имена назначенных объектов и действия на русском; маскирование секретов в UI/выгрузках; ограниченный caller видит свои записи. Проверены реальные scoped данные и 1440/390px.",
       "font": "Open Sans, user approved, Apache 2.0"
     },
     {
@@ -1422,11 +1422,11 @@
       "reference": "references/png/W22A.png",
       "reference_reviewed": "PNG + contact sheet",
       "implementation": "внедрено через общие компоненты; см. фактическую проверку и ограничения",
-      "binding_component": "Audit table / detail",
-      "source": "apps/web/app/page.tsx",
+      "binding_component": "Audit registry / AuditChanges before-after drawer",
+      "source": "apps/web/app/audit-changes.tsx; apps/web/app/page.tsx; apps/backend/src/audit/audit.controller.ts",
       "existing_api_or_adapter": "/audit",
       "verification": "локальные сценарии и команды — см. итоговый отчёт; отдельный вариант не отмечен пройденным без проверки",
-      "remaining": "Общие компоненты внедрены; самостоятельная визуальная приёмка каждого PNG-варианта не заявлена.",
+      "remaining": "Фактические было/стало, имена назначенных объектов и действия на русском; маскирование секретов в UI/выгрузках; ограниченный caller видит свои записи. Проверены реальные scoped данные и 1440/390px.",
       "font": "Open Sans, user approved, Apache 2.0"
     },
     {
@@ -2431,11 +2431,12 @@
     "registry_checks": 7,
     "role_logins": 19,
     "business_roles": 9,
-    "backend_tests": 65,
-    "web_tests": 20,
+    "backend_tests": 71,
+    "web_tests": 22,
     "flutter_tests": 34,
     "individual_pixel_acceptance": false,
-    "workbench_checks": 62
+    "workbench_checks": 62,
+    "audit_checks": 3
   },
   "last_reviewed": "2026-10-23",
   "font": "Open Sans, approved by user, Apache 2.0"

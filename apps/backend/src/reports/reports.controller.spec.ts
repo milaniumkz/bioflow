@@ -4,16 +4,14 @@ describe("ReportsController", () => {
   it("exports inventory report as csv", async () => {
     const controller = new ReportsController({
       inventoryItem: {
-        findMany: jest
-          .fn()
-          .mockResolvedValue([
-            {
-              id: "1",
-              state: "DIRTY",
-              quantity: "100",
-              warehouse: { name: "Main" },
-            },
-          ]),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: "1",
+            state: "DIRTY",
+            quantity: "100",
+            warehouse: { name: "Main" },
+          },
+        ]),
       },
     } as any);
     const res = fakeResponse();
@@ -151,6 +149,31 @@ describe("ReportsController", () => {
       fakeResponse() as any,
     );
     expect(findMany.mock.calls[0][0].where.warehouseId).toEqual({ in: [] });
+  });
+  it("never includes audit credentials in CSV output", async () => {
+    const c = new ReportsController({
+      auditLog: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            {
+              id: "a",
+              oldValue: { passwordHash: "synthetic-private-hash" },
+              newValue: { refreshToken: "synthetic-private-token" },
+            },
+          ]),
+      },
+    } as any);
+    const response = fakeResponse();
+    await c.export(
+      "audit",
+      "csv",
+      {},
+      { id: "u", organizationId: "o", permissions: [], accessAllObjects: true },
+      response as any,
+    );
+    expect(String(response.body)).toContain("[скрыто]");
+    expect(String(response.body)).not.toContain("synthetic-private");
   });
   it("rejects unknown report type", async () => {
     const controller = new ReportsController({} as any);

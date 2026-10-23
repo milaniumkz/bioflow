@@ -20,7 +20,9 @@ export function LabeledSelect({
   return (
     <label className="field-control">
       <span>{label}</span>
-      <select {...props}>{children}</select>
+      <select {...props} aria-label={props["aria-label"] ?? label}>
+        {children}
+      </select>
     </label>
   );
 }
