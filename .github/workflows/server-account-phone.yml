@@ -15,7 +15,8 @@ on:
         description: "Prepare public encryption key or bind owner phone without publishing its plaintext"
         type: choice
         required: true
-        options: [prepare-key, bind-owner, reset-owner-password]
+        options:
+          [prepare-key, bind-owner, reset-owner-password, provision-test-roles]
       phone_ciphertext:
         description: "Base64 RSA-OAEP-SHA256 encrypted phone; never enter a plaintext phone"
         required: false
@@ -94,5 +95,20 @@ jobs:
           cd /opt/bioflow-test/current
           compose=(docker compose -p bioflow-test --env-file /opt/bioflow-test/shared/server.env -f docker-compose.test-server.yml)
           "${compose[@]}" exec -T -e BIOFLOW_OWNER_RESET_JSON="$payload" -e BIOFLOW_ACCOUNT_OPERATION_ID="$2" backend node - < "$private/reset-owner-password.cjs"
+          unset payload
+          REMOTE
+      - name: Provision isolated training users for every role
+        if: inputs.operation == 'provision-test-roles'
+        run: |
+          source infrastructure/ci-ssh.sh
+          [[ "$PHONE_CIPHERTEXT" =~ ^[A-Za-z0-9+/]{512}$ ]] || { echo 'Expected encrypted provisioning request'; exit 2; }
+          bioflow_scp infrastructure/provision-test-roles.cjs "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/bioflow-test/shared/private-account-ops/provision-test-roles.cjs"
+          bioflow_ssh bash -s -- "$PHONE_CIPHERTEXT" <<'REMOTE'
+          set -euo pipefail
+          private=/opt/bioflow-test/shared/private-account-ops
+          payload=$(printf '%s' "$1" | base64 -d | openssl pkeyutl -decrypt -inkey "$private/phone-key.pem" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256)
+          cd /opt/bioflow-test/current
+          compose=(docker compose -p bioflow-test --env-file /opt/bioflow-test/shared/server.env -f docker-compose.test-server.yml)
+          "${compose[@]}" exec -T -e COLLECTION_TRAINING_REQUEST="$payload" -e COLLECTION_TRAINING_VERIFY_API=http://127.0.0.1:4000/api/v1 backend node - < "$private/provision-test-roles.cjs"
           unset payload
           REMOTE
