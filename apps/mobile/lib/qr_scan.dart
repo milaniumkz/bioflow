@@ -10,7 +10,7 @@ class PartyQrScanner extends StatefulWidget {
 
 class _PartyQrScannerState extends State<PartyQrScanner> {
   final controller = MobileScannerController(formats: [BarcodeFormat.qrCode]);
-  bool taken = false;
+  bool taken = false, enteringManually = false;
   @override
   void dispose() {
     controller.dispose();
@@ -43,6 +43,7 @@ class _PartyQrScannerState extends State<PartyQrScanner> {
                                 for (final barcode in capture.barcodes) {
                                   final value = barcode.rawValue;
                                   if (!taken &&
+                                      !enteringManually &&
                                       value != null &&
                                       value.isNotEmpty &&
                                       value.length <= 512) {
@@ -67,31 +68,62 @@ class _PartyQrScannerState extends State<PartyQrScanner> {
             Padding(
                 padding: const EdgeInsets.all(20),
                 child: TextButton(
-                    onPressed: () async {
-                      final text = TextEditingController();
-                      final qr = await showDialog<String>(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                                  title: const Text('Ввести QR вручную'),
-                                  content: TextField(
-                                      controller: text,
-                                      maxLength: 512,
-                                      autofocus: true),
-                                  actions: [
-                                    TextButton(
-                                        onPressed: () => Navigator.pop(context),
-                                        child: const Text('Отмена')),
-                                    FilledButton(
-                                        onPressed: () => Navigator.pop(
-                                            context, text.text.trim()),
-                                        child: const Text('Открыть'))
-                                  ]));
-                      text.dispose();
-                      if (mounted && qr != null && qr.isNotEmpty && !taken) {
-                        taken = true;
-                        Navigator.pop(this.context, qr);
-                      }
-                    },
+                    onPressed: enteringManually
+                        ? null
+                        : () async {
+                            setState(() => enteringManually = true);
+                            final qr = await showDialog<String>(
+                                context: context,
+                                builder: (_) => const _ManualQrDialog());
+                            if (!mounted) return;
+                            setState(() => enteringManually = false);
+                            if (qr != null && qr.isNotEmpty && !taken) {
+                              taken = true;
+                              Navigator.pop(this.context, qr);
+                            }
+                          },
                     child: const Text('Ввести код вручную')))
           ])));
+}
+
+// The dialog owns its controller until its closing animation has completed.
+class _ManualQrDialog extends StatefulWidget {
+  const _ManualQrDialog();
+  @override
+  State<_ManualQrDialog> createState() => _ManualQrDialogState();
+}
+
+class _ManualQrDialogState extends State<_ManualQrDialog> {
+  final input = TextEditingController();
+  @override
+  void dispose() {
+    input.dispose();
+    super.dispose();
+  }
+
+  void submit() {
+    final qr = input.text.trim();
+    if (qr.isNotEmpty) Navigator.pop(context, qr);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+          title: const Text('Ввести QR вручную'),
+          scrollable: true,
+          content: TextField(
+              controller: input,
+              maxLength: 512,
+              autofocus: true,
+              textInputAction: TextInputAction.done,
+              decoration: const InputDecoration(labelText: 'QR-код'),
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) => submit()),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Отмена')),
+            FilledButton(
+                onPressed: input.text.trim().isEmpty ? null : submit,
+                child: const Text('Открыть'))
+          ]);
 }

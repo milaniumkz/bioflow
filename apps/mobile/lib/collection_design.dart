@@ -70,7 +70,9 @@ abstract final class CollectionDesign {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(11)),
                 textStyle: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w600))),
+                    fontFamily: 'Open Sans',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600))),
         outlinedButtonTheme: OutlinedButtonThemeData(
             style: OutlinedButton.styleFrom(
                 minimumSize: const Size(48, 48),

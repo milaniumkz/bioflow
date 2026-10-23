@@ -118,6 +118,7 @@ export function ActionForm({
     [error, setError] = useState("");
   const [validationError, setValidationError] = useState("");
   const [uploading, setUploading] = useState(false);
+  const submitting = useRef(false);
   const key = useRef("");
   const formRef = useRef<HTMLFormElement>(null);
   const [comparisonInput, setComparisonInput] = useState(
@@ -159,11 +160,11 @@ export function ActionForm({
       values.push([label, value]);
     }
     setSummary(values);
-    setStepIndex((i) => Math.min(i + 1, steps.length));
+    setStepIndex(Math.min(stepIndex + 1, steps.length));
   }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || done || uploading) return;
+    if (submitting.current || busy || done || uploading) return;
     if (steps && stepIndex < steps.length) {
       nextStep();
       return;
@@ -178,6 +179,7 @@ export function ActionForm({
       if (values.getAll(input.name).length === 1)
         values.set(input.name, input.value.replace(",", "."));
     }
+    submitting.current = true;
     setBusy(true);
     setError("");
     key.current ||= createCommandId();
@@ -190,6 +192,7 @@ export function ActionForm({
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
