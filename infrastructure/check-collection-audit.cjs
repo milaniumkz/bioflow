@@ -59,6 +59,15 @@ if (!out) throw Error("Report directory required");
       .getByRole("heading", { name: "Было / стало", exact: true })
       .waitFor();
     assert.equal(await p.locator("dialog:modal").count(), 1);
+    assert.equal(
+      (await detail.innerText()).includes("user.access"),
+      false,
+      "action value must be readable in Russian",
+    );
+    assert.equal(
+      await detail.getByRole("heading", { name: "id", exact: true }).count(),
+      0,
+    );
     const diff = detail.getByRole("region", {
       name: "Изменения записи",
       exact: true,

@@ -34,7 +34,13 @@ export function AuditChanges({
   label: (key: string) => string;
 }) {
   const rows = auditDiff(before, after).filter(
-    (row) => row.before !== "[скрыто]" && row.after !== "[скрыто]",
+    (row) =>
+      row.before !== "[скрыто]" &&
+      row.after !== "[скрыто]" &&
+      !(
+        ["id", "organizationId"].includes(row.field) &&
+        (row.before === undefined || row.after === undefined)
+      ),
   );
   function show(field: string, value: unknown): string {
     if (value == null || value === "") return "—";

@@ -1084,7 +1084,9 @@ function DataSection({ token, section }: { token: string; section: string }) {
                             : /At$/.test(key) &&
                                 Number.isFinite(Date.parse(String(value)))
                               ? new Date(value).toLocaleString("ru-RU")
-                              : String(value)}
+                              : ["action", "entity"].includes(key)
+                                ? fieldLabel(String(value))
+                                : String(value)}
                   </dd>
                 </div>
               );
