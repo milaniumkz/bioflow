@@ -70,8 +70,14 @@ test(
             passwordHash: pass,
             mustChangePassword: false,
             accessAllObjects: code === "OWNER",
-            counterpartyScopeId: code === "COLLECTOR" ? party.id : null,
-            extractionScopeIds: code === "COLLECTOR" ? [site.id] : [],
+            counterpartyScopeId: ["COLLECTOR", "CONTRACTOR_REP"].includes(code)
+              ? party.id
+              : null,
+            extractionScopeIds: ["COLLECTOR", "EXTRACTION_OPERATOR"].includes(
+              code,
+            )
+              ? [site.id]
+              : [],
             warehouseScopeIds: warehouses.map((w) => w.id),
             userRoles: { create: { roleId: role.id } },
           },
@@ -111,6 +117,18 @@ test(
         finished = await actor("FINISHED_RECEIVER"),
         packer = await actor("PACKER"),
         sales = await actor("SALES_STOREKEEPER");
+      for (const code of [
+        "ADMIN",
+        "CONTRACTOR_REP",
+        "RECEIVER",
+        "PRODUCTION_OPERATOR",
+        "DISPATCHER",
+        "EXTRACTION_OPERATOR",
+        "LOADING_OPERATOR",
+        "WAREHOUSE_OPERATOR",
+        "AUDITOR",
+      ])
+        await actor(code);
       const ledger = new LedgerService(p),
         processing = new ProcessingService(p),
         tracking = new TrackingService(p);
@@ -142,12 +160,18 @@ test(
         {
           idempotencyKey: key(),
           plateNumber: "T" + tag,
+          model: "Тестовая модель",
+          capacity: "20.5",
+          tareWeight: "0.000",
           brand: "Тест",
           type: "Грузовая",
           counterpartyId: party.id,
         },
         collector,
       )) as any;
+      assert.equal(vehicle.model, "Тестовая модель");
+      assert.equal(String(vehicle.capacity), "20.5");
+      assert.equal(String(vehicle.tareWeight), "0");
       const dispatch = {
         idempotencyKey: key(),
         counterpartyId: party.id,
@@ -354,10 +378,57 @@ test(
         },
         wash,
       );
-      assert.equal(pre.run.coefficientPercent, "25");
+      assert.equal(pre.run.coefficientPercent, "26.5");
+      assert.equal(pre.run.coefficientBasis, "RECEIVED_LOSS");
+      assert.equal(pre.run.comparisonBaseQuantity, "10");
+      assert.equal(pre.run.inputQuantity, "9.8");
+      const byId: any = await processing.detail(trip.batchId, lab);
+      assert.equal(
+        byId.qrToken,
+        trip.qrToken,
+        "reprint must reuse the original committed QR",
+      );
+      assert.equal(byId.rootFacts.physicalReceivedQuantity.toString(), "10");
+      const laboratoryRows: any = await processing.laboratoryRegistry(
+        { page: 1, pageSize: 100 },
+        lab,
+      );
+      assert(laboratoryRows.data.some((a: any) => a.batch.id === trip.batchId));
+      assert.equal(
+        (
+          await processing.laboratoryRegistry(
+            { page: 1, pageSize: 100 },
+            { ...lab, warehouseScopeIds: [], accessAllObjects: false },
+          )
+        ).total,
+        0,
+      );
+      await assert.rejects(() =>
+        processing.detail(trip.batchId, {
+          ...lab,
+          warehouseScopeIds: [],
+          accessAllObjects: false,
+        }),
+      );
       assert.equal(pre.run.deviation, "NORMAL");
       await assert.rejects(async () =>
         processing.laboratory({ ...labDto, idempotencyKey: key() }, lab),
+      );
+      await assert.rejects(
+        () =>
+          processing.process(
+            {
+              idempotencyKey: key(),
+              kind: "WASHING",
+              batchIds: [pre.outputs[0].id],
+              fromWarehouseId: warehouses[0].id,
+              toWarehouseId: warehouses[0].id,
+              outputWeights: ["3.675", "3.675"],
+              lossQuantity: "0.001",
+            },
+            wash,
+          ),
+        /Баланс не сходится/,
       );
       const washed: any = await processing.process(
         {
@@ -367,6 +438,11 @@ test(
           fromWarehouseId: warehouses[0].id,
           toWarehouseId: warehouses[0].id,
           outputWeights: ["3.675", "3.675"],
+          wasteQuantity: "0",
+          lossQuantity: "0.000",
+          defectQuantity: "0.0",
+          shift: "Дневная",
+          lineLabel: "Мойка-тест",
         },
         wash,
       );
@@ -428,6 +504,38 @@ test(
       );
       assert.equal(dry.run.coefficientPercent, "36");
       assert.equal(dry.run.deviation, "NORMAL");
+      await assert.rejects(
+        () =>
+          processing.pack(
+            dry.outputs[0].id,
+            {
+              idempotencyKey: key(),
+              workDate: new Date().toISOString().slice(0, 10),
+              shift: "Дневная",
+            },
+            packer,
+          ),
+        /Сначала примите готовый/,
+      );
+      const originalBagQr: any = await processing.detail(
+        dry.outputs[0].id,
+        owner,
+      );
+      assert.equal(originalBagQr.qrToken, dry.outputs[0].qrToken);
+      const registry: any = await processing.bagRegistry(
+        { page: 1, pageSize: 100, stage: "DRIED" },
+        owner,
+      );
+      assert(registry.data.some((b: any) => b.batchId === dry.outputs[0].id));
+      assert.equal(
+        (
+          await processing.bagRegistry(
+            { page: 1, pageSize: 100 },
+            { ...owner, accessAllObjects: false, warehouseScopeIds: [] },
+          )
+        ).total,
+        0,
+      );
       const receiveDto = {
         idempotencyKey: key(),
         warehouseId: warehouses[2].id,
@@ -468,9 +576,96 @@ test(
         packDto.workDate,
       );
       assert.equal(stats[0]._count._all, 1);
+      const reportQuery: any = { page: 1, pageSize: 100 };
+      const factoryReport: any = await ledger.report(
+        "production",
+        reportQuery,
+        owner,
+      );
+      assert.equal(
+        factoryReport.rows.filter((r: any) => r.processRunId === dry.run.id)
+          .length,
+        1,
+      );
+      const washingReport: any = await ledger.report(
+        "washing",
+        reportQuery,
+        owner,
+      );
+      assert.equal(
+        washingReport.rows.filter((r: any) => r.processRunId === pre.run.id)
+          .length,
+        1,
+      );
+      const lossReport: any = await ledger.report("losses", reportQuery, owner);
+      assert.equal(
+        lossReport.rows.find((r: any) => r.processRunId === pre.run.id)
+          .comparisonBaseQuantity,
+        "10",
+      );
+      assert.equal(
+        lossReport.rows.find((r: any) => r.processRunId === washed.run.id)
+          .shift,
+        "Дневная",
+      );
+      assert(
+        lossReport.rows.some(
+          (r: any) =>
+            r.kind === "LABORATORY_SEDIMENT" &&
+            String(r.lossQuantity) === "0.2",
+        ),
+      );
+      assert.equal(
+        (
+          await ledger.report(
+            "production",
+            { ...reportQuery, search: dry.run.number },
+            owner,
+          )
+        ).rows.length,
+        1,
+      );
+      assert.equal(
+        (
+          await ledger.report(
+            "production",
+            { ...reportQuery, search: "not-a-real-document-collection" },
+            owner,
+          )
+        ).rows.length,
+        0,
+      );
+      const noReportObjects = {
+        ...owner,
+        accessAllObjects: false,
+        warehouseScopeIds: [],
+      };
+      assert.equal(
+        (await ledger.report("production", reportQuery, noReportObjects)).rows
+          .length,
+        0,
+      );
+      assert.equal(
+        (await ledger.report("losses", reportQuery, noReportObjects)).rows
+          .length,
+        0,
+      );
       const trace: any = await processing.trace(dry.outputs[0].id, owner);
       assert.equal(trace.root.id, trip.batchId);
       assert.equal(trace.runs.length, 3);
+      assert.equal(
+        trace.runs.find((r: any) => r.kind === "PREWASH")
+          .comparisonBaseQuantity,
+        "10",
+      );
+      assert.equal(
+        trace.runs.find((r: any) => r.kind === "WASHING").shift,
+        "Дневная",
+      );
+      assert.equal(
+        trace.runs.find((r: any) => r.kind === "WASHING").balance.lossQuantity,
+        "0",
+      );
       assert.equal(trace.summary.normTotalLossPercent, 51);
       assert.equal(trace.summary.washedSold.toString(), "3.675");
       assert.equal(trace.summary.comparisonComplete, false);
@@ -578,6 +773,40 @@ test(
       );
       assert.equal(abnormalResult.run.coefficientPercent, "38");
       assert.equal(abnormalResult.run.deviation, "ABOVE");
+      const fractionalTrip: any = await ledger.createCollection(
+        { ...dispatch, idempotencyKey: key(), quantity: "0.412", bagCount: 14 },
+        collector,
+      );
+      await processing.receive(
+        fractionalTrip.id,
+        {
+          idempotencyKey: key(),
+          warehouseId: warehouses[0].id,
+          quantity: "0.412",
+          bagCount: 14,
+        },
+        receiver,
+      );
+      await processing.laboratory(
+        {
+          ...labDto,
+          idempotencyKey: key(),
+          batchId: fractionalTrip.batchId,
+          moisturePercent: "24",
+          sedimentPercent: "2",
+          actualBagCount: 14,
+        },
+        lab,
+      );
+      const fractionalRows: any = await processing.laboratoryRegistry(
+        { page: 1, pageSize: 100 },
+        lab,
+      );
+      const fraction = fractionalRows.data.find(
+        (a: any) => a.batch.id === fractionalTrip.batchId,
+      );
+      assert.equal(fraction.calculatedQuantity.toString(), "0.40376");
+      assert.equal(fraction.actualQuantity.toString(), "0.404");
       const routeTrip = (await ledger.createCollection(
         { ...dispatch, idempotencyKey: key(), quantity: "1", bagCount: 10 },
         collector,
@@ -627,7 +856,7 @@ test(
           { mode: 0o600 },
         );
       console.log(
-        "PASS: roles, temp driver password, idempotent dispatch, scoped telemetry, idle/stale alerts, original weights, lab sediment, prewash 25%, separate QR bags, washed sale, plant 36%, warehouse/packing dedup, ownership and trace",
+        "PASS: roles, temp driver password, idempotent dispatch, scoped telemetry, idle/stale alerts, original weights, lab sediment, prewash 26.5% from physical receipt, separate QR bags, washed sale, plant 36%, warehouse/packing dedup, ownership and trace",
       );
     } finally {
       await p.$disconnect();

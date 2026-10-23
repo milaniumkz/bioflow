@@ -396,6 +396,13 @@ export class LedgerService {
           plateNumber,
           brand: dto.brand.trim(),
           type: dto.type.trim(),
+          model: dto.model?.trim() || null,
+          capacity: dto.capacity ? mass(dto.capacity) : undefined,
+          tareWeight: dto.tareWeight
+            ? /^0(?:\.0{1,3})?$/.test(dto.tareWeight)
+              ? new Prisma.Decimal(0)
+              : mass(dto.tareWeight)
+            : undefined,
         },
       });
       await this.audit(
@@ -1889,6 +1896,7 @@ export class LedgerService {
     ];
     if (!permitted.includes(type))
       throw new BadRequestException("Неизвестный отчёт");
+    if (query.warehouseId) allowed(user, query.warehouseId);
     const batchWhere: Prisma.MaterialBatchWhereInput = {
       ...scopedBatch(user),
       AND: [
@@ -1916,6 +1924,9 @@ export class LedgerService {
           AND: [
             batchWhere,
             { extractionSiteId: { not: null } },
+            ...(query.warehouseId
+              ? [{ stocks: { some: { warehouseId: query.warehouseId } } }]
+              : []),
             createdAtRange(query),
           ],
         },
@@ -2072,9 +2083,187 @@ export class LedgerService {
         }
       }
     }
+    if (["washing", "production", "losses"].includes(type)) {
+      // ProcessRun is a process fact, not another stock movement. Include it once.
+      if (["washing", "production"].includes(type))
+        rows = (rows as Array<{ operationId?: string | null }>).filter(
+          (r) => r.operationId,
+        );
+      const roots = await this.prisma.materialBatch.findMany({
+        where: batchWhere,
+        select: { id: true, number: true },
+      });
+      const runs = await this.prisma.processRun.findMany({
+        where: {
+          organizationId: user.organizationId,
+          rootBatchId: { in: roots.map((b) => b.id) },
+          ...createdAtRange(query),
+          ...(type === "washing"
+            ? { kind: { in: ["PREWASH", "WASHING"] } }
+            : type === "production"
+              ? { kind: "DRYING" }
+              : {}),
+          ...(!user.accessAllObjects
+            ? {
+                fromWarehouseId: { in: user.warehouseScopeIds ?? [] },
+                toWarehouseId: { in: user.warehouseScopeIds ?? [] },
+              }
+            : {}),
+          ...(query.warehouseId
+            ? {
+                OR: [
+                  { fromWarehouseId: query.warehouseId },
+                  { toWarehouseId: query.warehouseId },
+                ],
+              }
+            : {}),
+        },
+        orderBy: { createdAt: "asc" },
+      });
+      const facts = runs.length
+        ? await this.prisma.auditLog.findMany({
+            where: {
+              organizationId: user.organizationId,
+              entity: "ProcessRun",
+              action: "process.run",
+              entityId: { in: runs.map((r) => r.id) },
+            },
+            select: { entityId: true, newValue: true },
+          })
+        : [];
+      const processRows = runs.map((run) => {
+        const fact = facts.find((f) => f.entityId === run.id)?.newValue as
+          Record<string, any> | undefined;
+        return {
+          recordType: "PROCESS_RUN",
+          processRunId: run.id,
+          number: run.number,
+          batchId: run.rootBatchId,
+          batchNumber: roots.find((b) => b.id === run.rootBatchId)?.number,
+          kind: run.kind,
+          fromWarehouseId: run.fromWarehouseId,
+          toWarehouseId: run.toWarehouseId,
+          inputQuantity: run.inputQuantity,
+          outputQuantity: run.outputQuantity,
+          comparisonBaseQuantity:
+            fact?.comparisonBaseQuantity ?? run.inputQuantity.toString(),
+          coefficientPercent: run.coefficientPercent,
+          coefficientBasis: run.coefficientBasis,
+          normMinPercent: run.normMinPercent,
+          normMaxPercent: run.normMaxPercent,
+          deviation: run.deviation,
+          wasteQuantity: fact?.balance?.wasteQuantity ?? "0",
+          lossQuantity:
+            fact?.balance?.lossQuantity ??
+            run.inputQuantity.minus(run.outputQuantity).toString(),
+          defectQuantity: fact?.balance?.defectQuantity ?? "0",
+          shift: fact?.shift ?? null,
+          lineLabel: fact?.lineLabel ?? null,
+          reason: run.reason,
+          createdAt: run.createdAt,
+        };
+      });
+      rows = [...rows, ...processRows];
+    }
+    if (type === "losses") {
+      const analyses = await this.prisma.laboratoryAnalysis.findMany({
+        where: {
+          batch: {
+            AND: [
+              batchWhere,
+              ...(query.warehouseId
+                ? [{ stocks: { some: { warehouseId: query.warehouseId } } }]
+                : []),
+            ],
+          },
+          ...createdAtRange(query),
+        },
+        include: { batch: { select: { number: true } } },
+        orderBy: { createdAt: "asc" },
+      });
+      rows = [
+        ...rows,
+        ...analyses.map((a) => ({
+          recordType: "LAB_ANALYSIS",
+          laboratoryAnalysisId: a.id,
+          batchId: a.batchId,
+          batchNumber: a.batch.number,
+          kind: "LABORATORY_SEDIMENT",
+          inputQuantity: a.baseQuantity,
+          outputQuantity: a.actualQuantity,
+          sedimentPercent: a.sedimentPercent,
+          moisturePercent: a.moisturePercent,
+          wasteQuantity: "0",
+          lossQuantity: a.baseQuantity.minus(a.actualQuantity),
+          defectQuantity: "0",
+          createdAt: a.createdAt,
+        })),
+      ];
+    }
+    const reportWarehouseIds = [
+      ...new Set(
+        rows.flatMap((r) => {
+          const row = r as Record<string, any>;
+          return [
+            row.warehouseId,
+            row.fromWarehouseId,
+            row.toWarehouseId,
+          ].filter(Boolean);
+        }),
+      ),
+    ] as string[];
+    const reportWarehouses = reportWarehouseIds.length
+      ? await this.prisma.warehouse.findMany({
+          where: {
+            organizationId: user.organizationId,
+            id: { in: reportWarehouseIds },
+          },
+          select: { id: true, name: true },
+        })
+      : [];
+    rows = rows.map((r) => {
+      const row = r as Record<string, any>;
+      const name = (id: string) =>
+        reportWarehouses.find((w) => w.id === id)?.name;
+      return {
+        ...row,
+        ...(row.warehouseId ? { warehouseName: name(row.warehouseId) } : {}),
+        ...(row.fromWarehouseId
+          ? { fromWarehouseName: name(row.fromWarehouseId) }
+          : {}),
+        ...(row.toWarehouseId
+          ? { toWarehouseName: name(row.toWarehouseId) }
+          : {}),
+      };
+    });
+    if (query.search?.trim()) {
+      const search = query.search.trim().toLocaleLowerCase("ru-RU");
+      rows = rows.filter((r) => {
+        const row = r as Record<string, any>;
+        return [
+          row.number,
+          row.batchNumber,
+          row.batch?.number,
+          row.operation?.number,
+          row.vehicle?.plateNumber,
+          row.driver?.fullName,
+          row.warehouseName,
+          row.fromWarehouseName,
+          row.toWarehouseName,
+          row.action,
+          row.entity,
+        ].some((v) =>
+          String(v ?? "")
+            .toLocaleLowerCase("ru-RU")
+            .includes(search),
+        );
+      });
+    }
     const totals: Record<string, string | number> = { records: rows.length };
     for (const key of [
       "initialQuantity",
+      "inputQuantity",
+      "outputQuantity",
       "declaredWeight",
       "receivedWeight",
       "opening",

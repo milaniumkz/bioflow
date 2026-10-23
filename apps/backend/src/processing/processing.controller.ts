@@ -11,6 +11,7 @@ import {
   LaboratoryDto,
   PackDto,
   ProcessDto,
+  ProcessingRegistryDto,
   ReceiveCollectionDto,
   ScanDto,
   SellDto,
@@ -21,6 +22,24 @@ import { ProcessingService } from "./processing.service";
 @Controller("processing")
 export class ProcessingController {
   constructor(private readonly service: ProcessingService) {}
+  @Permissions("processing.read") @Get("laboratory") laboratoryRegistry(
+    @Query() q: ProcessingRegistryDto,
+    @User() u: CurrentUser,
+  ) {
+    return this.service.laboratoryRegistry(q, u);
+  }
+  @Permissions("processing.read") @Get("bags") bags(
+    @Query() q: ProcessingRegistryDto,
+    @User() u: CurrentUser,
+  ) {
+    return this.service.bagRegistry(q, u);
+  }
+  @Permissions("processing.read") @Get("batches/:id") detail(
+    @Param("id") id: string,
+    @User() u: CurrentUser,
+  ) {
+    return this.service.detail(id, u);
+  }
   @Permissions("processing.overview") @Get("overview") overview(
     @User() u: CurrentUser,
   ) {

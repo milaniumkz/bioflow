@@ -18,6 +18,7 @@ import {
   LaboratoryDto,
   PackDto,
   ProcessDto,
+  ProcessingRegistryDto,
   ReceiveCollectionDto,
   SellDto,
 } from "./processing.dto";
@@ -128,6 +129,44 @@ export class ProcessingService extends LedgerService {
           .then((b) => (b ? this.item(this.prisma, b.id, user) : null));
     if (!batch)
       throw new NotFoundException("QR партии не найден или недоступен");
+    return this.describe(batch, user, trip, token);
+  }
+  async detail(id: string, user: CurrentUser) {
+    const batch = await this.item(this.prisma, id, user);
+    const receipt = await this.prisma.commandReceipt.findFirst({
+      where: {
+        organizationId: user.organizationId,
+        OR: [
+          {
+            response: { path: ["batchId"], equals: id },
+          },
+          { response: { path: ["id"], equals: id } },
+          {
+            response: { path: ["outputs"], array_contains: [{ id }] },
+          },
+        ],
+      },
+      orderBy: { createdAt: "asc" },
+      select: { response: true },
+    });
+    const response = receipt?.response as Record<string, any> | undefined;
+    const qr =
+      response?.outputs?.find((b: any) => b.id === id)?.qrToken ??
+      response?.qrToken;
+    const trip = batch.waybills.find((t) => t.bagCount !== null) ?? null;
+    return this.describe(
+      batch,
+      user,
+      trip,
+      typeof qr === "string" ? qr : undefined,
+    );
+  }
+  private async describe(
+    batch: Awaited<ReturnType<ProcessingService["item"]>>,
+    user: CurrentUser,
+    trip: any,
+    token?: string,
+  ) {
     const rootBatchId = await this.root(this.prisma, batch.id);
     const analyses =
       rootBatchId === batch.id
@@ -152,18 +191,235 @@ export class ProcessingService extends LedgerService {
       : null;
     const rootFacts = await this.prisma.materialBatch.findFirstOrThrow({
       where: { id: rootBatchId, organizationId: user.organizationId },
-      select: { actualCollectedQuantity: true, actualBagCount: true },
+      select: {
+        actualCollectedQuantity: true,
+        actualBagCount: true,
+        waybills: {
+          select: {
+            receivedWeight: true,
+            receiptWarehouseId: true,
+            destinationWarehouseId: true,
+            acceptedAt: true,
+          },
+        },
+      },
     });
     return {
       batch,
-      rootFacts,
+      rootFacts: {
+        ...rootFacts,
+        physicalReceivedQuantity: sum(
+          rootFacts.waybills
+            .filter((t) => t.acceptedAt && t.receivedWeight)
+            .map((t) => t.receivedWeight!),
+        ),
+        physicalReceivedByWarehouse: Object.fromEntries(
+          [
+            ...new Set(
+              rootFacts.waybills.map(
+                (t) => t.receiptWarehouseId ?? t.destinationWarehouseId,
+              ),
+            ),
+          ].map((id) => [
+            id,
+            sum(
+              rootFacts.waybills
+                .filter(
+                  (t) =>
+                    (t.receiptWarehouseId ?? t.destinationWarehouseId) === id &&
+                    t.acceptedAt &&
+                    t.receivedWeight,
+                )
+                .map((t) => t.receivedWeight!),
+            ),
+          ]),
+        ),
+      },
+      qrToken: token ?? null,
       trip: trip ?? batch.waybills[0] ?? null,
       rootBatchId,
-      qrImage: await QRCode.toDataURL(token),
+      qrImage: token ? await QRCode.toDataURL(token) : null,
       analyses,
       preparedBatchId: prepared?.preparedBatchId ?? null,
       preparedWarehouseId: prepared?.toWarehouseId ?? null,
       preparedAvailable: Boolean(available?._sum.quantity?.gt(0)),
+    };
+  }
+  private async processDetails(ids: string[], user: CurrentUser) {
+    const rows = ids.length
+      ? await this.prisma.auditLog.findMany({
+          where: {
+            organizationId: user.organizationId,
+            entity: "ProcessRun",
+            action: "process.run",
+            entityId: { in: ids },
+          },
+          select: { entityId: true, newValue: true },
+        })
+      : [];
+    return new Map(
+      rows.map((row) => {
+        const v = row.newValue as Record<string, any> | null;
+        return [
+          row.entityId!,
+          {
+            comparisonBaseQuantity: v?.comparisonBaseQuantity ?? null,
+            balance: v?.balance ?? null,
+            shift: v?.shift ?? null,
+            lineLabel: v?.lineLabel ?? null,
+          },
+        ];
+      }),
+    );
+  }
+  async laboratoryRegistry(q: ProcessingRegistryDto, user: CurrentUser) {
+    const where: Prisma.LaboratoryAnalysisWhereInput = {
+      batch: {
+        ...this.scope(user),
+        ...(q.search
+          ? { number: { contains: q.search, mode: "insensitive" } }
+          : {}),
+      },
+      ...(q.from || q.to
+        ? {
+            measuredAt: {
+              ...(q.from ? { gte: new Date(q.from) } : {}),
+              ...(q.to ? { lte: new Date(q.to) } : {}),
+            },
+          }
+        : {}),
+    };
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.laboratoryAnalysis.findMany({
+        where,
+        include: {
+          batch: {
+            select: {
+              id: true,
+              number: true,
+              actualCollectedQuantity: true,
+              actualBagCount: true,
+            },
+          },
+        },
+        orderBy: { measuredAt: "desc" },
+        skip: (q.page - 1) * q.pageSize,
+        take: q.pageSize,
+      }),
+      this.prisma.laboratoryAnalysis.count({ where }),
+    ]);
+    const actors = await this.prisma.user.findMany({
+      where: {
+        organizationId: user.organizationId,
+        id: { in: rows.map((a) => a.createdById) },
+      },
+      select: { id: true, fullName: true },
+    });
+    return {
+      scopeEmpty:
+        !user.accessAllObjects && !(user.warehouseScopeIds ?? []).length,
+      data: rows.map((a) => ({
+        ...a,
+        calculatedQuantity: a.baseQuantity
+          .mul(new Prisma.Decimal(100).minus(a.sedimentPercent))
+          .div(100),
+        analystName:
+          actors.find((u) => u.id === a.createdById)?.fullName ?? "Сотрудник",
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
+    };
+  }
+  async bagRegistry(q: ProcessingRegistryDto, user: CurrentUser) {
+    const where: Prisma.BigBagWhereInput = {
+      batch: {
+        ...this.scope(user),
+        ...(q.search
+          ? { number: { contains: q.search, mode: "insensitive" } }
+          : {}),
+      },
+      ...(q.stage && ["WASHED", "DRIED"].includes(q.stage)
+        ? { stage: q.stage }
+        : {}),
+      ...(q.status === "PACKED"
+        ? { packedAt: { not: null } }
+        : q.status === "SOLD"
+          ? { soldAt: { not: null } }
+          : q.status === "AVAILABLE"
+            ? { soldAt: null }
+            : {}),
+    };
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.bigBag.findMany({
+        where,
+        include: {
+          batch: {
+            select: {
+              id: true,
+              number: true,
+              state: true,
+              stocks: {
+                where: {
+                  warehouseId: user.accessAllObjects
+                    ? undefined
+                    : { in: user.warehouseScopeIds ?? [] },
+                },
+              },
+            },
+          },
+          process: {
+            select: { rootBatchId: true, number: true, createdAt: true },
+          },
+        },
+        orderBy: { process: { createdAt: "desc" } },
+        skip: (q.page - 1) * q.pageSize,
+        take: q.pageSize,
+      }),
+      this.prisma.bigBag.count({ where }),
+    ]);
+    const warehouses = await this.prisma.warehouse.findMany({
+      where: {
+        organizationId: user.organizationId,
+        id: {
+          in: rows.flatMap((b) => b.batch.stocks.map((s) => s.warehouseId)),
+        },
+      },
+      select: { id: true, name: true },
+    });
+    const actors = await this.prisma.user.findMany({
+      where: {
+        organizationId: user.organizationId,
+        id: {
+          in: rows.flatMap((b) =>
+            [b.packedById, b.receivedById, b.soldById].filter(
+              (id): id is string => Boolean(id),
+            ),
+          ),
+        },
+      },
+      select: { id: true, fullName: true },
+    });
+    return {
+      scopeEmpty:
+        !user.accessAllObjects && !(user.warehouseScopeIds ?? []).length,
+      data: rows.map((b) => ({
+        ...b,
+        batch: {
+          ...b.batch,
+          stocks: b.batch.stocks.map((s) => ({
+            ...s,
+            warehouse: warehouses.find((w) => w.id === s.warehouseId) ?? null,
+          })),
+        },
+        packedByName:
+          actors.find((u) => u.id === b.packedById)?.fullName ?? null,
+        receivedByName:
+          actors.find((u) => u.id === b.receivedById)?.fullName ?? null,
+      })),
+      total,
+      page: q.page,
+      pageSize: q.pageSize,
     };
   }
   laboratory(dto: LaboratoryDto, user: CurrentUser) {
@@ -229,6 +485,7 @@ export class ProcessingService extends LedgerService {
           actualBagCount: dto.actualBagCount,
         },
       });
+      await this.files(tx, dto.fileIds, "MaterialBatch", root, user);
       const analysis = await tx.laboratoryAnalysis.create({
         data: {
           batchId: root,
@@ -429,7 +686,83 @@ export class ProcessingService extends LedgerService {
       const input = sum(quantities);
       if (output.gt(input))
         throw new BadRequestException("Выход не может превышать входной вес");
-      const coefficient = lossPercent(input, output).toDecimalPlaces(3);
+      let comparisonBase = input;
+      if (dto.kind === "PREWASH") {
+        if (
+          await tx.processRun.count({
+            where: {
+              organizationId: user.organizationId,
+              rootBatchId,
+              kind: "PREWASH",
+              fromWarehouseId: dto.fromWarehouseId,
+            },
+          })
+        )
+          throw new ConflictException(
+            "Взвешивание этой принятой части партии уже выполнено",
+          );
+        comparisonBase = sum(
+          inputs[0].waybills
+            .filter(
+              (t) =>
+                t.acceptedAt &&
+                t.receivedWeight &&
+                (t.receiptWarehouseId ?? t.destinationWarehouseId) ===
+                  dto.fromWarehouseId,
+            )
+            .map((t) => t.receivedWeight!),
+        );
+        if (comparisonBase.lte(0))
+          throw new ConflictException(
+            "Нет подтверждённого физически принятого веса для сравнения",
+          );
+        if (
+          inputs[0].waybills.some(
+            (t) =>
+              (t.receiptWarehouseId ?? t.destinationWarehouseId) ===
+                dto.fromWarehouseId &&
+              [
+                "CREATED",
+                "LOADED",
+                "IN_TRANSIT",
+                "ARRIVED",
+                "PARTIALLY_ACCEPTED",
+                "REVIEW",
+              ].includes(t.status),
+          )
+        )
+          throw new ConflictException(
+            "Сначала завершите приёмку соответствующих рейсов; частичный рейс не считается полностью принятым",
+          );
+      }
+      const remainder = input.minus(output);
+      const hasBreakdown = [
+        dto.wasteQuantity,
+        dto.lossQuantity,
+        dto.defectQuantity,
+      ].some((v) => v !== undefined);
+      const parsePart = (v?: string) =>
+        v === undefined || /^0(?:\.0{1,3})?$/.test(v)
+          ? new Prisma.Decimal(0)
+          : mass(v);
+      const breakdown = hasBreakdown
+        ? {
+            wasteQuantity: parsePart(dto.wasteQuantity),
+            lossQuantity: parsePart(dto.lossQuantity),
+            defectQuantity: parsePart(dto.defectQuantity),
+          }
+        : {
+            wasteQuantity: new Prisma.Decimal(0),
+            lossQuantity: remainder,
+            defectQuantity: new Prisma.Decimal(0),
+          };
+      if (!sum(Object.values(breakdown)).eq(remainder))
+        throw new BadRequestException(
+          "Баланс не сходится: вход = выход + отходы + потери + брак. Каждая масса учитывается один раз.",
+        );
+      const coefficient = lossPercent(comparisonBase, output).toDecimalPlaces(
+        3,
+      );
       const min = dto.kind === "PREWASH" ? 21 : dto.kind === "DRYING" ? 36 : 0;
       const max =
         dto.kind === "PREWASH" ? 27 : dto.kind === "DRYING" ? 36 : 100;
@@ -454,7 +787,7 @@ export class ProcessingService extends LedgerService {
           inputQuantity: input,
           outputQuantity: output,
           coefficientPercent: coefficient.toDecimalPlaces(3),
-          coefficientBasis: "LOSS",
+          coefficientBasis: dto.kind === "PREWASH" ? "RECEIVED_LOSS" : "LOSS",
           normMinPercent: min,
           normMaxPercent: max,
           deviation,
@@ -548,10 +881,26 @@ export class ProcessingService extends LedgerService {
         "ProcessRun",
         run.id,
         null,
-        { ...run, outputBatchIds: outputs.map((b) => b.id) },
+        {
+          ...run,
+          comparisonBaseQuantity: comparisonBase.toString(),
+          balance: breakdown,
+          shift: dto.shift?.trim() || null,
+          lineLabel: dto.lineLabel?.trim() || null,
+          outputBatchIds: outputs.map((b) => b.id),
+        },
         dto.reason,
       );
-      return { run, outputs };
+      return {
+        run: {
+          ...run,
+          comparisonBaseQuantity: comparisonBase.toString(),
+          balance: breakdown,
+          shift: dto.shift?.trim() || null,
+          lineLabel: dto.lineLabel?.trim() || null,
+        },
+        outputs,
+      };
     });
   }
   factoryIntake(id: string, dto: BagReceiptDto, user: CurrentUser) {
@@ -684,6 +1033,11 @@ export class ProcessingService extends LedgerService {
           "Упаковывается только высушенный непроданный биг-бэг",
         );
       if (bag.packedAt) return { alreadyPacked: true, bag };
+      if (!bag.receivedAt || !bag.receivedWarehouseId)
+        throw new ConflictException(
+          "Сначала примите готовый биг-бэг на склад по QR. Упаковка доступна после приёмки.",
+        );
+      await this.warehouse(tx, bag.receivedWarehouseId, user);
       if (!batch.stocks.some((s) => s.quantity.eq(bag.quantity)))
         throw new ConflictException("Биг-бэг недоступен на остатках");
       const updated = await tx.bigBag.update({
@@ -835,6 +1189,10 @@ export class ProcessingService extends LedgerService {
       },
       orderBy: { createdAt: "asc" },
     });
+    const details = await this.processDetails(
+      runs.map((r) => r.id),
+      user,
+    );
     const bags = runs.flatMap((r) => r.bags);
     const finished = sum(
       bags.filter((b) => b.stage === "DRIED").map((b) => b.quantity),
@@ -914,6 +1272,7 @@ export class ProcessingService extends LedgerService {
       files,
       runs: runs.map((r) => ({
         ...r,
+        ...details.get(r.id),
         createdByName:
           users.find((u) => u.id === r.createdById)?.fullName ?? "Сотрудник",
         bags: r.bags.map((b) => ({

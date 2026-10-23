@@ -18,10 +18,11 @@ Future<Map<String, dynamic>> driverTrackingStatus() async {
   }
 }
 
-Future<void> startDriverTracking(BioflowClient api, String tripId) async {
+Future<void> startDriverTracking(BioflowClient api, String tripId,
+    {bool resumeManually = false}) async {
   final epochUser = api.owner;
   final granted =
-      await driverLocation.invokeMethod<bool>('permission') ?? false;
+      await driverLocation.invokeMethod<bool>('hasPermission') ?? false;
   if (!granted) {
     throw StateError(
         'Разрешите точное местоположение, чтобы передавать маршрут рейса.');
@@ -30,6 +31,7 @@ Future<void> startDriverTracking(BioflowClient api, String tripId) async {
   final tokens = await api.workspaceSession(driver: true);
   if (api.owner != epochUser) throw StateError('Сессия изменилась');
   await driverLocation.invokeMethod<void>('start', {
+    'resumeManually': resumeManually,
     'config': jsonEncode({
       'apiUrl': api.dio.options.baseUrl,
       'userId': api.owner,

@@ -4,9 +4,14 @@ import {
   webRequest,
   setSession,
   clearSession,
+  networkFetch,
+  downloadReport,
   currentSessionId,
 } from "./session";
 import { CollectionPanel, DriverPanel } from "./workflow-ui";
+import { NotificationWorkbench } from "./notification-workbench";
+import { LabeledInput, LabeledSelect, RecordDrawer } from "./design-system";
+import { ProcessingRegistry } from "./processing-registry";
 import { ProcessingPanel } from "./processing-panel";
 import { ControlPanel, FleetPanel } from "./control-panel";
 import { Ledger } from "./ledger";
@@ -20,6 +25,11 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
+  Bell,
+  Eye,
+  EyeOff,
+  Menu,
+  ArrowRight,
   Boxes,
   ClipboardList,
   Factory,
@@ -49,9 +59,11 @@ function request<T>(
 
 const sections = [
   ["driver", "Мои рейсы", Truck],
-  ["control", "Контроль и статистика", LayoutDashboard],
+  ["control", "Обзор предприятия", LayoutDashboard],
   ["collection", "Сбор и отправка", Truck],
   ["processing", "Работа с партией по QR", QrCode],
+  ["laboratory", "Лаборатория", ClipboardList],
+  ["big-bags", "Биг-бэги и упаковка", PackageCheck],
   ["fleet", "Водители и маршруты", Truck],
   ["dashboard", "Обзор", LayoutDashboard],
   ["ledger", "Партии и операции", Boxes],
@@ -70,7 +82,7 @@ const sections = [
   ["write-offs", "Списания", PackageCheck],
   ["shipments", "Отгрузки", PackageCheck],
   ["washing", "Мойка", QrCode],
-  ["production", "Производство", Factory],
+  ["production", "Завод", Factory],
   ["users", "Пользователи", Users],
   ["roles", "Роли", ShieldCheck],
   ["sessions", "Сессии", ShieldCheck],
@@ -132,6 +144,7 @@ const referenceFields: Record<string, Array<[string, string]>> = {
 function Login({ onToken }: { onToken: (token: string) => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [resetToken, setResetToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -183,91 +196,133 @@ function Login({ onToken }: { onToken: (token: string) => void }) {
   });
   return (
     <main className="login">
-      <form
-        className="panel"
-        onSubmit={(e) => {
-          e.preventDefault();
-          login.mutate();
-        }}
-      >
-        <h1 className="collection-logo">
-          <img
-            src="/branding/collection-symbol.png"
-            alt=""
-            width="64"
-            height="64"
-          />
-          <span>collection</span>
-        </h1>
-        <p className="metric">Вход в систему контроля биоматериала</p>
-        <div className="toolbar">
-          <label className="login-field" htmlFor="login-email">
-            Номер телефона
-            <input
-              id="login-email"
-              type="tel"
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+      <div className="login-layout">
+        <section className="login-intro" aria-label="Collection">
+          <div className="collection-logo">
+            <img
+              src="/branding/collection-symbol.png"
+              alt=""
+              width="52"
+              height="52"
             />
-          </label>
-        </div>
-        <div className="toolbar">
-          <label className="login-field" htmlFor="login-password">
-            Пароль
-            <input
-              id="login-password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-        </div>
-        <button className="button" disabled={login.isPending}>
-          Войти
-        </button>
-        <div className="toolbar">
-          <button
-            className="button secondary"
-            type="button"
-            disabled={forgot.isPending}
-            onClick={() => forgot.mutate()}
-          >
-            Восстановить доступ
-          </button>
-        </div>
-        <div className="toolbar">
-          <input
-            value={resetToken}
-            onChange={(e) => setResetToken(e.target.value)}
-            placeholder="Код восстановления"
-          />
-        </div>
-        <div className="toolbar">
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="Новый пароль"
-          />
-        </div>
-        <button
-          className="button secondary"
-          type="button"
-          disabled={reset.isPending || !resetToken || !newPassword}
-          onClick={() => reset.mutate()}
-        >
-          Сбросить пароль
-        </button>
-        {message && <p className="metric">{message}</p>}
-        {login.error && <div className="error">{login.error.message}</div>}
-        {(forgot.error || reset.error) && (
-          <div className="error">
-            {String((forgot.error ?? reset.error)?.message)}
+            <span>collection</span>
           </div>
-        )}
-      </form>
+          <span className="eyebrow">От озера до готовой продукции</span>
+          <h1>
+            Всё движение.
+            <br />В одной системе.
+          </h1>
+          <p>Войдите, чтобы продолжить работу с партиями и операциями.</p>
+        </section>
+        <form
+          className="panel"
+          onSubmit={(e) => {
+            e.preventDefault();
+            login.mutate();
+          }}
+        >
+          <div className="toolbar">
+            <label className="login-field" htmlFor="login-email">
+              Номер телефона
+              <input
+                id="login-email"
+                type="tel"
+                autoComplete="username"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </label>
+          </div>
+          <div className="toolbar">
+            <label className="login-field" htmlFor="login-password">
+              Пароль
+              <span className="password-input">
+                <input
+                  id="login-password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  aria-label={
+                    showPassword ? "Скрыть пароль" : "Показать пароль"
+                  }
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((v) => !v)}
+                >
+                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                </button>
+              </span>
+            </label>
+          </div>
+          <button className="button" disabled={login.isPending}>
+            <ArrowRight size={20} />
+            {login.isPending ? "Входим…" : "Войти"}
+          </button>
+          <p className="login-help">
+            Не получается войти? Обратитесь к администратору.
+          </p>
+          <details className="login-recovery">
+            <summary>Восстановить доступ</summary>
+            <button
+              className="button secondary"
+              type="button"
+              disabled={forgot.isPending || !email.trim()}
+              onClick={() => forgot.mutate()}
+            >
+              Запросить восстановление
+            </button>
+            <div className="toolbar">
+              <label className="login-field">
+                Код восстановления
+                <input
+                  value={resetToken}
+                  autoComplete="one-time-code"
+                  onChange={(e) => setResetToken(e.target.value)}
+                />
+              </label>
+            </div>
+            <div className="toolbar">
+              <label className="login-field">
+                Новый пароль
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </label>
+            </div>
+            <button
+              className="button secondary"
+              type="button"
+              disabled={reset.isPending || !resetToken || !newPassword}
+              onClick={() => reset.mutate()}
+            >
+              Сбросить пароль
+            </button>
+          </details>
+          {message && (
+            <p role="status" className="notice">
+              {message}
+            </p>
+          )}
+          {login.error && (
+            <div className="error" role="alert">
+              {login.error.message}
+            </div>
+          )}
+          {(forgot.error || reset.error) && (
+            <div className="error" role="alert">
+              {String((forgot.error ?? reset.error)?.message)}
+            </div>
+          )}
+        </form>
+      </div>
     </main>
   );
 }
@@ -307,8 +362,11 @@ function Dashboard({ token }: { token: string }) {
           label="Активные"
           value={isLoading ? "..." : (data?.activeWaybills ?? 0)}
         />
-        <Metric label="Остатки" value={balances.length} />
-        <Metric label="Расхождения" value={data?.discrepancies ?? 0} />
+        <Metric label="Остатки" value={isLoading ? "…" : balances.length} />
+        <Metric
+          label="Расхождения"
+          value={isLoading ? "…" : (data?.discrepancies ?? 0)}
+        />
       </div>
       <Table
         title="Остатки по складам"
@@ -332,12 +390,14 @@ function DateRangeControls({
 }) {
   return (
     <div className="toolbar">
-      <input
+      <LabeledInput
+        placeholder="С даты"
         type="date"
         value={dateFrom}
         onChange={(e) => setDateFrom(e.target.value)}
       />
-      <input
+      <LabeledInput
+        placeholder="По дату"
         type="date"
         value={dateTo}
         onChange={(e) => setDateTo(e.target.value)}
@@ -432,10 +492,12 @@ function Table({
   title,
   rows,
   columns,
+  onSelect,
 }: {
   title: string;
   rows: any[];
   columns: string[];
+  onSelect?: (row: any) => void;
 }) {
   const read = (row: any, path: string) =>
     path.split(".").reduce((acc, key) => acc?.[key], row);
@@ -457,17 +519,23 @@ function Table({
     }
     const value = read(row, path);
     if (Array.isArray(value)) return String(value.length);
-    return value == null || value === ""
-      ? "-"
-      : typeof value === "boolean"
-        ? value
-          ? "Да"
-          : "Нет"
-        : typeof value === "object"
-          ? JSON.stringify(value)
-          : ["status", "state", "type"].includes(path)
-            ? fieldLabel(String(value))
-            : String(value);
+    return value == null || value === "" ? (
+      "-"
+    ) : typeof value === "boolean" ? (
+      value ? (
+        "Да"
+      ) : (
+        "Нет"
+      )
+    ) : typeof value === "object" ? (
+      JSON.stringify(value)
+    ) : ["status", "state", "type"].includes(path) ? (
+      <span className="status">{fieldLabel(String(value))}</span>
+    ) : /At$/.test(path) && Number.isFinite(Date.parse(String(value))) ? (
+      new Date(String(value)).toLocaleString("ru-RU")
+    ) : (
+      String(value)
+    );
   };
   return (
     <section className="tableWrap" style={{ marginTop: 18 }}>
@@ -477,8 +545,11 @@ function Table({
           <thead>
             <tr>
               {columns.map((c) => (
-                <th key={c}>{fieldLabel(c)}</th>
+                <th key={c} scope="col">
+                  {fieldLabel(c)}
+                </th>
               ))}
+              {onSelect && <th scope="col">Карточка</th>}
             </tr>
           </thead>
           <tbody>
@@ -487,6 +558,16 @@ function Table({
                 {columns.map((c) => (
                   <td key={c}>{cell(row, c)}</td>
                 ))}
+                {onSelect && (
+                  <td>
+                    <button
+                      className="button secondary"
+                      onClick={() => onSelect(row)}
+                    >
+                      Открыть
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
@@ -504,6 +585,8 @@ function DataSection({ token, section }: { token: string; section: string }) {
   const mayEditReferences = (me.data?.permissions ?? []).includes(
     "references.manage",
   );
+  const [page, setPage] = useState(1);
+  const [detail, setDetail] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [sortBy, setSortBy] = useState("createdAt");
@@ -562,7 +645,12 @@ function DataSection({ token, section }: { token: string; section: string }) {
     "write-offs",
     "transfers",
   ];
+  useEffect(() => {
+    setPage(1);
+  }, [search, status, sortBy, sortDir]);
   const params = new URLSearchParams({
+    page: String(page),
+    pageSize: "20",
     ...(search ? { search } : {}),
     ...(statusSections.includes(section) && status ? { status } : {}),
     ...(sortBy ? { sortBy } : {}),
@@ -582,7 +670,7 @@ function DataSection({ token, section }: { token: string; section: string }) {
               ? "/auth/sessions"
               : `/${section}${pagedSections.includes(section) && suffix ? `?${suffix}` : ""}`;
   const { data, isLoading, error } = useQuery({
-    queryKey: [section, search, status, sortBy, sortDir, token],
+    queryKey: [section, search, status, sortBy, sortDir, page, token],
     queryFn: () => request<any>(path, token),
   });
   const rows = Array.isArray(data) ? data : (data?.rows ?? data?.data ?? []);
@@ -688,7 +776,12 @@ function DataSection({ token, section }: { token: string; section: string }) {
     <>
       {section === "waybills" && <WaybillActions token={token} />}
       {section === "inventory" && <CorrectionForm token={token} />}
-      {section === "users" && <UserForm token={token} />}
+      {section === "users" && (
+        <details className="panel section-editor">
+          <summary>Создать сотрудника / назначить роли</summary>
+          <UserForm token={token} />
+        </details>
+      )}
       {section === "transfers" && <TransferForm token={token} />}
       {section === "write-offs" && <WriteOffForm token={token} />}
       {section === "shipments" && <ShipmentForm token={token} />}
@@ -701,24 +794,30 @@ function DataSection({ token, section }: { token: string; section: string }) {
       {mayEditReferences &&
         section !== "roles" &&
         writableReferenceSections.includes(section) && (
-          <ReferenceCreateForm token={token} entity={section} />
+          <details className="panel section-editor">
+            <summary>Добавить запись</summary>
+            <ReferenceCreateForm token={token} entity={section} />
+          </details>
         )}
       {mayEditReferences &&
         section !== "roles" &&
         writableReferenceSections.includes(section) && (
-          <ReferenceEditForm token={token} entity={section} rows={rows} />
+          <details className="panel section-editor">
+            <summary>Изменить / архивировать запись</summary>
+            <ReferenceEditForm token={token} entity={section} rows={rows} />
+          </details>
         )}
       {pagedSections.includes(section) && (
         <div className="toolbar">
           {searchableSections.includes(section) && (
-            <input
+            <LabeledInput
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Поиск"
             />
           )}
           {statusSections.includes(section) && (
-            <input
+            <LabeledInput
               value={status}
               onChange={(e) => setStatus(e.target.value)}
               placeholder={
@@ -730,7 +829,11 @@ function DataSection({ token, section }: { token: string; section: string }) {
               }
             />
           )}
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+          <LabeledSelect
+            label="Сортировать по"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
             <option value="createdAt">{fieldLabel("createdAt")}</option>
             {section === "waybills" && (
               <option value="number">{fieldLabel("number")}</option>
@@ -839,18 +942,107 @@ function DataSection({ token, section }: { token: string; section: string }) {
             {section === "settings" && (
               <option value="key">{fieldLabel("key")}</option>
             )}
-          </select>
-          <select value={sortDir} onChange={(e) => setSortDir(e.target.value)}>
+          </LabeledSelect>
+          <LabeledSelect
+            label="Порядок сортировки"
+            value={sortDir}
+            onChange={(e) => setSortDir(e.target.value)}
+          >
             <option value="desc">{fieldLabel("desc")}</option>
             <option value="asc">{fieldLabel("asc")}</option>
-          </select>
+          </LabeledSelect>
         </div>
       )}
       <Table
         title={sections.find(([id]) => id === section)?.[1] ?? section}
         rows={rows}
         columns={columns}
+        onSelect={(row) => setDetail(row)}
       />
+      {!rows.length && (
+        <div className="empty-state">
+          <strong>
+            {search || status ? "Нет совпадений" : "Записей пока нет"}
+          </strong>
+          {search || status
+            ? "Измените фильтры или очистите поиск."
+            : "Здесь будут доступны записи вашей области."}
+        </div>
+      )}
+      {typeof data?.total === "number" && (
+        <div className="toolbar">
+          <button
+            className="button secondary"
+            disabled={page === 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            Назад
+          </button>
+          <span>
+            Страница {page} из {Math.max(1, Math.ceil(data.total / 20))} · всего{" "}
+            {data.total}
+          </span>
+          <button
+            className="button secondary"
+            disabled={page * 20 >= data.total}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Далее
+          </button>
+        </div>
+      )}
+      {detail && (
+        <RecordDrawer
+          key={detail.id}
+          title={
+            detail.name ??
+            detail.fullName ??
+            detail.plateNumber ??
+            "Подробности записи"
+          }
+          onClose={() => setDetail(null)}
+        >
+          <dl className="confirmation-list">
+            {columns.map((key) => {
+              const value = key
+                .split(".")
+                .reduce((v: any, k) => v?.[k], detail);
+              return (
+                <div key={key}>
+                  <dt>{fieldLabel(key)}</dt>
+                  <dd>
+                    {key === "userRoles"
+                      ? (detail.userRoles ?? [])
+                          .map((r: any) => roleLabel(r.role))
+                          .join(", ")
+                      : value == null
+                        ? "—"
+                        : typeof value === "boolean"
+                          ? value
+                            ? "Да"
+                            : "Нет"
+                          : typeof value === "object"
+                            ? "См. связанные данные"
+                            : /At$/.test(key) &&
+                                Number.isFinite(Date.parse(String(value)))
+                              ? new Date(value).toLocaleString("ru-RU")
+                              : String(value)}
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+          {mayEditReferences && writableReferenceSections.includes(section) && (
+            <ReferenceEditForm
+              key={detail.id}
+              token={token}
+              entity={section}
+              rows={[detail]}
+              initialId={detail.id}
+            />
+          )}
+        </RecordDrawer>
+      )}
     </>
   );
 }
@@ -890,11 +1082,17 @@ function ReferenceCreateForm({
         className="formGrid compact"
         onSubmit={(e) => {
           e.preventDefault();
-          create.mutate();
+          const form = e.currentTarget;
+          create.mutate(undefined, {
+            onSuccess: () =>
+              window.dispatchEvent(
+                new CustomEvent("bioflow:saved", { detail: { form } }),
+              ),
+          });
         }}
       >
         {fields.map(([key, label]) => (
-          <input
+          <LabeledInput
             key={key}
             required={[
               "name",
@@ -926,16 +1124,25 @@ function ReferenceEditForm({
   token,
   entity,
   rows,
+  initialId,
 }: {
   token: string;
   entity: string;
   rows: any[];
+  initialId?: string;
 }) {
   const queryClient = useQueryClient();
   const fields = referenceFields[entity] ?? [];
-  const [id, setId] = useState("");
+  const [id, setId] = useState(initialId ?? "");
   const selected = rows.find((row) => row.id === id);
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      fields.map(([key]) => [
+        key,
+        selected?.[key] == null ? "" : String(selected[key]),
+      ]),
+    ),
+  );
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState("");
   const update = useMutation({
@@ -973,10 +1180,17 @@ function ReferenceEditForm({
         className="formGrid compact"
         onSubmit={(e) => {
           e.preventDefault();
-          update.mutate();
+          const form = e.currentTarget;
+          update.mutate(undefined, {
+            onSuccess: () =>
+              window.dispatchEvent(
+                new CustomEvent("bioflow:saved", { detail: { form } }),
+              ),
+          });
         }}
       >
-        <select
+        <LabeledSelect
+          label="Запись"
           value={id}
           onChange={(e) => {
             const next = rows.find((row) => row.id === e.target.value);
@@ -1001,9 +1215,9 @@ function ReferenceEditForm({
                 row.id}
             </option>
           ))}
-        </select>
+        </LabeledSelect>
         {fields.map(([key, label]) => (
-          <input
+          <LabeledInput
             key={key}
             required={[
               "name",
@@ -1023,7 +1237,7 @@ function ReferenceEditForm({
             }
           />
         ))}
-        <input
+        <LabeledInput
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Причина изменения"
@@ -1065,7 +1279,7 @@ function ReferenceEditForm({
 function CorrectionForm({ token }: { token: string }) {
   const refs = useReferenceOptions(token);
   const [state, setState] = useState("DIRTY");
-  const [quantityDelta, setQuantityDelta] = useState("10");
+  const [quantityDelta, setQuantityDelta] = useState("");
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState("");
   const create = useMutation({
@@ -1092,7 +1306,13 @@ function CorrectionForm({ token }: { token: string }) {
         className="formGrid compact"
         onSubmit={(e) => {
           e.preventDefault();
-          create.mutate();
+          const form = e.currentTarget;
+          create.mutate(undefined, {
+            onSuccess: () =>
+              window.dispatchEvent(
+                new CustomEvent("bioflow:saved", { detail: { form } }),
+              ),
+          });
         }}
       >
         <Select
@@ -1124,12 +1344,12 @@ function CorrectionForm({ token }: { token: string }) {
             rows={refs.materialTypes}
           />
         )}
-        <input
+        <LabeledInput
           value={quantityDelta}
           onChange={(e) => setQuantityDelta(e.target.value)}
           placeholder="Дельта веса, +/-"
         />
-        <input
+        <LabeledInput
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Причина"
@@ -1146,7 +1366,7 @@ function CorrectionForm({ token }: { token: string }) {
 
 function ShipmentForm({ token }: { token: string }) {
   const refs = useReferenceOptions(token);
-  const [quantity, setQuantity] = useState("10");
+  const [quantity, setQuantity] = useState("");
   const [recipient, setRecipient] = useState("");
   const [documentNumber, setDocumentNumber] = useState("");
   const [message, setMessage] = useState("");
@@ -1171,7 +1391,13 @@ function ShipmentForm({ token }: { token: string }) {
         className="formGrid compact"
         onSubmit={(e) => {
           e.preventDefault();
-          create.mutate();
+          const form = e.currentTarget;
+          create.mutate(undefined, {
+            onSuccess: () =>
+              window.dispatchEvent(
+                new CustomEvent("bioflow:saved", { detail: { form } }),
+              ),
+          });
         }}
       >
         <Select
@@ -1186,17 +1412,17 @@ function ShipmentForm({ token }: { token: string }) {
           setValue={refs.setProductTypeId}
           rows={refs.productTypes}
         />
-        <input
+        <LabeledInput
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
           placeholder="Вес"
         />
-        <input
+        <LabeledInput
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
           placeholder="Получатель"
         />
-        <input
+        <LabeledInput
           value={documentNumber}
           onChange={(e) => setDocumentNumber(e.target.value)}
           placeholder="Документ"
@@ -1314,10 +1540,16 @@ function SettingsForm({ token }: { token: string }) {
         className="formGrid compact"
         onSubmit={(e) => {
           e.preventDefault();
-          save.mutate();
+          const form = e.currentTarget;
+          save.mutate(undefined, {
+            onSuccess: () =>
+              window.dispatchEvent(
+                new CustomEvent("bioflow:saved", { detail: { form } }),
+              ),
+          });
         }}
       >
-        <input
+        <LabeledInput
           type="number"
           required
           min={0}
@@ -1330,7 +1562,7 @@ function SettingsForm({ token }: { token: string }) {
           }}
           placeholder="Порог расхождения, %"
         />
-        <input
+        <LabeledInput
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Причина изменения"
@@ -1349,6 +1581,7 @@ function SessionActions({ token, rows }: { token: string; rows: any[] }) {
   const queryClient = useQueryClient();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [repeatPassword, setRepeatPassword] = useState("");
   const [message, setMessage] = useState("");
   const profile = useQuery({
     queryKey: ["me", token],
@@ -1387,22 +1620,39 @@ function SessionActions({ token, rows }: { token: string; rows: any[] }) {
           className="formGrid compact"
           onSubmit={(e) => {
             e.preventDefault();
-            changePassword.mutate();
+            if (newPassword === repeatPassword) changePassword.mutate();
           }}
         >
-          <input
+          <LabeledInput
             type="password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
             placeholder="Текущий пароль"
           />
-          <input
+          <LabeledInput
             type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             placeholder="Новый пароль"
           />
-          <button className="button" disabled={changePassword.isPending}>
+          <LabeledInput
+            type="password"
+            required
+            value={repeatPassword}
+            onChange={(e) => {
+              setRepeatPassword(e.target.value);
+              e.target.setCustomValidity(
+                e.target.value === newPassword ? "" : "Пароли не совпадают",
+              );
+            }}
+            placeholder="Повторите новый пароль"
+          />
+          <button
+            className="button"
+            disabled={
+              changePassword.isPending || newPassword !== repeatPassword
+            }
+          >
             Сменить пароль
           </button>
         </form>
@@ -1457,7 +1707,7 @@ function SessionActions({ token, rows }: { token: string; rows: any[] }) {
 function WriteOffForm({ token }: { token: string }) {
   const refs = useReferenceOptions(token);
   const [state, setState] = useState("DIRTY");
-  const [quantity, setQuantity] = useState("10");
+  const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState("");
   const [message, setMessage] = useState("");
   const create = useMutation({
@@ -1483,7 +1733,13 @@ function WriteOffForm({ token }: { token: string }) {
         className="formGrid compact"
         onSubmit={(e) => {
           e.preventDefault();
-          create.mutate();
+          const form = e.currentTarget;
+          create.mutate(undefined, {
+            onSuccess: () =>
+              window.dispatchEvent(
+                new CustomEvent("bioflow:saved", { detail: { form } }),
+              ),
+          });
         }}
       >
         <Select
@@ -1515,12 +1771,12 @@ function WriteOffForm({ token }: { token: string }) {
             rows={refs.materialTypes}
           />
         )}
-        <input
+        <LabeledInput
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
           placeholder="Вес"
         />
-        <input
+        <LabeledInput
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Причина"
@@ -1539,7 +1795,7 @@ function TransferForm({ token }: { token: string }) {
   const refs = useReferenceOptions(token);
   const [fromWarehouseId, setFromWarehouseId] = useState("");
   const [toWarehouseId, setToWarehouseId] = useState("");
-  const [quantity, setQuantity] = useState("10");
+  const [quantity, setQuantity] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const [message, setMessage] = useState("");
   const create = useMutation({
@@ -1576,7 +1832,13 @@ function TransferForm({ token }: { token: string }) {
         className="formGrid compact"
         onSubmit={(e) => {
           e.preventDefault();
-          create.mutate();
+          const form = e.currentTarget;
+          create.mutate(undefined, {
+            onSuccess: () =>
+              window.dispatchEvent(
+                new CustomEvent("bioflow:saved", { detail: { form } }),
+              ),
+          });
         }}
       >
         <Select
@@ -1597,7 +1859,7 @@ function TransferForm({ token }: { token: string }) {
           setValue={refs.setMaterialTypeId}
           rows={refs.materialTypes}
         />
-        <input
+        <LabeledInput
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
           placeholder="Вес"
@@ -1608,7 +1870,7 @@ function TransferForm({ token }: { token: string }) {
       </form>
       {message.startsWith("Перемещение создано:") && (
         <div className="formGrid compact">
-          <input
+          <LabeledInput
             value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}
             placeholder="Причина отмены"
@@ -1727,27 +1989,33 @@ function UserForm({ token }: { token: string }) {
         className="formGrid compact"
         onSubmit={(e) => {
           e.preventDefault();
-          create.mutate();
+          const form = e.currentTarget;
+          create.mutate(undefined, {
+            onSuccess: () =>
+              window.dispatchEvent(
+                new CustomEvent("bioflow:saved", { detail: { form } }),
+              ),
+          });
         }}
       >
-        <input
+        <LabeledInput
           value={fullName}
           onChange={(e) => setFullName(e.target.value)}
           placeholder="ФИО"
         />
-        <input
+        <LabeledInput
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
         />
-        <input
+        <LabeledInput
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="Телефон"
           type="tel"
           required
         />
-        <input
+        <LabeledInput
           type="password"
           autoComplete="new-password"
           value={temporaryPassword}
@@ -1766,7 +2034,8 @@ function UserForm({ token }: { token: string }) {
           assignRoles.mutate();
         }}
       >
-        <select
+        <LabeledSelect
+          label="Пользователь"
           aria-label="Пользователь"
           value={userId}
           onChange={(e) => selectUser(e.target.value)}
@@ -1777,7 +2046,7 @@ function UserForm({ token }: { token: string }) {
               {user.fullName} · {user.email ?? user.phone}
             </option>
           ))}
-        </select>
+        </LabeledSelect>
         <fieldset className="role-choices">
           <legend>Роли пользователя</legend>
           <p>
@@ -1822,7 +2091,8 @@ function UserForm({ token }: { token: string }) {
       </form>
       <h2>Блокировка доступа</h2>
       <div className="formGrid compact">
-        <select
+        <LabeledSelect
+          label="Пользователь"
           aria-label="Пользователь"
           value={userId}
           onChange={(e) => selectUser(e.target.value)}
@@ -1833,8 +2103,8 @@ function UserForm({ token }: { token: string }) {
               {user.fullName} · {user.email ?? user.phone}
             </option>
           ))}
-        </select>
-        <input
+        </LabeledSelect>
+        <LabeledInput
           value={blockReason}
           onChange={(e) => setBlockReason(e.target.value)}
           placeholder="Причина"
@@ -1882,23 +2152,29 @@ function ReportExport({ token }: { token: string }) {
     queryFn: () => request<any>(`/reports?${reportParams.toString()}`, token),
   });
   async function download() {
-    const params = new URLSearchParams({
-      type,
-      format,
-      ...(dateFrom ? { dateFrom } : {}),
-      ...(dateTo ? { dateTo } : {}),
-    });
-    const res = await fetch(`${apiUrl}/reports/export?${params.toString()}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) {
-      setStatus(await res.text());
-      return;
+    setStatus("Формируем файл…");
+    try {
+      const params = new URLSearchParams({
+        type,
+        format,
+        ...(dateFrom ? { dateFrom } : {}),
+        ...(dateTo ? { dateTo } : {}),
+      });
+      const blob = await downloadReport(`/reports/export?${params}`, token);
+      setStatus("Файл сформирован. Выберите место сохранения.");
+      const result = await saveBlob(blob, `collection-${type}.${format}`);
+      setStatus(
+        result === "cancelled"
+          ? "Сохранение отменено. Файл не сохранён."
+          : result === "saved"
+            ? "Файл сохранён"
+            : "Файл передан браузеру для скачивания",
+      );
+    } catch (e) {
+      setStatus((e as Error).message);
     }
-    const blob = await res.blob();
-    await saveBlob(blob, `bioflow-${type}.${format}`);
-    setStatus(`${format.toUpperCase()} сформирован`);
   }
+
   const rows = report.data?.rows ?? [];
   const reportColumns =
     type === "movements"
@@ -1964,29 +2240,39 @@ function ReportExport({ token }: { token: string }) {
       <section className="tableWrap">
         <h2>Отчёт</h2>
         <div className="formGrid compact">
-          <select value={type} onChange={(e) => setType(e.target.value)}>
+          <LabeledSelect
+            label="Тип отчёта"
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+          >
             <option value="inventory">Остатки</option>
             <option value="movements">Движение материала</option>
             <option value="waybills">Поставки</option>
             <option value="discrepancies">Расхождения</option>
             <option value="washing">Мойка</option>
-            <option value="production">Производство</option>
+            <option value="production">Завод</option>
             <option value="write-offs">Списания</option>
             <option value="shipments">Отгрузки</option>
             <option value="transfers">Перемещения</option>
             <option value="audit">Журнал действий</option>
-          </select>
-          <select value={format} onChange={(e) => setFormat(e.target.value)}>
+          </LabeledSelect>
+          <LabeledSelect
+            label="Формат файла"
+            value={format}
+            onChange={(e) => setFormat(e.target.value)}
+          >
             <option value="csv">CSV</option>
             <option value="xlsx">XLSX</option>
             <option value="pdf">PDF</option>
-          </select>
-          <input
+          </LabeledSelect>
+          <LabeledInput
+            placeholder="С даты"
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
           />
-          <input
+          <LabeledInput
+            placeholder="По дату"
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
@@ -2124,7 +2410,7 @@ function WaybillActions({ token }: { token: string }) {
           setValue={refs.setMaterialTypeId}
           rows={refs.materialTypes}
         />
-        <input
+        <LabeledInput
           value={refs.declaredWeight}
           onChange={(e) => refs.setDeclaredWeight(e.target.value)}
           placeholder="Заявленный вес"
@@ -2134,23 +2420,27 @@ function WaybillActions({ token }: { token: string }) {
         </button>
       </form>
       <div className="formGrid compact">
-        <input
+        <LabeledInput
           value={waybillId}
           onChange={(e) => setWaybillId(e.target.value)}
           placeholder="ID накладной"
         />
-        <input value={currentStatus} readOnly placeholder="Текущий статус" />
-        <input
+        <LabeledInput
+          value={currentStatus}
+          readOnly
+          placeholder="Текущий статус"
+        />
+        <LabeledInput
           value={qrToken}
           onChange={(e) => setQrToken(e.target.value)}
           placeholder="QR token"
         />
-        <input
+        <LabeledInput
           value={refs.actualWeight}
           onChange={(e) => refs.setActualWeight(e.target.value)}
           placeholder="Фактический вес"
         />
-        <input
+        <LabeledInput
           value={refs.reason}
           onChange={(e) => refs.setReason(e.target.value)}
           placeholder="Причина расхождения"
@@ -2186,7 +2476,7 @@ function WaybillActions({ token }: { token: string }) {
         </button>
       </div>
       <div className="formGrid compact">
-        <input
+        <LabeledInput
           value={waybillNumber}
           onChange={(e) => setWaybillNumber(e.target.value)}
           placeholder="Номер накладной"
@@ -2206,7 +2496,8 @@ function WaybillActions({ token }: { token: string }) {
         >
           Найти по номеру
         </button>
-        <select
+        <LabeledSelect
+          label="Новый статус"
           value={nextStatus}
           onChange={(e) => setNextStatus(e.target.value)}
         >
@@ -2215,8 +2506,8 @@ function WaybillActions({ token }: { token: string }) {
           <option value="ARRIVED">{fieldLabel("ARRIVED")}</option>
           <option value="REJECTED">{fieldLabel("REJECTED")}</option>
           <option value="CANCELLED">{fieldLabel("CANCELLED")}</option>
-        </select>
-        <input
+        </LabeledSelect>
+        <LabeledInput
           value={statusReason}
           onChange={(e) => setStatusReason(e.target.value)}
           placeholder="Причина статуса"
@@ -2249,50 +2540,65 @@ function FileUploadUrlForm({
   token: string;
   waybillId: string;
 }) {
-  const [fileName, setFileName] = useState("");
-  const [mimeType, setMimeType] = useState("application/pdf");
-  const [size, setSize] = useState("1024");
-  const [result, setResult] = useState("");
-  const create = useMutation({
-    mutationFn: () =>
-      request<any>("/files/upload-url", token, {
-        method: "POST",
-        body: JSON.stringify({
-          fileName,
-          mimeType,
-          size: Number(size),
-          waybillId: waybillId || undefined,
-        }),
-      }),
-    onSuccess: (data) => setResult(`PUT ${data.uploadUrl}`),
-  });
+  const [busy, setBusy] = useState(false),
+    [message, setMessage] = useState(""),
+    [error, setError] = useState("");
   return (
-    <div className="formGrid compact">
-      <input
-        value={fileName}
-        onChange={(e) => setFileName(e.target.value)}
-        placeholder="Файл для накладной"
-      />
-      <select value={mimeType} onChange={(e) => setMimeType(e.target.value)}>
-        <option value="application/pdf">PDF</option>
-        <option value="image/jpeg">JPEG</option>
-        <option value="image/png">PNG</option>
-        <option value="image/webp">WEBP</option>
-      </select>
-      <input
-        value={size}
-        onChange={(e) => setSize(e.target.value)}
-        placeholder="Размер, байт"
-      />
-      <button
-        className="button secondary"
-        disabled={create.isPending || !fileName}
-        onClick={() => create.mutate()}
-      >
-        URL загрузки
-      </button>
-      {result && <p className="metric">{result}</p>}
-      {create.error && <div className="error">{create.error.message}</div>}
+    <div className="workflow-stack">
+      <label className="field-control">
+        Фото или документ поставки
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp,application/pdf"
+          disabled={busy || !waybillId}
+          onChange={async (event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            setBusy(true);
+            setError("");
+            setMessage("");
+            try {
+              const upload = await request<any>("/files/upload-url", token, {
+                method: "POST",
+                body: JSON.stringify({
+                  fileName: file.name,
+                  mimeType: file.type,
+                  size: file.size,
+                  waybillId,
+                }),
+              });
+              const response = await networkFetch(upload.uploadUrl, {
+                method: "PUT",
+                body: file,
+                headers: { "Content-Type": file.type },
+              });
+              if (!response.ok)
+                throw Error("Не удалось загрузить файл. Повторите попытку.");
+              await request(`/files/${upload.file.id}/complete`, token, {
+                method: "POST",
+                body: "{}",
+              });
+              setMessage(`Загружено: ${file.name}`);
+            } catch (e) {
+              setError((e as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+      </label>
+      {!waybillId && <p className="metric">Сначала выберите поставку.</p>}
+      {busy && <p role="status">Загружаем документ…</p>}
+      {message && (
+        <p role="status" className="notice">
+          {message}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="error">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -2343,22 +2649,22 @@ function OperationForm({
             rows={refs.productTypes}
           />
         )}
-        <input
+        <LabeledInput
           value={refs.inputWeight}
           onChange={(e) => refs.setInputWeight(e.target.value)}
           placeholder="Входной вес"
         />
-        <input
+        <LabeledInput
           value={refs.outputWeight}
           onChange={(e) => refs.setOutputWeight(e.target.value)}
           placeholder="Выходной вес"
         />
-        <input
+        <LabeledInput
           value={refs.wasteWeight}
           onChange={(e) => refs.setWasteWeight(e.target.value)}
           placeholder="Отходы"
         />
-        <input
+        <LabeledInput
           value={refs.lossWeight}
           onChange={(e) => refs.setLossWeight(e.target.value)}
           placeholder="Потери"
@@ -2407,12 +2713,12 @@ function useReferenceOptions(token: string) {
   const [warehouseId, setWarehouseId] = useState("");
   const [materialTypeId, setMaterialTypeId] = useState("");
   const [productTypeId, setProductTypeId] = useState("");
-  const [declaredWeight, setDeclaredWeight] = useState("1000");
-  const [actualWeight, setActualWeight] = useState("1000");
-  const [inputWeight, setInputWeight] = useState("100");
-  const [outputWeight, setOutputWeight] = useState("90");
-  const [wasteWeight, setWasteWeight] = useState("5");
-  const [lossWeight, setLossWeight] = useState("5");
+  const [declaredWeight, setDeclaredWeight] = useState("");
+  const [actualWeight, setActualWeight] = useState("");
+  const [inputWeight, setInputWeight] = useState("");
+  const [outputWeight, setOutputWeight] = useState("");
+  const [wasteWeight, setWasteWeight] = useState("");
+  const [lossWeight, setLossWeight] = useState("");
   const [reason, setReason] = useState("");
   const query = (key: string) =>
     useQuery({
@@ -2474,7 +2780,8 @@ function ForcePassword({
   onDone: () => void;
 }) {
   const [currentPassword, setCurrent] = useState(""),
-    [newPassword, setNew] = useState("");
+    [newPassword, setNew] = useState(""),
+    [repeatPassword, setRepeatPassword] = useState("");
   const mutation = useMutation({
     mutationFn: () =>
       request("/auth/change-password", token, {
@@ -2494,7 +2801,7 @@ function ForcePassword({
       >
         <h1>Смените временный пароль</h1>
         <p>Для начала работы установите свой пароль.</p>
-        <input
+        <LabeledInput
           type="password"
           required
           autoComplete="current-password"
@@ -2502,7 +2809,7 @@ function ForcePassword({
           value={currentPassword}
           onChange={(e) => setCurrent(e.target.value)}
         />
-        <input
+        <LabeledInput
           type="password"
           required
           minLength={8}
@@ -2511,7 +2818,23 @@ function ForcePassword({
           value={newPassword}
           onChange={(e) => setNew(e.target.value)}
         />
-        <button className="button" disabled={mutation.isPending}>
+        <LabeledInput
+          type="password"
+          required
+          autoComplete="new-password"
+          placeholder="Повторите новый пароль"
+          value={repeatPassword}
+          onChange={(e) => {
+            setRepeatPassword(e.target.value);
+            e.currentTarget.setCustomValidity(
+              e.target.value === newPassword ? "" : "Пароли не совпадают",
+            );
+          }}
+        />
+        <button
+          className="button"
+          disabled={mutation.isPending || repeatPassword !== newPassword}
+        >
           Сохранить и войти заново
         </button>
         {mutation.error && (
@@ -2551,12 +2874,17 @@ function App() {
       if (form) dirty.forms.delete(form);
     };
     const navigate = (e: Event) => {
+      const container = (e as CustomEvent).detail?.container as
+        Element | undefined;
+      const affected = container
+        ? [...dirty.forms].filter((form) => container.contains(form))
+        : [...dirty.forms].filter((form) => form.isConnected);
       if (
-        dirty.value &&
+        affected.length &&
         !window.confirm("Есть несохранённые изменения. Покинуть форму?")
       )
         e.preventDefault();
-      else dirty.value = false;
+      else affected.forEach((form) => dirty.forms.delete(form));
     };
     const unload = (e: BeforeUnloadEvent) => {
       if (dirty.value) {
@@ -2665,7 +2993,7 @@ function App() {
         ? permissions.includes("processing.overview")
         : id === "collection"
           ? permissions.includes("collection.manage")
-          : id === "processing"
+          : ["processing", "laboratory", "big-bags"].includes(id)
             ? permissions.includes("processing.read")
             : id === "fleet"
               ? permissions.includes("tracking.read")
@@ -2814,115 +3142,256 @@ function App() {
           className="button secondary menu-toggle"
           onClick={() => setMobileMenu((v) => !v)}
           aria-expanded={mobileMenu}
+          aria-label="Открыть меню"
         >
-          Меню
+          <Menu size={20} /> Меню
         </button>
-        <nav className="nav">
-          {sections
-            .filter(([id]) => allowed(id))
-            .map(([id, label, Icon]) => (
+        <div className="workspace-label">
+          <Factory size={22} />
+          <div>
+            <strong>Collection</strong>
+            <small>Управление предприятием</small>
+          </div>
+        </div>
+        <nav className="nav" aria-label="Разделы рабочего пространства">
+          {[
+            {
+              title: "Рабочее пространство",
+              ids: [
+                "control",
+                "dashboard",
+                "driver",
+                "collection",
+                "processing",
+                "laboratory",
+                "big-bags",
+                "fleet",
+                "ledger",
+                "waybills",
+                "inventory",
+                "washing",
+                "production",
+                "shipments",
+                "reports",
+              ],
+            },
+            {
+              title: "Складские операции",
+              ids: ["transfers", "write-offs", "warehouses"],
+            },
+            {
+              title: "Справочники",
+              ids: [
+                "counterparties",
+                "vehicles",
+                "drivers",
+                "extraction-sites",
+                "plants",
+                "material-types",
+                "product-types",
+                "reference-values",
+              ],
+            },
+            {
+              title: "Управление",
+              ids: [
+                "users",
+                "roles",
+                "notifications",
+                "audit",
+                "settings",
+                "sessions",
+              ],
+            },
+          ].map((group) => {
+            const items = sections.filter(
+              ([id]) => group.ids.includes(id) && allowed(id),
+            );
+            if (!items.length) return null;
+            const buttons = items.map(([id, label, Icon]) => (
               <button
                 key={id}
                 className={section === id ? "active" : ""}
+                aria-current={section === id ? "page" : undefined}
                 onClick={() => navigate(id)}
               >
-                <Icon size={18} />
+                <Icon size={20} />
                 {label}
               </button>
-            ))}
+            ));
+            return group.title === "Справочники" ||
+              group.title === "Складские операции" ? (
+              <details
+                key={group.title}
+                className="nav-group"
+                open={items.some(([id]) => id === section) || undefined}
+              >
+                <summary className="nav-heading">{group.title}</summary>
+                {buttons}
+              </details>
+            ) : (
+              <div key={group.title} className="nav-group">
+                <p className="nav-heading">{group.title}</p>
+                {buttons}
+              </div>
+            );
+          })}
         </nav>
-      </aside>
-      <main className="main">
-        <div className="topbar">
-          <h1 className="title">{title}</h1>
-          <button
-            className="button secondary"
-            onClick={async () => {
-              if (!discardChanges()) return;
-              dirty.value = false;
-              await request("/auth/logout-all", token, {
-                method: "POST",
-                body: "{}",
-              }).catch(() => {});
-              void queryClient.cancelQueries();
-              queryClient.clear();
-              mobileNotify({ action: "signedOut" });
-              clearSession();
-              setSection("dashboard");
-              setToken("");
-            }}
-          >
-            <LogOut size={16} /> Выйти
-          </button>
+        <div className="sidebar-profile">
+          <span className="avatar" aria-hidden="true">
+            {String(profile.data.fullName ?? "C")
+              .trim()
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((x) => x[0])
+              .join("")}
+          </span>
+          <div>
+            <strong>{profile.data.fullName}</strong>
+            <small>
+              {(profile.data.roles ?? [])
+                .map((code: string) => roleLabel({ code }))
+                .join(", ") || "Роли не назначены"}
+            </small>
+          </div>
         </div>
-        {!allowed(section) ? (
-          <p>Загрузка доступного раздела…</p>
-        ) : section === "driver" ? (
-          <DriverPanel token={token} />
-        ) : section === "control" ? (
-          <ControlPanel token={token} />
-        ) : section === "collection" ? (
-          <CollectionPanel token={token} />
-        ) : section === "processing" ? (
-          <ProcessingPanel
-            token={token}
-            permissions={permissions}
-            initialQr={initialQr}
-          />
-        ) : section === "fleet" ? (
-          <FleetPanel token={token} />
-        ) : section === "dashboard" ? (
-          <Dashboard token={token} />
-        ) : [
-            "ledger",
-            "waybills",
-            "inventory",
-            "transfers",
-            "write-offs",
-            "shipments",
-            "washing",
-            "production",
-            "reports",
-          ].includes(section) ? (
-          <Ledger
-            key={section}
-            token={token}
-            initialKind={
-              (
-                {
-                  transfers: "TRANSFER",
-                  "write-offs": "WRITE_OFF",
-                  shipments: "SHIPMENT",
-                  washing: "WASHING",
-                  production: "PRODUCTION",
-                } as Record<string, string>
-              )[section]
-            }
-            initialTab={
-              section === "waybills"
-                ? "waybills"
-                : section === "inventory"
-                  ? "stocks"
-                  : section === "reports"
-                    ? "reports"
-                    : [
-                          "transfers",
-                          "write-offs",
-                          "shipments",
-                          "washing",
-                          "production",
-                        ].includes(section)
-                      ? "operations"
-                      : "batches"
-            }
-          />
-        ) : (
-          <DataSection
-            key={`${section}:${token}`}
-            token={token}
-            section={section}
-          />
-        )}
+      </aside>
+      <main className="main" id="workspace-main">
+        <header className="workspace-topbar">
+          <div className="breadcrumb">
+            Рабочее пространство <span aria-hidden="true"> / </span>
+            <strong>{title}</strong>
+          </div>
+          <div className="topbar-actions">
+            {allowed("notifications") && (
+              <button
+                className="icon-button"
+                aria-label="Открыть уведомления"
+                onClick={() => navigate("notifications")}
+              >
+                <Bell size={21} />
+              </button>
+            )}
+            <button
+              className="icon-button"
+              aria-label="Мои сессии и профиль"
+              onClick={() => navigate("sessions")}
+            >
+              <Users size={20} />
+            </button>
+          </div>
+        </header>
+        <div className="workspace-content">
+          <div className="topbar">
+            <div>
+              <h1 className="title">{title}</h1>
+              <p className="section-subtitle">
+                {section === "control" || section === "dashboard"
+                  ? "Движение сырья и продукции · фактические данные предприятия"
+                  : "Партии, операции и доступные действия вашей роли"}
+              </p>
+            </div>
+            <button
+              className="button secondary"
+              onClick={async () => {
+                if (!discardChanges()) return;
+                dirty.value = false;
+                await request("/auth/logout-all", token, {
+                  method: "POST",
+                  body: "{}",
+                }).catch(() => {});
+                void queryClient.cancelQueries();
+                queryClient.clear();
+                mobileNotify({ action: "signedOut" });
+                clearSession();
+                setSection("dashboard");
+                setToken("");
+              }}
+            >
+              <LogOut size={16} /> Выйти
+            </button>
+          </div>
+          {!allowed(section) ? (
+            <p>Загрузка доступного раздела…</p>
+          ) : section === "driver" ? (
+            <DriverPanel token={token} />
+          ) : section === "control" ? (
+            <ControlPanel token={token} />
+          ) : section === "collection" ? (
+            <CollectionPanel token={token} />
+          ) : section === "processing" ? (
+            <ProcessingPanel
+              token={token}
+              permissions={permissions}
+              initialQr={initialQr}
+            />
+          ) : section === "laboratory" || section === "big-bags" ? (
+            <ProcessingRegistry
+              key={section}
+              token={token}
+              permissions={permissions}
+              mode={section === "laboratory" ? "laboratory" : "bags"}
+            />
+          ) : section === "fleet" ? (
+            <FleetPanel token={token} />
+          ) : section === "notifications" ? (
+            <NotificationWorkbench
+              token={token}
+              onFleet={allowed("fleet") ? () => navigate("fleet") : undefined}
+            />
+          ) : section === "dashboard" ? (
+            <Dashboard token={token} />
+          ) : [
+              "ledger",
+              "waybills",
+              "inventory",
+              "transfers",
+              "write-offs",
+              "shipments",
+              "washing",
+              "production",
+              "reports",
+            ].includes(section) ? (
+            <Ledger
+              key={section}
+              token={token}
+              initialKind={
+                (
+                  {
+                    transfers: "TRANSFER",
+                    "write-offs": "WRITE_OFF",
+                    shipments: "SHIPMENT",
+                    washing: "WASHING",
+                    production: "PRODUCTION",
+                  } as Record<string, string>
+                )[section]
+              }
+              initialTab={
+                section === "waybills"
+                  ? "waybills"
+                  : section === "inventory"
+                    ? "stocks"
+                    : section === "reports"
+                      ? "reports"
+                      : [
+                            "transfers",
+                            "write-offs",
+                            "shipments",
+                            "washing",
+                            "production",
+                          ].includes(section)
+                        ? "operations"
+                        : "batches"
+              }
+            />
+          ) : (
+            <DataSection
+              key={`${section}:${token}`}
+              token={token}
+              section={section}
+            />
+          )}
+        </div>
       </main>
     </div>
   );

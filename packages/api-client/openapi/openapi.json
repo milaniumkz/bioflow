@@ -655,6 +655,80 @@
         ]
       }
     },
+    "/api/v1/processing/laboratory": {
+      "get": {
+        "operationId": "ProcessingController_laboratoryRegistry",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      },
+      "post": {
+        "operationId": "ProcessingController_laboratory",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
+    "/api/v1/processing/bags": {
+      "get": {
+        "operationId": "ProcessingController_bags",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
+    "/api/v1/processing/batches/{id}": {
+      "get": {
+        "operationId": "ProcessingController_detail",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
     "/api/v1/processing/overview": {
       "get": {
         "operationId": "ProcessingController_overview",
@@ -677,25 +751,6 @@
     "/api/v1/processing/scan": {
       "post": {
         "operationId": "ProcessingController_scan",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "tags": [
-          "processing"
-        ]
-      }
-    },
-    "/api/v1/processing/laboratory": {
-      "post": {
-        "operationId": "ProcessingController_laboratory",
         "parameters": [],
         "responses": {
           "201": {

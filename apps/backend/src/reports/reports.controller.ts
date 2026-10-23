@@ -86,9 +86,26 @@ export class ReportsController {
     if (!reportTypes.has(reportType))
       throw new BadRequestException("Unknown report type");
     const range = createdAtRange(query);
+    const warehouseScope = user.accessAllObjects
+      ? {}
+      : { warehouseId: { in: user.warehouseScopeIds ?? [] } };
+    const tripScope = user.accessAllObjects
+      ? {}
+      : {
+          ...(user.counterpartyScopeId
+            ? { counterpartyId: user.counterpartyScopeId }
+            : {}),
+          OR: [
+            { destinationWarehouseId: { in: user.warehouseScopeIds ?? [] } },
+            { extractionSiteId: { in: user.extractionScopeIds ?? [] } },
+          ],
+        };
     if (reportType === "inventory") {
       const rows = await this.prisma.inventoryItem.findMany({
-        where: { warehouse: { organizationId: user.organizationId } },
+        where: {
+          warehouse: { organizationId: user.organizationId },
+          ...warehouseScope,
+        },
         include: { warehouse: true, materialType: true, productType: true },
       });
       return {
@@ -101,7 +118,7 @@ export class ReportsController {
     }
     if (reportType === "waybills" || reportType === "deliveries") {
       const rows = await this.prisma.waybill.findMany({
-        where: { organizationId: user.organizationId, ...range },
+        where: { organizationId: user.organizationId, ...range, ...tripScope },
         orderBy: { createdAt: "desc" },
         take: 500,
         include: {
@@ -125,7 +142,7 @@ export class ReportsController {
       const rows = await this.prisma.acceptance.findMany({
         where: {
           reason: { not: null },
-          waybill: { organizationId: user.organizationId },
+          waybill: { organizationId: user.organizationId, ...tripScope },
           ...range,
         },
         orderBy: { createdAt: "desc" },
@@ -146,7 +163,11 @@ export class ReportsController {
     }
     if (reportType === "washing") {
       const rows = await this.prisma.washingBatch.findMany({
-        where: { organizationId: user.organizationId, ...range },
+        where: {
+          organizationId: user.organizationId,
+          ...range,
+          ...warehouseScope,
+        },
         orderBy: { createdAt: "desc" },
         take: 500,
         include: { warehouse: true },
@@ -161,7 +182,11 @@ export class ReportsController {
     }
     if (reportType === "production") {
       const rows = await this.prisma.productionBatch.findMany({
-        where: { organizationId: user.organizationId, ...range },
+        where: {
+          organizationId: user.organizationId,
+          ...range,
+          ...warehouseScope,
+        },
         orderBy: { createdAt: "desc" },
         take: 500,
         include: { warehouse: true, productType: true },
@@ -176,7 +201,11 @@ export class ReportsController {
     }
     if (reportType === "write-offs") {
       const rows = await this.prisma.writeOff.findMany({
-        where: { organizationId: user.organizationId, ...range },
+        where: {
+          organizationId: user.organizationId,
+          ...range,
+          ...warehouseScope,
+        },
         orderBy: { createdAt: "desc" },
         take: 500,
         include: { warehouse: true, materialType: true, productType: true },
@@ -191,7 +220,11 @@ export class ReportsController {
     }
     if (reportType === "shipments") {
       const rows = await this.prisma.shipment.findMany({
-        where: { organizationId: user.organizationId, ...range },
+        where: {
+          organizationId: user.organizationId,
+          ...range,
+          ...warehouseScope,
+        },
         orderBy: { createdAt: "desc" },
         take: 500,
         include: { warehouse: true, productType: true },
@@ -206,7 +239,16 @@ export class ReportsController {
     }
     if (reportType === "transfers") {
       const rows = await this.prisma.warehouseTransfer.findMany({
-        where: { organizationId: user.organizationId, ...range },
+        where: {
+          organizationId: user.organizationId,
+          ...range,
+          ...(!user.accessAllObjects
+            ? {
+                fromWarehouseId: { in: user.warehouseScopeIds ?? [] },
+                toWarehouseId: { in: user.warehouseScopeIds ?? [] },
+              }
+            : {}),
+        },
         orderBy: { createdAt: "desc" },
         take: 500,
         include: {
@@ -225,7 +267,11 @@ export class ReportsController {
     }
     if (reportType === "audit") {
       const rows = await this.prisma.auditLog.findMany({
-        where: { organizationId: user.organizationId, ...range },
+        where: {
+          organizationId: user.organizationId,
+          ...range,
+          ...(!user.accessAllObjects ? { userId: user.id } : {}),
+        },
         orderBy: { createdAt: "desc" },
         take: 500,
       });
@@ -238,7 +284,11 @@ export class ReportsController {
       };
     }
     const rows = await this.prisma.inventoryMovement.findMany({
-      where: { organizationId: user.organizationId, ...range },
+      where: {
+        organizationId: user.organizationId,
+        ...range,
+        ...warehouseScope,
+      },
       orderBy: { createdAt: "desc" },
       take: 500,
       include: {

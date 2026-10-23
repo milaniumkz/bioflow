@@ -34,3 +34,14 @@ flutter:
   uses-material-design: true
   assets:
     - assets/branding/collection-symbol.png
+    - assets/fonts/Apache-2.0.txt
+    - assets/fonts/OpenSans-COPYRIGHT.txt
+  fonts:
+    - family: Open Sans
+      fonts:
+        - asset: assets/fonts/OpenSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/OpenSans-Semibold.ttf
+          weight: 600
+        - asset: assets/fonts/OpenSans-Bold.ttf
+          weight: 700

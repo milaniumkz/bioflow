@@ -6,6 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'client.dart';
 import 'role_access.dart';
+import 'collection_design.dart';
 import 'qr_scan.dart';
 
 const mobileFiles = MethodChannel('bioflow/mobile-files');
@@ -57,7 +58,7 @@ class FullWorkspaceState extends State<FullWorkspace> {
         Uri.parse(origin).replace(path: '/', query: 'mobile=1', fragment: '');
     controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF061225))
+      ..setBackgroundColor(CollectionDesign.background)
       ..addJavaScriptChannel('BioflowMobile', onMessageReceived: receive)
       ..setNavigationDelegate(NavigationDelegate(
         onNavigationRequest: (r) => trusted(r.url)
@@ -266,15 +267,31 @@ class FullWorkspaceState extends State<FullWorkspace> {
           }
         case 'saveFile':
           if (!authenticated) return;
-          final saved = await mobileFiles.invokeMethod<bool>('saveFile', {
-            'data': data['data'],
-            'filename': data['filename'],
-            'mime': data['mime']
-          });
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text(
-                    saved == true ? 'Файл сохранён' : 'Сохранение отменено')));
+          final requestId = data['requestId'];
+          if (requestId is! String || requestId.length > 120) return;
+          final generation = pageGeneration;
+          String status;
+          try {
+            final saved = await mobileFiles.invokeMethod<bool>('saveFile', {
+              'data': data['data'],
+              'filename': data['filename'],
+              'mime': data['mime']
+            });
+            status = saved == true ? 'saved' : 'cancelled';
+          } catch (_) {
+            status = 'failed';
+          }
+          if (mounted &&
+              !leaving &&
+              authenticated &&
+              generation == pageGeneration &&
+              widget.client.owner == identity &&
+              trusted(await controller.currentUrl())) {
+            await controller.runJavaScript(
+                'window.dispatchEvent(new CustomEvent("bioflow:file-result",{detail:${jsonEncode({
+                  'requestId': requestId,
+                  'status': status
+                })}}));');
           }
         case 'printQr':
           if (authenticated) await printMobileQr(data['image'] as String);

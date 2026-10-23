@@ -76,12 +76,17 @@ class DriverLocationService : Service(), LocationListener {
     }
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if(intent?.action=="finish"){try{locations.removeUpdates(this)}catch(_:Exception){};worker.execute {try{flush()}catch(_:Exception){if(!stopping)update("Сохранённый маршрут ожидает отправки")}};return START_NOT_STICKY}
-        if(intent?.action=="stop") { stopTracking(); return START_NOT_STICKY }
+        if(intent?.action=="stop") {
+            val user=config?.optString("userId")?:prefs.getString("activeUser",null)
+            if(!user.isNullOrBlank())prefs.edit().putBoolean("paused:"+user,true).apply()
+            stopTracking(); return START_NOT_STICKY
+        }
         try {
             synchronized(lock) {
                 val incoming=intent?.getStringExtra("config")
                 val c=if(incoming!=null)JSONObject(incoming) else config?:read("config")?.let { JSONObject(it) }
                 if(c==null){stopSelf();return START_NOT_STICKY}
+                if(prefs.getBoolean("paused:"+c.getString("userId"),false)){stopSelf();return START_NOT_STICKY}
                 if(config==null||incoming!=null){config=c;queue=JSONArray(read(queueKey(c))?:"[]");save("config",c.toString())}
             }
             if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){update("Разрешите точную геолокацию в приложении");stopTracking();return START_NOT_STICKY}

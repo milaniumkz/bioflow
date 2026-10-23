@@ -6,6 +6,7 @@ import {
 } from "../common/current-user.decorator";
 import { PageDto } from "../common/page.dto";
 import { Permissions } from "../common/permissions.decorator";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 
 @ApiTags("notifications")
@@ -20,8 +21,25 @@ export class NotificationsController {
     @Query() query: PageDto,
     @CurrentUserDecorator() user: CurrentUser,
   ) {
-    const where = {
+    const where: Prisma.NotificationWhereInput = {
       organizationId: user.organizationId,
+      ...(query.status === "UNREAD"
+        ? { readAt: null }
+        : query.status === "READ"
+          ? { readAt: { not: null } }
+          : {}),
+      ...(query.search
+        ? {
+            AND: [
+              {
+                OR: [
+                  { title: { contains: query.search, mode: "insensitive" } },
+                  { body: { contains: query.search, mode: "insensitive" } },
+                ],
+              },
+            ],
+          }
+        : {}),
       OR: user.accessAllObjects
         ? [{ userId: user.id }, { userId: null }]
         : [{ userId: user.id }],

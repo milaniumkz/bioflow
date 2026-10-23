@@ -289,7 +289,57 @@ export function ControlPanel({ token }: { token: string }) {
   const d = q.data!;
   return (
     <div className="workflow-stack">
-      <section className="panel">
+      <div className="overview-metrics">
+        <Metric title="Всего собрано" value={tonnes(d.collected)} />
+        <Metric title="В пути" value={`${d.inTransitCount} рейсов`} />
+        <Metric title="Принято на мойку" value={tonnes(d.received)} />
+        <Metric
+          title="Отпущено материала"
+          value={tonnes(Number(d.soldWashed) + Number(d.soldFinished))}
+        />
+      </div>
+      <div className="overview-layout">
+        <section className="panel">
+          <h2>Материал по этапам</h2>
+          <p className="metric">Текущее местонахождение · фактический вес, т</p>
+          <div className="stage-chart">
+            {d.currentStages.map((s: Row) => (
+              <div className="stage-bar-row" key={s.label}>
+                <span>{s.label}</span>
+                <div className="stage-bar-track">
+                  <div
+                    className="stage-bar-fill"
+                    style={{
+                      width: `${(Math.max(0, Number(s.quantity)) / Math.max(1, ...d.currentStages.map((x: Row) => Number(x.quantity)))) * 100}%`,
+                    }}
+                  />
+                </div>
+                <strong>{tonnes(s.quantity)}</strong>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section className="panel">
+          <h2>Требует внимания</h2>
+          {d.alerts.length ? (
+            d.alerts.slice(0, 4).map((a: Row) => (
+              <article className="workflow-event" key={a.id}>
+                <strong>{a.title}</strong>
+                <p>{a.body}</p>
+                <small>{dateTime(a.createdAt)}</small>
+              </article>
+            ))
+          ) : (
+            <p className="empty-state">Уведомлений о задержках пока нет.</p>
+          )}
+          <p className="metric">
+            Операций с отклонениями: {d.deviations}. Это сравнение фактов, а не
+            автоматическое списание.
+          </p>
+        </section>
+      </div>
+      <details className="panel">
+        <summary>Полная детализация движения материала</summary>
         <p className="eyebrow">Владелец · обновление каждые 30 секунд</p>
         <h2>Движение материала</h2>
         <p>
@@ -327,7 +377,7 @@ export function ControlPanel({ token }: { token: string }) {
             value={String(d.deviations)}
           />
         </div>
-      </section>
+      </details>
       <section className="panel">
         <h2>Где находится материал сейчас</h2>
         <p className="metric">
