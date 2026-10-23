@@ -330,7 +330,13 @@ class BioflowClient {
   }
 
   Future<void> logout() async {
-    await stopDriverTracking();
+    try {
+      if ((profile?['roles'] as List? ?? []).contains('DRIVER')) {
+        await storage.write(key: 'gps-stop:$owner', value: 'yes');
+      }
+    } finally {
+      await stopDriverTracking();
+    }
     final epoch = ++_sessionEpoch;
     try {
       await dio.post('/auth/logout-all', data: {});

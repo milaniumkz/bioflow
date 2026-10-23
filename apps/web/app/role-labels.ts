@@ -12,7 +12,7 @@ const roleNames: Record<string, string> = {
   CONTRACTOR_REP: "Представитель контрагента",
   RECEIVER: "Кладовщик/приёмщик",
   WASH_OPERATOR: "Оператор мойки",
-  PRODUCTION_OPERATOR: "Оператор производства",
+  PRODUCTION_OPERATOR: "Оператор завода",
   DISPATCHER: "Диспетчер/логист",
   EXTRACTION_OPERATOR: "Оператор добычи",
   LOADING_OPERATOR: "Весовщик/оператор погрузки",

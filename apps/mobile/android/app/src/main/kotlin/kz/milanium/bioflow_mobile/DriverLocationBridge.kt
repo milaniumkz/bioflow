@@ -12,6 +12,7 @@ class DriverLocationBridge(private val activity:Activity, messenger:BinaryMessen
     private var permission:MethodChannel.Result?=null
     init { MethodChannel(messenger,"collection/driver-location").setMethodCallHandler { call,result ->
         try { when(call.method){
+            "hasPermission" -> result.success(activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED)
             "permission" -> {
                 if(activity.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED)result.success(true)
                 else if(permission!=null)result.error("busy","Разрешение уже запрошено",null)
@@ -24,14 +25,16 @@ class DriverLocationBridge(private val activity:Activity, messenger:BinaryMessen
                 val uri=android.net.Uri.parse(config.getString("apiUrl"));require(uri.scheme in setOf("https","http") && !uri.host.isNullOrBlank() && uri.userInfo==null)
                 val prefs=activity.getSharedPreferences("collection-driver",Context.MODE_PRIVATE)
                 if(prefs.getBoolean("running",false)&&prefs.getString("activeTrip",null)!=config.getString("tripId"))throw IllegalStateException("Другой рейс уже отслеживается")
-                prefs.edit().putString("activeTrip",config.getString("tripId")).apply()
+                val pauseKey="paused:"+config.getString("userId")
+                if(prefs.getBoolean(pauseKey,false)&&call.argument<Boolean>("resumeManually")!=true)throw IllegalStateException("Передача остановлена водителем. Нажмите продолжить геолокацию.")
+                prefs.edit().putString("activeUser",config.getString("userId")).putString("activeTrip",config.getString("tripId")).putBoolean(pauseKey,false).apply()
                 val intent=Intent(activity,DriverLocationService::class.java).putExtra("config",text)
                 if(Build.VERSION.SDK_INT>=26)activity.startForegroundService(intent) else activity.startService(intent)
                 result.success(null)
             }
             "finish" -> {if(activity.getSharedPreferences("collection-driver",Context.MODE_PRIVATE).getBoolean("running",false))activity.startService(Intent(activity,DriverLocationService::class.java).setAction("finish"));result.success(null)}
             "stop" -> {activity.stopService(Intent(activity,DriverLocationService::class.java));activity.getSharedPreferences("collection-driver",Context.MODE_PRIVATE).edit().remove("config").putBoolean("running",false).apply();result.success(null)}
-            "status" -> {val p=activity.getSharedPreferences("collection-driver",Context.MODE_PRIVATE);result.success(mapOf("running" to p.getBoolean("running",false),"tripId" to p.getString("activeTrip",null),"message" to p.getString("status","Геолокация не включена")))}
+            "status" -> {val p=activity.getSharedPreferences("collection-driver",Context.MODE_PRIVATE);result.success(mapOf("running" to p.getBoolean("running",false),"tripId" to p.getString("activeTrip",null),"manualPaused" to p.getBoolean("paused:"+p.getString("activeUser",""),false),"message" to p.getString("status","Геолокация не включена")))}
             else -> result.notImplemented()
         }}catch(_:Exception){result.error("driver_location","Не удалось включить геолокацию. Проверьте разрешение точного местоположения и активный рейс.",null)}
     }}

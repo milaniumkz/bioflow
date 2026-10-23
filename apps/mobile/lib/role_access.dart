@@ -12,7 +12,7 @@ const roleNames = {
   'CONTRACTOR_REP': 'Представитель подрядчика',
   'RECEIVER': 'Приёмщик',
   'WASH_OPERATOR': 'Оператор мойки',
-  'PRODUCTION_OPERATOR': 'Оператор производства',
+  'PRODUCTION_OPERATOR': 'Оператор завода',
   'DISPATCHER': 'Диспетчер',
   'EXTRACTION_OPERATOR': 'Оператор добычи',
   'LOADING_OPERATOR': 'Оператор погрузки',
@@ -32,6 +32,8 @@ const roleSections = {
   'control': 'Контроль и статистика',
   'collection': 'Сбор и отправка',
   'processing': 'Работа с партией по QR',
+  'laboratory': 'Лаборатория',
+  'big-bags': 'Биг-бэги и упаковка',
   'fleet': 'Водители и маршруты',
   'dashboard': 'Обзор',
   'ledger': 'Партии и операции',
@@ -50,7 +52,7 @@ const roleSections = {
   'write-offs': 'Списания',
   'shipments': 'Отгрузки',
   'washing': 'Мойка',
-  'production': 'Производство',
+  'production': 'Завод',
   'users': 'Пользователи',
   'roles': 'Роли',
   'sessions': 'Сессии',
@@ -72,7 +74,7 @@ bool canOpenSection(String id, Map<String, dynamic>? profile) {
   }
   if (id == 'control') return can('processing.overview');
   if (id == 'collection') return can('collection.manage');
-  if (id == 'processing') return can('processing.read');
+  if (['processing','laboratory','big-bags'].contains(id)) return can('processing.read');
   if (id == 'fleet') return can('tracking.read');
   if (id == 'plants') return can('references.read') && all;
   if (id == 'audit') return can('audit.read') && all;

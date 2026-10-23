@@ -1,22 +1,35 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show LicenseRegistry, LicenseEntryWithLineBreaks;
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:image_picker/image_picker.dart';
 import 'client.dart';
+import 'collection_design.dart';
 import 'role_home.dart';
 import 'push.dart';
 import 'role_access.dart';
 import 'full_workspace.dart';
 
-const navy950 = Color(0xFF061225),
-    navy900 = Color(0xFF0A1C35),
-    blue = Color(0xFF2F7DF6),
-    platinum = Color(0xFFD8DEE8);
+const navy950 = CollectionDesign.background,
+    navy900 = CollectionDesign.paper,
+    blue = CollectionDesign.green,
+    platinum = CollectionDesign.ink;
 final api = BioflowClient();
 final appNavigatorKey = GlobalKey<NavigatorState>();
-void main() => runApp(const BioflowApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    final copyright =
+        await rootBundle.loadString('assets/fonts/OpenSans-COPYRIGHT.txt');
+    final license = await rootBundle.loadString('assets/fonts/Apache-2.0.txt');
+    yield LicenseEntryWithLineBreaks(['Open Sans'], '$copyright\n\n$license');
+  });
+  runApp(const BioflowApp());
+}
 
 class BioflowApp extends StatelessWidget {
   const BioflowApp({super.key});
@@ -27,33 +40,31 @@ class BioflowApp extends StatelessWidget {
       locale: const Locale('ru'),
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       supportedLocales: const [Locale('ru'), Locale('en')],
-      theme: ThemeData.dark(useMaterial3: true).copyWith(
-          scaffoldBackgroundColor: navy950,
-          colorScheme: const ColorScheme.dark(
-              primary: blue, secondary: platinum, surface: navy900)),
+      theme: CollectionDesign.theme(),
       home: const LoginScreen());
 }
 
 class CollectionLogo extends StatelessWidget {
   const CollectionLogo({super.key});
   @override
-  Widget build(BuildContext context) => Row(children: [
-        Image.asset('assets/branding/collection-symbol.png',
-            width: 64, height: 64, excludeFromSemantics: true),
-        const SizedBox(width: 12),
-        const Flexible(
-            child: Text('collection',
-                style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -1))),
-      ]);
+  Widget build(BuildContext context) => const CollectionBrand();
 }
 
 Widget landingWorkspace() => hasRoleHome(api)
     ? RoleHome(
         client: api,
         legacyBuilder: (_) => const Workspace(),
+        legacyQrBuilder: (_, qr) => Scanner(initialToken: qr),
+        queueBuilder: (_) => const QueueScreen(),
+        passwordBuilder: (_) => const CommandForm(
+                title: 'Смена пароля',
+                path: '/auth/change-password',
+                fields: [
+                  Field('currentPassword', 'Текущий пароль', secret: true),
+                  Field('newPassword', 'Новый пароль', secret: true),
+                  Field('_confirmPassword', 'Повторите новый пароль',
+                      secret: true)
+                ]),
         onLogout: () {
           appNavigatorKey.currentState?.pushAndRemoveUntil(
               MaterialPageRoute(builder: (_) => const LoginScreen()),
@@ -69,7 +80,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginState extends State<LoginScreen> {
   final email = TextEditingController(), password = TextEditingController();
-  bool busy = false;
+  bool busy = false, showPassword = false;
   int loginAttempt = 0;
   String? error;
   @override
@@ -87,7 +98,9 @@ class _LoginState extends State<LoginScreen> {
                         fields: [
                           Field('currentPassword', 'Текущий пароль',
                               secret: true),
-                          Field('newPassword', 'Новый пароль', secret: true)
+                          Field('newPassword', 'Новый пароль', secret: true),
+                          Field('_confirmPassword', 'Повторите новый пароль',
+                              secret: true)
                         ],
                         logoutAfter: true)
                     : landingWorkspace()));
@@ -125,7 +138,9 @@ class _LoginState extends State<LoginScreen> {
                         fields: [
                           Field('currentPassword', 'Текущий пароль',
                               secret: true),
-                          Field('newPassword', 'Новый пароль', secret: true)
+                          Field('newPassword', 'Новый пароль', secret: true),
+                          Field('_confirmPassword', 'Повторите новый пароль',
+                              secret: true)
                         ],
                         logoutAfter: true)
                     : landingWorkspace()));
@@ -142,33 +157,296 @@ class _LoginState extends State<LoginScreen> {
       body: SafeArea(
           child: Center(
               child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
+                  padding: const EdgeInsets.all(28),
+                  child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 440),
+                      child: AutofillGroup(
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                            const CollectionLogo(),
+                            const SizedBox(height: 44),
+                            const Text('ОТ ОЗЕРА ДО ГОТОВОЙ ПРОДУКЦИИ',
+                                style: TextStyle(
+                                    color: CollectionDesign.muted,
+                                    fontSize: 11,
+                                    letterSpacing: 1.1,
+                                    fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 18),
+                            const Text('Всё движение.\nВ одной системе.',
+                                style: TextStyle(
+                                    fontSize: 32,
+                                    height: 1.17,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: -.65)),
+                            const SizedBox(height: 18),
+                            const Text(
+                                'Войдите, чтобы продолжить работу с партиями и операциями.',
+                                style: TextStyle(
+                                    fontSize: 16,
+                                    color: CollectionDesign.muted)),
+                            const SizedBox(height: 34),
+                            Card(
+                                child: Padding(
+                                    padding: const EdgeInsets.all(21),
+                                    child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          TextField(
+                                              controller: email,
+                                              autofillHints: const [
+                                                AutofillHints.username
+                                              ],
+                                              decoration: const InputDecoration(
+                                                  labelText: 'Номер телефона'),
+                                              keyboardType: TextInputType.phone,
+                                              textInputAction:
+                                                  TextInputAction.next),
+                                          const SizedBox(height: 18),
+                                          TextField(
+                                              controller: password,
+                                              autofillHints: const [
+                                                AutofillHints.password
+                                              ],
+                                              decoration: InputDecoration(
+                                                  labelText: 'Пароль',
+                                                  suffixIcon: IconButton(
+                                                      tooltip: showPassword
+                                                          ? 'Скрыть пароль'
+                                                          : 'Показать пароль',
+                                                      onPressed: () => setState(
+                                                          () => showPassword =
+                                                              !showPassword),
+                                                      icon: Icon(showPassword
+                                                          ? Icons
+                                                              .visibility_off_outlined
+                                                          : Icons
+                                                              .visibility_outlined))),
+                                              obscureText: !showPassword,
+                                              onSubmitted: (_) {
+                                                if (!busy) login();
+                                              }),
+                                          const SizedBox(height: 28),
+                                          FilledButton.icon(
+                                              onPressed: busy ? null : login,
+                                              icon: const Icon(
+                                                  Icons.arrow_forward),
+                                              label: Text(
+                                                  busy ? 'Вход…' : 'Войти')),
+                                          if (error != null) ...[
+                                            const SizedBox(height: 16),
+                                            Semantics(
+                                                liveRegion: true,
+                                                child: Text(error!,
+                                                    style: const TextStyle(
+                                                        color: CollectionDesign
+                                                            .error)))
+                                          ],
+                                          const SizedBox(height: 20),
+                                          const Text(
+                                              'Не получается войти? Обратитесь к администратору.',
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                  color: CollectionDesign.muted,
+                                                  fontSize: 13))
+                                        ]))),
+                            const SizedBox(height: 24),
+                            TextButton(
+                                onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) =>
+                                            const RecoveryScreen())),
+                                child: const Text('Восстановить доступ')),
+                            const Text('Доступ только для сотрудников',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                    color: CollectionDesign.muted,
+                                    fontSize: 12))
+                          ])))))));
+}
+
+class RecoveryScreen extends StatefulWidget {
+  const RecoveryScreen({super.key});
+  @override
+  State<RecoveryScreen> createState() => _RecoveryState();
+}
+
+class _RecoveryState extends State<RecoveryScreen> {
+  final phone = TextEditingController(),
+      code = TextEditingController(),
+      password = TextEditingController(),
+      repeat = TextEditingController();
+  bool busy = false, requested = false, complete = false;
+  String? error, message;
+  @override
+  void dispose() {
+    phone.dispose();
+    code.dispose();
+    password.dispose();
+    repeat.dispose();
+    super.dispose();
+  }
+
+  Future<void> requestCode() async {
+    if (busy) return;
+    if (phone.text.trim().isEmpty) {
+      setState(() => error = 'Укажите номер телефона');
+      return;
+    }
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      await api.send('/auth/forgot-password', {'phone': phone.text.trim()},
+          queue: false);
+      if (mounted) {
+        setState(() {
+          requested = true;
+          message =
+              'Для получения кода восстановления обратитесь к администратору. Ответ сервера не подтверждает доставку SMS.';
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => error = errorText(e));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> reset() async {
+    if (busy) return;
+    if (code.text.trim().isEmpty ||
+        password.text.length < 8 ||
+        password.text != repeat.text) {
+      setState(() =>
+          error = 'Укажите код и два совпадающих пароля длиной от 8 символов.');
+      return;
+    }
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      await api.send('/auth/reset-password',
+          {'token': code.text.trim(), 'newPassword': password.text},
+          queue: false);
+      if (mounted) setState(() => complete = true);
+    } catch (e) {
+      if (mounted) setState(() => error = errorText(e));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+      appBar: AppBar(title: const Text('Восстановить доступ')),
+      body: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Center(
                   child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 440),
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            const CollectionLogo(),
-                            const Text('Контроль движения биоматериала'),
+                            Text(
+                                complete
+                                    ? 'Пароль обновлён'
+                                    : requested
+                                        ? 'Вернём вам доступ'
+                                        : 'Не помните пароль?',
+                                style: const TextStyle(
+                                    fontSize: 27, fontWeight: FontWeight.w600)),
                             const SizedBox(height: 24),
-                            TextField(
-                                controller: email,
-                                decoration: const InputDecoration(
-                                    labelText: 'Номер телефона'),
-                                keyboardType: TextInputType.phone),
-                            TextField(
-                                controller: password,
-                                decoration:
-                                    const InputDecoration(labelText: 'Пароль'),
-                                obscureText: true),
-                            const SizedBox(height: 20),
-                            FilledButton(
-                                onPressed: busy ? null : login,
-                                child: Text(busy ? 'Вход…' : 'Войти')),
-                            if (error != null)
-                              Text(error!,
-                                  style:
-                                      const TextStyle(color: Colors.redAccent))
+                            if (complete) ...[
+                              const Icon(Icons.check_circle_outline,
+                                  size: 52, color: CollectionDesign.accent),
+                              const SizedBox(height: 20),
+                              const Text(
+                                  'Новый пароль сохранён сервером. Войдите с ним, чтобы продолжить работу.'),
+                              const SizedBox(height: 24),
+                              FilledButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Перейти ко входу'))
+                            ] else
+                              Card(
+                                  child: Padding(
+                                      padding: const EdgeInsets.all(20),
+                                      child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.stretch,
+                                          children: [
+                                            TextField(
+                                                controller: phone,
+                                                keyboardType:
+                                                    TextInputType.phone,
+                                                decoration:
+                                                    const InputDecoration(
+                                                        labelText:
+                                                            'Номер телефона')),
+                                            const SizedBox(height: 18),
+                                            if (requested) ...[
+                                              if (message != null)
+                                                Text(message!,
+                                                    style: const TextStyle(
+                                                        color: CollectionDesign
+                                                            .muted)),
+                                              const SizedBox(height: 18),
+                                              TextField(
+                                                  controller: code,
+                                                  decoration:
+                                                      const InputDecoration(
+                                                          labelText:
+                                                              'Код восстановления'),
+                                                  autofillHints: const [
+                                                    AutofillHints.oneTimeCode
+                                                  ]),
+                                              const SizedBox(height: 18),
+                                              TextField(
+                                                  controller: password,
+                                                  decoration:
+                                                      const InputDecoration(
+                                                          labelText:
+                                                              'Новый пароль'),
+                                                  obscureText: true,
+                                                  autofillHints: const [
+                                                    AutofillHints.newPassword
+                                                  ]),
+                                              const SizedBox(height: 18),
+                                              TextField(
+                                                  controller: repeat,
+                                                  decoration:
+                                                      const InputDecoration(
+                                                          labelText:
+                                                              'Повторите пароль'),
+                                                  obscureText: true),
+                                              const SizedBox(height: 24)
+                                            ],
+                                            FilledButton(
+                                                onPressed: busy
+                                                    ? null
+                                                    : requested
+                                                        ? reset
+                                                        : requestCode,
+                                                child: Text(busy
+                                                    ? 'Подождите…'
+                                                    : requested
+                                                        ? 'Изменить пароль'
+                                                        : 'Продолжить')),
+                                            if (error != null)
+                                              Semantics(
+                                                  liveRegion: true,
+                                                  child: Text(error!,
+                                                      style: const TextStyle(
+                                                          color:
+                                                              CollectionDesign
+                                                                  .error)))
+                                          ])))
                           ]))))));
 }
 
@@ -191,7 +469,7 @@ const labels = {
   'REVIEW': 'На проверке',
   'REJECTED': 'Отказ',
   'WASHING': 'Мойка',
-  'PRODUCTION': 'Производство',
+  'PRODUCTION': 'Завод',
   'TRANSFER': 'Перемещение',
   'WRITE_OFF': 'Списание',
   'SHIPMENT': 'Отгрузка',
@@ -580,7 +858,9 @@ class _WorkspaceState extends State<Workspace> {
                     openForm('Смена пароля', '/auth/change-password', [
                       const Field('currentPassword', 'Текущий пароль',
                           secret: true),
-                      const Field('newPassword', 'Новый пароль', secret: true)
+                      const Field('newPassword', 'Новый пароль', secret: true),
+                      Field('_confirmPassword', 'Повторите новый пароль',
+                          secret: true)
                     ]);
                   } else if (x == 'reports') {
                     openWorkspace('reports');
@@ -715,7 +995,7 @@ const tripFields = [
 const operationFields = [
   Field('kind', 'Операция', choices: {
     'WASHING': 'Мойка',
-    'PRODUCTION': 'Производство',
+    'PRODUCTION': 'Завод',
     'TRANSFER': 'Перемещение',
     'WRITE_OFF': 'Списание',
     'SHIPMENT': 'Отгрузка',
@@ -824,7 +1104,15 @@ class _CommandFormState extends State<CommandForm> {
       error = null;
     });
     try {
-      final data = {...values}..removeWhere((k, v) => v == null || v == '');
+      if (widget.path == '/auth/change-password' &&
+          ('${values['newPassword'] ?? ''}'.length < 8 ||
+              values['newPassword'] != values['_confirmPassword'])) {
+        throw StateError(
+            'Новые пароли должны совпадать и содержать не менее 8 символов.');
+      }
+      final data = {
+        ...values
+      }..removeWhere((k, v) => v == null || v == '' || k == '_confirmPassword');
       if (widget.path.startsWith('/ledger/')) data['idempotencyKey'] = id;
       if (widget.operation) data['inputs'] = inputs;
       if (files.isNotEmpty) data['fileIds'] = files;
@@ -1096,12 +1384,22 @@ class _CommandFormState extends State<CommandForm> {
 }
 
 class Scanner extends StatefulWidget {
-  const Scanner({super.key});
+  const Scanner({super.key, this.initialToken});
+  final String? initialToken;
   @override
   State<Scanner> createState() => _ScannerState();
 }
 
 class _ScannerState extends State<Scanner> {
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialToken != null) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => resolve(widget.initialToken!));
+    }
+  }
+
   bool busy = false;
   String? error;
   final input = TextEditingController();
@@ -1118,7 +1416,7 @@ class _ScannerState extends State<Scanner> {
       final x =
           await api.send('/ledger/qr/resolve', {'token': token}, queue: false);
       if (!mounted) return;
-      if (x['entityType'] == 'MaterialBatch') {
+      if (x['entityType'] == 'MaterialBatch' || !api.can('waybills.accept')) {
         await showDialog<void>(
             context: context,
             builder: (ctx) => AlertDialog(
@@ -1181,7 +1479,8 @@ class QueueScreen extends StatefulWidget {
 
 class _QueueState extends State<QueueScreen> {
   List<dynamic> rows = [];
-  bool busy = false;
+  bool busy = false, loading = true;
+  String? error;
   @override
   void initState() {
     super.initState();
@@ -1189,57 +1488,152 @@ class _QueueState extends State<QueueScreen> {
   }
 
   Future<void> load() async {
-    final x = await api.pending();
-    if (mounted) setState(() => rows = x);
+    try {
+      final x = await api.pending();
+      if (mounted) {
+        setState(() {
+          rows = x;
+          loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          error = errorText(e);
+          loading = false;
+        });
+      }
+    }
   }
 
   Future<void> sync() async {
-    setState(() => busy = true);
+    if (busy) return;
+    setState(() {
+      busy = true;
+      error = null;
+    });
     try {
       await api.sync();
       await load();
+    } catch (e) {
+      if (mounted) setState(() => error = errorText(e));
     } finally {
       if (mounted) setState(() => busy = false);
     }
   }
 
+  String commandName(dynamic row) {
+    final path = '${row['path']}';
+    if (path.contains('/receipt')) return 'Приёмка материала';
+    if (path.contains('/loading')) return 'Погрузка рейса';
+    if (path.contains('/operations')) return 'Складская операция';
+    if (path.contains('/waybills')) return 'Перевозка';
+    if (path.contains('/batches')) return 'Сбор материала';
+    return 'Сохранённая операция';
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
       appBar: AppBar(title: const Text('Офлайн-очередь')),
-      body: ListView(children: [
-        const ListTile(
-            title: Text('Команды текущего пользователя'),
-            subtitle:
-                Text('Конфликтные операции остаются в очереди до проверки.')),
-        FilledButton(
-            onPressed: busy ? null : sync,
-            child: const Text('Синхронизировать')),
-        if (rows.isEmpty) const ListTile(title: Text('Очередь пуста')),
-        ...rows.map((x) => ListTile(
-            title: Text(x['path']),
-            subtitle: Text('${x['status']} · ${x['error'] ?? x['createdAt']}'),
-            trailing: IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () async {
-                  final ok = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                              title:
-                                  const Text('Удалить неотправленную команду?'),
-                              actions: [
-                                TextButton(
-                                    onPressed: () => Navigator.pop(ctx, false),
-                                    child: const Text('Назад')),
-                                TextButton(
-                                    onPressed: () => Navigator.pop(ctx, true),
-                                    child: const Text('Удалить'))
-                              ]));
-                  if (ok == true) {
-                    await api.discard(x['data']['idempotencyKey']);
-                    load();
-                  }
-                })))
-      ]));
+      body: SafeArea(
+          top: false,
+          child: ListView(padding: const EdgeInsets.all(20), children: [
+            const Text('Сохранено на телефоне',
+                style: TextStyle(fontSize: 27, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 12),
+            const Text(
+                'Только записи текущего аккаунта. До подтверждения сервера они не меняют складской остаток и не получают рабочий QR.',
+                style: TextStyle(color: CollectionDesign.muted)),
+            const SizedBox(height: 20),
+            if (loading || busy) const LinearProgressIndicator(),
+            if (error != null)
+              Semantics(
+                  liveRegion: true,
+                  child: Text(error!,
+                      style: const TextStyle(color: CollectionDesign.error))),
+            if (!loading && error == null && rows.isEmpty)
+              const Card(
+                  child: Padding(
+                      padding: EdgeInsets.all(28),
+                      child: Column(children: [
+                        Icon(Icons.check_circle_outline,
+                            color: CollectionDesign.accent, size: 40),
+                        SizedBox(height: 16),
+                        Text('Очередь пуста',
+                            style: TextStyle(
+                                fontSize: 20, fontWeight: FontWeight.w600)),
+                        SizedBox(height: 8),
+                        Text('Неотправленных операций на этом аккаунте нет.',
+                            textAlign: TextAlign.center)
+                      ]))),
+            ...rows.map((x) => Card(
+                child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(commandName(x),
+                              style: const TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 10),
+                          Text(
+                              x['status'] == 'conflict'
+                                  ? 'Нужна проверка · конфликт с сервером'
+                                  : 'На устройстве · ожидает отправки',
+                              style: TextStyle(
+                                  color: x['status'] == 'conflict'
+                                      ? CollectionDesign.error
+                                      : CollectionDesign.muted)),
+                          Text('${x['createdAt'] ?? ''}'),
+                          if (x['error'] != null)
+                            Text('${x['error']}',
+                                style: const TextStyle(
+                                    color: CollectionDesign.error)),
+                          const SizedBox(height: 12),
+                          OutlinedButton.icon(
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Удалить локальную команду'),
+                              onPressed: busy
+                                  ? null
+                                  : () async {
+                                      final ok = await showDialog<bool>(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                                  title: const Text(
+                                                      'Удалить с телефона?'),
+                                                  content: const Text(
+                                                      'Удаляется только неотправленная локальная команда. Если результат отправки неизвестен, сначала проверьте историю на сервере.'),
+                                                  actions: [
+                                                    TextButton(
+                                                        onPressed: () =>
+                                                            Navigator.pop(
+                                                                ctx, false),
+                                                        child: const Text(
+                                                            'Оставить')),
+                                                    TextButton(
+                                                        onPressed: () =>
+                                                            Navigator.pop(
+                                                                ctx, true),
+                                                        child: const Text(
+                                                            'Удалить'))
+                                                  ]));
+                                      if (ok == true) {
+                                        await api.discard(
+                                            x['data']['idempotencyKey']);
+                                        await load();
+                                      }
+                                    })
+                        ])))),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+                onPressed: busy || loading || rows.isEmpty ? null : sync,
+                icon: const Icon(Icons.sync),
+                label: Text(busy ? 'Отправляем…' : 'Синхронизировать')),
+            const SizedBox(height: 16),
+            const Text(
+                'Конфликты остаются в очереди. Повторная отправка использует прежний ключ операции.',
+                style: TextStyle(color: CollectionDesign.muted))
+          ])));
 }
 
 class ReportScreen extends StatefulWidget {

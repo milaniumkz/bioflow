@@ -24,6 +24,14 @@ describe("physical process thresholds", () => {
       lossPercent(d("10"), d("10").mul("0.75").mul("0.64")).toString(),
     ).toBe("52");
   });
+  test("prewash compares physical receipt, not the mass after sediment", () => {
+    expect(lossPercent(d("10"), d("7.35")).toString()).toBe("26.5");
+    expect(lossPercent(d("9.8"), d("7.35")).toString()).toBe("25");
+  });
+  test("zero/negative bases are not reported as a valid zero percent", () => {
+    expect(() => lossPercent(d("0"), d("0"))).toThrow();
+    expect(() => lossPercent(d("-1"), d("0"))).toThrow();
+  });
   test("GPS noise stays within a stop while travel exits its radius", () => {
     const point = { latitude: 43.2, longitude: 76.9 };
     expect(

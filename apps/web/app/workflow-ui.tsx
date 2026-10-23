@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import { webRequest, networkFetch } from "./session";
 import { createCommandId } from "./command-id.mjs";
 import { isMobileWorkspace, mobileNotify, printQr } from "./mobile-bridge";
+import { weightPreview, decimalError } from "./weight-preview.mjs";
 type Row = Record<string, any>;
 const UploadState = createContext<(busy: boolean) => void>(() => {});
 export const labels: Record<string, string> = {
@@ -66,7 +67,19 @@ export function Field({
       {label}
       <input
         name={name}
-        type={type}
+        type={type === "number" && step && step !== "1" ? "text" : type}
+        inputMode={type === "number" ? "decimal" : undefined}
+        data-decimal={
+          type === "number" && step && step !== "1" ? "true" : undefined
+        }
+        onChange={
+          type === "number" && step && step !== "1"
+            ? (e) =>
+                e.currentTarget.setCustomValidity(
+                  decimalError(e.currentTarget.value, { min, max, step }),
+                )
+            : undefined
+        }
         required={required}
         defaultValue={defaultValue}
         min={min}
@@ -82,9 +95,20 @@ export function ActionForm({
   submit,
   onSubmit,
   lockOnSuccess = false,
+  steps,
+  comparison,
 }: {
   title: string;
-  children: ReactNode;
+  children?: ReactNode;
+  steps?: Array<{ title: string; content: ReactNode }>;
+  comparison?: {
+    input: number;
+    min: number;
+    max: number;
+    basis: string;
+    basesByWarehouse?: Record<string, number>;
+    materialInput?: number;
+  };
   submit: string;
   onSubmit: (values: FormData, key: string) => Promise<unknown>;
   lockOnSuccess?: boolean;
@@ -92,13 +116,68 @@ export function ActionForm({
   const [busy, setBusy] = useState(false),
     [done, setDone] = useState(false),
     [error, setError] = useState("");
+  const [validationError, setValidationError] = useState("");
   const [uploading, setUploading] = useState(false);
   const key = useRef("");
+  const formRef = useRef<HTMLFormElement>(null);
+  const [comparisonInput, setComparisonInput] = useState(
+    comparison?.input ?? 0,
+  );
+  const [preview, setPreview] =
+    useState<ReturnType<typeof weightPreview>>(null);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [summary, setSummary] = useState<Array<[string, string]>>([]);
+  useEffect(() => {
+    if (steps && stepIndex > 0)
+      formRef.current?.querySelector<HTMLElement>("h3")?.focus();
+  }, [stepIndex]);
+  function nextStep() {
+    const form = formRef.current;
+    if (!form || !steps) return;
+    const active = form.querySelector(`[data-step="${stepIndex}"]`);
+    for (const input of Array.from(
+      active?.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+        "input,select,textarea",
+      ) ?? [],
+    )) {
+      if (!input.reportValidity()) return;
+    }
+    const values: Array<[string, string]> = [];
+    for (const input of Array.from(
+      form.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+        "input[name],select[name]",
+      ),
+    )) {
+      if (!input.value || input.type === "file" || input.type === "hidden")
+        continue;
+      const label =
+        input.closest("label")?.firstChild?.textContent?.trim() || input.name;
+      const value =
+        input instanceof HTMLSelectElement
+          ? input.selectedOptions[0]?.textContent || input.value
+          : input.value;
+      values.push([label, value]);
+    }
+    setSummary(values);
+    setStepIndex((i) => Math.min(i + 1, steps.length));
+  }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || done || uploading) return;
+    if (steps && stepIndex < steps.length) {
+      nextStep();
+      return;
+    }
     const form = event.currentTarget;
+    if (!form.reportValidity()) return;
     const values = new FormData(form);
+    for (const input of Array.from(
+      form.querySelectorAll<HTMLInputElement>("input[data-decimal=true]"),
+    )) {
+      // Repeated outputWeights values are normalized by each actual API adapter.
+      if (values.getAll(input.name).length === 1)
+        values.set(input.name, input.value.replace(",", "."));
+    }
     setBusy(true);
     setError("");
     key.current ||= createCommandId();
@@ -116,8 +195,41 @@ export function ActionForm({
   }
   return (
     <form
+      ref={formRef}
+      noValidate
       className="panel workflow-form"
       onSubmit={save}
+      onInvalidCapture={(event) => {
+        const input = event.target as HTMLInputElement;
+        const label =
+          input.closest("label")?.firstChild?.textContent?.trim() ||
+          input.name ||
+          "Поле";
+        setValidationError(`${label}: ${input.validationMessage}`);
+      }}
+      onInput={() => {
+        setValidationError("");
+        if (comparison && formRef.current) {
+          const warehouse =
+            formRef.current.querySelector<HTMLSelectElement>(
+              "[name=fromWarehouseId]",
+            )?.value ?? "";
+          const base = comparison.basesByWarehouse
+            ? (comparison.basesByWarehouse[warehouse] ?? 0)
+            : comparison.input;
+          setComparisonInput(base);
+          setPreview(
+            weightPreview(
+              base,
+              Array.from(
+                formRef.current.querySelectorAll<HTMLInputElement>(
+                  "[name=outputWeights]",
+                ),
+              ).map((i) => i.value),
+            ),
+          );
+        }
+      }}
       onChange={() => {
         if (!busy) {
           key.current = "";
@@ -129,15 +241,132 @@ export function ActionForm({
       <h2>{title}</h2>
       <fieldset disabled={busy || (done && lockOnSuccess)}>
         <UploadState.Provider value={setUploading}>
-          {children}
+          {steps ? (
+            <>
+              <div
+                className="wizard-progress"
+                aria-label={`Шаг ${stepIndex + 1} из ${steps.length + 1}`}
+              >
+                {[...steps, { title: "Проверка" }].map((s, i) => (
+                  <span key={s.title} data-active={i <= stepIndex} />
+                ))}
+              </div>
+              <h3 tabIndex={-1}>
+                {stepIndex < steps.length
+                  ? steps[stepIndex].title
+                  : "Проверьте отправку"}
+              </h3>
+              {steps.map((s, i) => (
+                <section
+                  key={s.title}
+                  className="wizard-step"
+                  data-step={i}
+                  hidden={i !== stepIndex}
+                >
+                  {s.content}
+                </section>
+              ))}
+              {stepIndex === steps.length && (
+                <>
+                  <p className="notice">
+                    Партия, рейс и первый QR появятся после подтверждения
+                    сервера. Повторная попытка не создаёт вторую отправку.
+                  </p>
+                  <dl className="confirmation-list">
+                    {summary.map(([k, v]) => (
+                      <div key={k}>
+                        <dt>{k}</dt>
+                        <dd>{v}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </>
+              )}
+            </>
+          ) : (
+            children
+          )}
         </UploadState.Provider>
-        <button
-          className="button workflow-primary"
-          disabled={done || uploading}
-        >
-          {busy ? "Сохраняем…" : done ? "Сохранено ✓" : submit}
-        </button>
+        {comparison && (
+          <aside className="notice" aria-live="polite">
+            <strong>Баланс операции</strong>
+            <p>
+              {comparison.basis}:{" "}
+              {comparisonInput > 0
+                ? tonnes(comparisonInput)
+                : "не определена — завершите приёмку"}
+            </p>
+            {preview ? (
+              <>
+                <p>
+                  Фактический выход: {tonnes(preview.output)}
+                  <br />
+                  Потеря: {tonnes(preview.loss)} ·{" "}
+                  {preview.percent.toLocaleString("ru-RU")}%
+                </p>
+                <p>
+                  {preview.percent < comparison.min ||
+                  preview.percent > comparison.max
+                    ? "Отклонение от ориентира — укажите причину"
+                    : "В пределах ориентира"}
+                </p>
+              </>
+            ) : (
+              <p>
+                Введите фактический вес для расчёта. Норма не подставляет выход
+                автоматически.
+              </p>
+            )}
+            <small>
+              Ориентир:{" "}
+              {comparison.min === comparison.max
+                ? comparison.min
+                : `${comparison.min}–${comparison.max}`}
+              %. Итог подтверждает сервер.
+            </small>
+          </aside>
+        )}
+        <div className="toolbar">
+          {steps && stepIndex > 0 && !done && (
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => setStepIndex((i) => i - 1)}
+            >
+              Назад
+            </button>
+          )}
+          {steps && stepIndex < steps.length ? (
+            <button
+              type="button"
+              className="button workflow-primary"
+              disabled={uploading}
+              key="next-step"
+              onClick={(event) => {
+                event.preventDefault();
+                nextStep();
+              }}
+            >
+              Далее:{" "}
+              {stepIndex + 1 < steps.length
+                ? steps[stepIndex + 1].title.toLowerCase()
+                : "проверка отправки"}
+            </button>
+          ) : (
+            <button
+              className="button workflow-primary"
+              disabled={done || uploading}
+            >
+              {busy ? "Сохраняем…" : done ? "Сохранено ✓" : submit}
+            </button>
+          )}
+        </div>
       </fieldset>
+      {validationError && (
+        <p className="error" role="alert">
+          {validationError}
+        </p>
+      )}
       {error && (
         <p className="error" role="alert">
           {error}
@@ -384,66 +613,82 @@ export function CollectionPanel({ token }: { token: string }) {
           setQr([r]);
           await qc.invalidateQueries({ queryKey: ["collection-trips"] });
         }}
-      >
-        <Reference
-          name="counterpartyId"
-          label="Контрагент"
-          rows={rows("counterparties")}
-          onChange={setParty}
-        />
-        <Reference
-          name="extractionSiteId"
-          label="Место сбора"
-          rows={rows("extraction-sites")}
-        />
-        <Reference
-          name="materialTypeId"
-          label="Материал"
-          rows={rows("material-types")}
-        />
-        <Reference
-          name="vehicleId"
-          label="Машина"
-          rows={rows("vehicles").filter(
-            (r) =>
-              r.status === "ACTIVE" && (!party || r.counterpartyId === party),
-          )}
-        />
-        <Reference
-          name="driverId"
-          label="Водитель"
-          rows={rows("drivers").filter(
-            (r) => r.userId && (!party || r.counterpartyId === party),
-          )}
-        />
-        <Reference
-          name="destinationWarehouseId"
-          label="Куда отправляем"
-          rows={rows("warehouses")}
-        />
-        <Field
-          name="bagCount"
-          label="Количество мешков"
-          type="number"
-          min={1}
-          max={1000000}
-          step="1"
-        />
-        <Field
-          name="quantity"
-          label="Вес, т"
-          type="number"
-          min={0.001}
-          step="0.001"
-        />
-        <Field
-          name="measuredAt"
-          label="Дата и время взвешивания"
-          type="datetime-local"
-          defaultValue={localNow()}
-        />
-        <PhotoUpload token={token} ids={files} setIds={setFiles} />
-      </ActionForm>
+        steps={[
+          {
+            title: "Груз и отправитель",
+            content: (
+              <>
+                <Reference
+                  name="counterpartyId"
+                  label="Контрагент"
+                  rows={rows("counterparties")}
+                  onChange={setParty}
+                />
+                <Reference
+                  name="extractionSiteId"
+                  label="Место сбора"
+                  rows={rows("extraction-sites")}
+                />
+                <Reference
+                  name="materialTypeId"
+                  label="Материал"
+                  rows={rows("material-types")}
+                />
+                <Field
+                  name="bagCount"
+                  label="Количество мешков"
+                  type="number"
+                  min={1}
+                  max={1000000}
+                  step="1"
+                />
+                <Field
+                  name="quantity"
+                  label="Вес, т"
+                  type="number"
+                  min={0.001}
+                  step="0.001"
+                />
+                <Field
+                  name="measuredAt"
+                  label="Дата и время взвешивания"
+                  type="datetime-local"
+                  defaultValue={localNow()}
+                />
+                <PhotoUpload token={token} ids={files} setIds={setFiles} />
+              </>
+            ),
+          },
+          {
+            title: "Машина и водитель",
+            content: (
+              <>
+                <Reference
+                  name="vehicleId"
+                  label="Машина"
+                  rows={rows("vehicles").filter(
+                    (r) =>
+                      r.status === "ACTIVE" &&
+                      (!party || r.counterpartyId === party),
+                  )}
+                />
+                <Reference
+                  name="driverId"
+                  label="Водитель"
+                  rows={rows("drivers").filter(
+                    (r) => r.userId && (!party || r.counterpartyId === party),
+                  )}
+                />
+                <Reference
+                  name="destinationWarehouseId"
+                  label="Куда отправляем"
+                  rows={rows("warehouses")}
+                />
+              </>
+            ),
+          },
+        ]}
+      ></ActionForm>
       <QrCards items={qr} />
       {qr.length > 0 && (
         <button
@@ -490,7 +735,7 @@ export function CollectionPanel({ token }: { token: string }) {
           submit="Создать машину"
           onSubmit={async (f, key) => {
             await send("/collection/vehicles", {
-              ...Object.fromEntries(f),
+              ...Object.fromEntries([...f].filter(([, value]) => value !== "")),
               idempotencyKey: key,
             });
             await qc.invalidateQueries({ queryKey: ["workflow-refs"] });
@@ -504,10 +749,38 @@ export function CollectionPanel({ token }: { token: string }) {
           <Field name="plateNumber" label="Госномер" />
           <Field name="brand" label="Марка" />
           <Field name="type" label="Тип машины" />
+          <Field name="model" label="Модель" required={false} />
+          <Field
+            name="capacity"
+            label="Грузоподъёмность, т"
+            type="number"
+            step="0.001"
+            min={0.001}
+            required={false}
+          />
+          <Field
+            name="tareWeight"
+            label="Тара, т"
+            type="number"
+            step="0.001"
+            min={0}
+            required={false}
+          />
         </ActionForm>
       </details>
       <h2>Мои отправки</h2>
-      {trips.error && <p role="alert">{trips.error.message}</p>}
+      {trips.isPending && <p role="status">Загружаем отправки…</p>}
+      {trips.error && (
+        <p role="alert" className="error">
+          {trips.error.message}
+        </p>
+      )}
+      {trips.data?.data.length === 0 && (
+        <div className="empty-state">
+          <strong>Отправок пока нет</strong>Создайте первую отправку. Здесь
+          появятся только подтверждённые сервером рейсы.
+        </div>
+      )}
       {trips.data?.data.map((r: Row) => (
         <article className="panel" key={r.id}>
           <h3>{r.number}</h3>

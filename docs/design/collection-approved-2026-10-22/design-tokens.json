@@ -1,0 +1,162 @@
+{
+  "version": "1.0-approved-design",
+  "scope": "Точные параметры утверждённого визуального эталона; production-адаптация и a11y проверяются отдельно.",
+  "colors": {
+    "bg": "#f5f6f2",
+    "paper": "#fff",
+    "ink": "#172b25",
+    "muted": "#6c7b73",
+    "line": "#e3e9e2",
+    "green": "#124d3e",
+    "green2": "#007d61",
+    "mint": "#53d9c4",
+    "soft": "#e5f4ed",
+    "amber": "#a76d18",
+    "amberbg": "#fff4dc",
+    "red": "#b7473f",
+    "redbg": "#fff0ed"
+  },
+  "typography": {
+    "approvedReferenceFont": {
+      "family": "OpenAI Sans Cyrillic",
+      "cssAlias": "Collection",
+      "vendor": "Dinamo Typefaces GmbH",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "rawFontFilesIncluded": false,
+      "licenseStatus": "Встроенная лицензия исключает повторное распространение",
+      "licenseReference": "https://abcdinamo.com/licenses",
+      "productionDecision": "Проверить разрешённую доступность; при отсутствии согласовать замену до существенного визуального изменения"
+    },
+    "localPreviewFallback": {
+      "family": "Open Sans",
+      "license": "Apache-2.0",
+      "weightsAvailable": [
+        400,
+        600,
+        700
+      ],
+      "medium500": "Regular used in local preview only; not exact approved medium",
+      "productionApproved": false
+    },
+    "sizesPx": {
+      "desktopH1": 32,
+      "mobileH1": 27,
+      "desktopH2": 19,
+      "mobileH2": 16,
+      "desktopH3": 16,
+      "mobileH3": 14,
+      "body": 14,
+      "small": 13,
+      "tiny": 12,
+      "desktopLabel": 11,
+      "mobileLabel": 9,
+      "button": 13,
+      "input": 14
+    },
+    "lineHeight": {
+      "h1": 1.17,
+      "body": 1.55,
+      "small": 1.5,
+      "tiny": 1.45
+    },
+    "letterSpacingPx": {
+      "desktopH1": -0.9,
+      "mobileH1": -0.65,
+      "brand": -1.3,
+      "label": 1.2,
+      "mobileLabel": 0.9
+    }
+  },
+  "spacingPx": [
+    4,
+    6,
+    8,
+    9,
+    10,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    20,
+    22,
+    24,
+    28,
+    30,
+    32,
+    34
+  ],
+  "radiiPx": {
+    "desktopCard": 18,
+    "mobileCard": 15,
+    "button": 10,
+    "mobileButton": 11,
+    "input": 10,
+    "badge": 7,
+    "iconBox": 12,
+    "mobileIconBox": 10,
+    "galleryPhoneFrameOnly": 26,
+    "galleryWebFrameOnly": 14
+  },
+  "dimensionsPx": {
+    "approvedMobileViewport": {
+      "width": 390,
+      "height": 844
+    },
+    "approvedWebViewport": {
+      "width": 1440,
+      "height": 1000
+    },
+    "sidebar": 238,
+    "webTopbar": 78,
+    "webContentPaddingX": 34,
+    "webContentPaddingY": 30,
+    "cardPadding": 22,
+    "mobileCardPadding": 17,
+    "buttonHeight": 48,
+    "inputHeight": 48,
+    "mobileInputHeight": 47,
+    "icon": 22,
+    "buttonIcon": 18,
+    "mobileButtonIcon": 19
+  },
+  "borders": {
+    "widthPx": 1,
+    "standard": "#e3e9e2",
+    "input": "#dce4dc",
+    "focus": "#007d61"
+  },
+  "shadows": {
+    "inputFocus": "0 0 0 3px #e4f5ed",
+    "galleryPhoneFrameOnly": "0 18px 60px #12392218",
+    "galleryWebFrameOnly": "0 15px 60px #12392212"
+  },
+  "breakpoints": {
+    "approvedViewportsOnly": [
+      390,
+      1440
+    ],
+    "previewGalleryBreakpointPx": 700,
+    "productionProposedNotSeparatelyApproved": {
+      "phoneMax": 767,
+      "tabletMin": 768,
+      "tabletMax": 1199,
+      "desktopMin": 1200
+    },
+    "instruction": "Использовать существующие breakpoints проекта, если они разумны. Не переносить фиксированные canvas/overflow-hidden; проверять 320/360/390/768/1024/1440 и text zoom."
+  },
+  "accessibility": {
+    "target": "WCAG2.2 AA как критерий проверки, не заявление о сертификации макетов",
+    "normalTextContrastMin": 4.5,
+    "largeTextContrastMin": 3,
+    "touchTargetMinCssPx": 44,
+    "instruction": "Особенно перепроверить мелкий muted-текст, amber и disabled. Разрешены минимальные контрастные коррекции с сохранением характера дизайна; существенные изменения согласовать."
+  }
+}

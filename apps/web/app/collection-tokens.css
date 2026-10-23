@@ -1,0 +1,27 @@
+/* Approved Collection visual tokens. Open Sans substitution approved by the user. */
+:root {
+  --background: #f5f6f2;
+  --surface: #fff;
+  --ink: #172b25;
+  --muted: #586b61; /* AA adjustment of reference #6c7b73 for small text. */
+  --line: #e3e9e2;
+  --control-line: #7c8d83;
+  --primary: #124d3e;
+  --primary-hover: #0c3b2f;
+  --accent: #007d61;
+  --mint: #53d9c4;
+  --soft: #e5f4ed;
+  --amber: #925b0f;
+  --amber-bg: #fff4dc;
+  --red: #ac3f37;
+  --red-bg: #fff0ed;
+  /* Compatibility aliases keep existing components and contracts intact. */
+  --navy-950: var(--background);
+  --navy-900: var(--surface);
+  --navy-800: var(--soft);
+  --blue: var(--primary);
+  --platinum: var(--ink);
+  --text: var(--ink);
+  --green: var(--accent);
+  color-scheme: light;
+}

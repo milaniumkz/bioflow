@@ -12,6 +12,7 @@ import {
   Min,
   Matches,
 } from "class-validator";
+import { PageDto } from "../common/page.dto";
 import { CommandDto } from "../ledger/ledger.dto";
 export class ScanDto {
   @IsString() @MaxLength(512) token!: string;
@@ -23,6 +24,11 @@ export class LaboratoryDto extends CommandDto {
   @IsString() @Matches(/^\d{1,3}(\.\d{1,2})?$/) moisturePercent!: string;
   @IsISO8601() measuredAt!: string;
   @IsOptional() @IsString() @MaxLength(2000) notes?: string;
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  fileIds?: string[];
 }
 export class ReceiveCollectionDto extends CommandDto {
   @IsString() warehouseId!: string;
@@ -57,6 +63,16 @@ export class ProcessDto extends CommandDto {
   @ArrayMaxSize(10)
   @IsString({ each: true })
   fileIds?: string[];
+  @IsOptional() @IsString() wasteQuantity?: string;
+  @IsOptional() @IsString() lossQuantity?: string;
+  @IsOptional() @IsString() defectQuantity?: string;
+  @IsOptional() @IsString() @MaxLength(80) shift?: string;
+  @IsOptional() @IsString() @MaxLength(160) lineLabel?: string;
+}
+export class ProcessingRegistryDto extends PageDto {
+  @IsOptional() @IsISO8601() from?: string;
+  @IsOptional() @IsISO8601() to?: string;
+  @IsOptional() @IsString() stage?: string;
 }
 export class BagReceiptDto extends CommandDto {
   @IsString() warehouseId!: string;

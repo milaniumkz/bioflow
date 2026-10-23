@@ -1,3 +1,4 @@
+import { pushSummary } from "./push-summary";
 import {
   Injectable,
   Logger,
@@ -190,7 +191,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
             body: JSON.stringify({
               message: {
                 token: device.pushToken,
-                notification: { title: notice.title, body: notice.body },
+                notification: pushSummary(notice),
                 data: { notificationId: notice.id, type: notice.type },
               },
             }),

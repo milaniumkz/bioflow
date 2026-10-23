@@ -74,8 +74,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(NavigationDestination), findsNWidgets(3));
       expect(find.text('Главная'), findsOneWidget);
-      expect(find.text('QR'), findsOneWidget);
+      expect(find.text('Сканировать'), findsOneWidget);
       expect(find.text('Профиль'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Открыть партию'), 160,
+          scrollable: find.byType(Scrollable).first);
       expect(find.text('Открыть партию'), findsOneWidget);
       if (entry.key == 'PACKER') {
         expect(find.text('Новая отправка'), findsNothing);
@@ -121,9 +123,18 @@ void main() {
     await tester.pumpWidget(
         MaterialApp(home: RoleHome(client: client, onLogout: () {})));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+        find.text('Выезжаю · включить геолокацию'), 180,
+        scrollable: find.byType(Scrollable).first);
+    await tester.drag(find.byType(ListView).first, const Offset(0, -180));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Выезжаю · включить геолокацию'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Разрешить геолокацию'));
+    await tester.pumpAndSettle();
     expect(adapter.paths.any((p) => p.endsWith('/status')), false);
+    await tester.drag(find.byType(ListView).first, const Offset(0, 1200));
+    await tester.pumpAndSettle();
     expect(find.textContaining('перед началом рейса'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
@@ -131,11 +142,13 @@ void main() {
   testWidgets(
       'one assigned active trip starts after permission and explicit stop is respected',
       (tester) async {
+    FlutterSecureStorage.setMockInitialValues(
+        {'gps-consent:driver-auto': 'yes'});
     var running = false, starts = 0;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
       if (call.method == 'status') return {'running': running};
-      if (call.method == 'permission') return true;
+      if (['permission', 'hasPermission'].contains(call.method)) return true;
       if (call.method == 'start') {
         running = true;
         starts++;
@@ -179,5 +192,92 @@ void main() {
     expect(starts, 1);
     await tester.pumpWidget(const SizedBox());
     await tester.pumpAndSettle();
+    await tester.pumpWidget(
+        MaterialApp(home: RoleHome(client: client, onLogout: () {})));
+    await tester.pumpAndSettle();
+    expect(starts, 1, reason: 'manual stop survives rebuilding the app home');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
   });
+  testWidgets('native notification stop blocks automatic restart',
+      (tester) async {
+    FlutterSecureStorage.setMockInitialValues(
+        {'gps-consent:driver-native-stop': 'yes'});
+    var starts = 0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'status') {
+        return {'running': false, 'manualPaused': true};
+      }
+      if (call.method == 'start') {
+        starts++;
+        return null;
+      }
+      return true;
+    });
+    final client = AutoDriverClient()
+      ..profile = {
+        'id': 'driver-native-stop',
+        'fullName': 'Водитель',
+        'roles': ['DRIVER'],
+        'permissions': ['tracking.write']
+      };
+    client.dio.httpClientAdapter = HomeAdapter(trips: [
+      {
+        'id': 'trip-native-stop',
+        'number': 'WB-STOP',
+        'status': 'IN_TRANSIT',
+        'vehicle': {'plateNumber': 'TEST'},
+        'destinationWarehouse': {'name': 'Мойка'},
+        'bagCount': 1,
+        'declaredWeight': '1'
+      }
+    ]);
+    await tester.pumpWidget(
+        MaterialApp(home: RoleHome(client: client, onLogout: () {})));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 21));
+    await tester.pumpAndSettle();
+    expect(starts, 0);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
+  for (final role in ['ADMIN', 'AUDITOR', 'CONTRACTOR_REP', 'NO_ROLE']) {
+    testWidgets(
+        '$role uses the common home without manufacturing elevated actions',
+        (tester) async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(
+              channel,
+              (call) async =>
+                  call.method == 'status' ? {'running': false} : false);
+      final permissions = role == 'ADMIN'
+          ? ['users.manage', 'references.read', 'inventory.read']
+          : role == 'NO_ROLE'
+              ? <String>[]
+              : ['inventory.read', 'references.read', 'reports.read'];
+      final client = BioflowClient()
+        ..profile = {
+          'id': 'synthetic-$role',
+          'fullName': 'Тест $role',
+          'roles': role == 'NO_ROLE' ? [] : [role],
+          'permissions': permissions
+        };
+      client.dio.httpClientAdapter = HomeAdapter();
+      await tester.pumpWidget(
+          MaterialApp(home: RoleHome(client: client, onLogout: () {})));
+      await tester.pumpAndSettle();
+      expect(find.byType(NavigationDestination), findsNWidgets(3));
+      expect(find.text('Новая отправка'), findsNothing);
+      expect(find.text('Всё предприятие'), findsNothing);
+      if (role == 'NO_ROLE') {
+        await tester.tap(find.text('Сканировать'));
+        await tester.pumpAndSettle();
+        expect(
+            find.textContaining('Нет доступа к работе с QR'), findsOneWidget);
+      }
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    });
+  }
 }

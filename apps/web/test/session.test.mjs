@@ -110,3 +110,11 @@ test("a gateway HTML response is reported without a JSON parser exception", asyn
     new Response("<h1>Bad Gateway</h1>", { status: 502 });
   await assert.rejects(webRequest("/users"), /Сервер временно недоступен/);
 });
+test("rate limiting shows a readable wait instruction", async () => {
+  globalThis.fetch = async () =>
+    Response.json(
+      { message: "ThrottlerException: Too Many Requests" },
+      { status: 429 },
+    );
+  await assert.rejects(webRequest("/users"), /Подождите минуту/);
+});

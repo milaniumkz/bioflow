@@ -47,6 +47,15 @@ export class CollectorVehicleDto extends CommandDto {
   @IsString() @MinLength(1) @MaxLength(30) plateNumber!: string;
   @IsString() @MinLength(1) @MaxLength(100) brand!: string;
   @IsString() @MinLength(1) @MaxLength(100) type!: string;
+  @IsOptional() @IsString() @MaxLength(100) model?: string;
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{1,11}(\.\d{1,3})?$/)
+  capacity?: string;
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{1,11}(\.\d{1,3})?$/)
+  tareWeight?: string;
   @IsString() counterpartyId!: string;
 }
 export class RoutePointDto {

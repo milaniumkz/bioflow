@@ -21,10 +21,14 @@ export function ProcessingPanel({
   token,
   permissions,
   initialQr,
+  initialBatchId,
+  embedded = false,
 }: {
   token: string;
   permissions: string[];
   initialQr?: { token: string; nonce: number };
+  initialBatchId?: string;
+  embedded?: boolean;
 }) {
   const refs = useReferences(token);
   const [item, setItem] = useState<Row | null>(null),
@@ -43,9 +47,14 @@ export function ProcessingPanel({
     });
   async function scan(qr: string) {
     setError("");
-    const r = await post("/processing/scan", { token: qr });
+    const r = qr
+      ? await post("/processing/scan", { token: qr })
+      : await webRequest<Row>(
+          `/processing/batches/${initialBatchId ?? item?.batch.id}`,
+          token,
+        );
     setItem(r);
-    setCode(qr);
+    setCode(qr || r.qrToken || "");
     setFiles([]);
     setShowTrace(false);
     if (
@@ -66,6 +75,9 @@ export function ProcessingPanel({
     if (initialQr?.token)
       void scan(initialQr.token).catch((e) => setError(e.message));
   }, [initialQr?.nonce]);
+  useEffect(() => {
+    if (initialBatchId) void scan("").catch((e) => setError(e.message));
+  }, [initialBatchId]);
   const trace = useQuery({
     queryKey: ["process-trace", item?.batch.id, token],
     queryFn: () =>
@@ -102,6 +114,38 @@ export function ProcessingPanel({
               : "Выход после завода"
         }
         submit="Подтвердить фактический вес"
+        comparison={{
+          input:
+            kind === "DRYING"
+              ? selected.reduce((a, x) => a + Number(x.initialQuantity), 0)
+              : kind === "PREWASH"
+                ? Number(
+                    item?.rootFacts?.physicalReceivedByWarehouse?.[
+                      warehouseDefault
+                    ] ??
+                      t?.receivedWeight ??
+                      0,
+                  )
+                : Number(b?.initialQuantity ?? 0),
+          min: kind === "PREWASH" ? 21 : kind === "DRYING" ? 36 : 0,
+          max: kind === "PREWASH" ? 27 : kind === "DRYING" ? 36 : 100,
+          basis:
+            kind === "PREWASH"
+              ? "Физически принято (база сравнения перед мойкой)"
+              : "Вход этапа",
+          ...(kind === "PREWASH"
+            ? {
+                basesByWarehouse: Object.fromEntries(
+                  Object.entries(
+                    item?.rootFacts?.physicalReceivedByWarehouse ?? {},
+                  ).map(([k, v]) => [k, Number(v)]),
+                ),
+                materialInput: Number(
+                  b?.actualCollectedQuantity ?? b?.initialQuantity ?? 0,
+                ),
+              }
+            : {}),
+        }}
         onSubmit={async (f, key) => {
           const outputWeights = f
             .getAll("outputWeights")
@@ -118,6 +162,19 @@ export function ProcessingPanel({
                 ? { productTypeId: f.get("productTypeId") }
                 : {}),
               reason: f.get("reason") || undefined,
+              ...(kind !== "PREWASH"
+                ? Object.fromEntries(
+                    [
+                      "wasteQuantity",
+                      "lossQuantity",
+                      "defectQuantity",
+                      "shift",
+                      "lineLabel",
+                    ]
+                      .filter((k) => String(f.get(k) ?? "").trim())
+                      .map((k) => [k, String(f.get(k)).replace(",", ".")]),
+                  )
+                : {}),
               fileIds: files,
             },
             key,
@@ -197,9 +254,51 @@ export function ProcessingPanel({
             step="0.001"
           />
         )}
+        {kind !== "PREWASH" && (
+          <details>
+            <summary>Баланс, смена и участок</summary>
+            <div className="formGrid compact">
+              <Field
+                name="wasteQuantity"
+                label="Отходы, т"
+                type="number"
+                required={false}
+                min={0}
+                step="0.001"
+              />
+              <Field
+                name="lossQuantity"
+                label="Потери, т"
+                type="number"
+                required={false}
+                min={0}
+                step="0.001"
+              />
+              <Field
+                name="defectQuantity"
+                label="Брак, т"
+                type="number"
+                required={false}
+                min={0}
+                step="0.001"
+              />
+              <Field name="shift" label="Смена" required={false} />
+              <Field
+                name="lineLabel"
+                label="Линия / участок"
+                required={false}
+              />
+            </div>
+            <p className="metric">
+              Категории не пересекаются: вход = выпуск + отходы + потери + брак.
+              Если категории не заполнены, разница записывается как потеря.
+              Исполнитель — текущий сотрудник.
+            </p>
+          </details>
+        )}
         <p>
           {kind === "PREWASH"
-            ? "Усушка от фактической приёмки: норма 21–27%. Потребуется объяснить отклонение."
+            ? "Потеря перед мойкой: ориентир 21–27% от физически принятого веса. Лабораторный осадок показан отдельно; при отклонении нужна причина."
             : kind === "DRYING"
               ? "Норма потери массы на заводе — 36% от мытого входа. Фактический процент будет рассчитан по весам."
               : "Общий выход равен сумме индивидуальных весов биг-бэгов."}
@@ -215,7 +314,7 @@ export function ProcessingPanel({
   }
   return (
     <div className="workflow-stack">
-      <QrInput onScan={scan} />
+      {!embedded && <QrInput onScan={scan} />}
       {error && (
         <p className="error" role="alert">
           {error}
@@ -271,6 +370,20 @@ export function ProcessingPanel({
                 Упакован · смена {bag.packingShift} · {bag.packingDate}
               </p>
             )}
+            {item.analyses.length > 0 && (
+              <p className="notice">
+                Сохранённая база анализа:{" "}
+                {tonnes(item.analyses[0].baseQuantity)}. Расчёт после осадка до
+                округления:{" "}
+                {(
+                  Number(item.analyses[0].baseQuantity) *
+                  (100 - Number(item.analyses[0].sedimentPercent)) *
+                  10
+                ).toLocaleString("ru-RU", { maximumFractionDigits: 2 })}{" "}
+                кг. Для учёта используется точность 1 кг; влажность повторно не
+                вычитается.
+              </p>
+            )}
             {item.analyses.length > 0 ? (
               <p>
                 Осадок: <strong>{item.analyses[0].sedimentPercent}%</strong> ·
@@ -288,6 +401,14 @@ export function ProcessingPanel({
               </p>
             ) : (
               <p className="warning">Лабораторный анализ ещё не выполнен</p>
+            )}
+            {item.qrImage && (
+              <details>
+                <summary>
+                  {bag ? "QR биг-бэга · печать" : "QR партии · печать"}
+                </summary>
+                <QrCards items={[{ ...b, qrImage: item.qrImage }]} />
+              </details>
             )}
             <button
               className="button secondary"
@@ -313,6 +434,7 @@ export function ProcessingPanel({
                       String(f.get("measuredAt")),
                     ).toISOString(),
                     notes: f.get("notes") || undefined,
+                    fileIds: files,
                   },
                   key,
                 )
@@ -349,6 +471,11 @@ export function ProcessingPanel({
                 defaultValue={localNow()}
               />
               <Field name="notes" label="Примечание" required={false} />
+              <PhotoUpload token={token} ids={files} setIds={setFiles} />
+              <p className="notice">
+                Расчёт после осадка не вычитает влажность повторно. Исходные
+                данные сохраняются. Учётная точность — 0,001 т (1 кг).
+              </p>
             </ActionForm>
           )}
           {can("processing.receive") &&
@@ -491,6 +618,16 @@ export function ProcessingPanel({
             )}
           {can("processing.pack") &&
             bag?.stage === "DRIED" &&
+            !bag.receivedAt &&
+            !bag.soldAt && (
+              <p className="notice">
+                Упаковка станет доступна после приёмки биг-бэга на склад готовой
+                продукции.
+              </p>
+            )}
+          {can("processing.pack") &&
+            bag?.stage === "DRIED" &&
+            !!bag.receivedAt &&
             !bag.packedAt &&
             !bag.soldAt && (
               <ActionForm
@@ -582,6 +719,27 @@ export function ProcessingPanel({
                         {tonnes(r.inputQuantity)} → {tonnes(r.outputQuantity)} ·
                         Потеря {r.coefficientPercent}% · {labels[r.deviation]}
                       </p>
+                      {r.comparisonBaseQuantity && (
+                        <p>
+                          База сравнения: {tonnes(r.comparisonBaseQuantity)}{" "}
+                          {r.coefficientBasis === "RECEIVED_LOSS"
+                            ? "· физически принято"
+                            : "· вход этапа"}
+                        </p>
+                      )}
+                      {r.balance && (
+                        <p>
+                          Отходы {tonnes(r.balance.wasteQuantity)} · потери{" "}
+                          {tonnes(r.balance.lossQuantity)} · брак{" "}
+                          {tonnes(r.balance.defectQuantity)}
+                        </p>
+                      )}
+                      {(r.shift || r.lineLabel) && (
+                        <p>
+                          Смена: {r.shift ?? "—"} · участок:{" "}
+                          {r.lineLabel ?? "—"}
+                        </p>
+                      )}
                       {r.reason && <p>{r.reason}</p>}
                       <p>Сотрудник: {r.createdByName ?? "Сотрудник"}</p>
                       {r.bags.map((x: Row) => (

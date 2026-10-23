@@ -1,4 +1,6 @@
 "use client";
+import { ReportTable } from "./report-table";
+import { LabeledInput, LabeledSelect, RecordDrawer } from "./design-system";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -29,7 +31,7 @@ const names: Record<string, string> = {
   REVIEW: "На проверке",
   CANCELLED: "Отменена",
   WASHING: "Мойка",
-  PRODUCTION: "Производство",
+  PRODUCTION: "Завод",
   TRANSFER: "Перемещение",
   WRITE_OFF: "Списание",
   SHIPMENT: "Отгрузка",
@@ -70,7 +72,7 @@ const reportNames = [
   "Остатки",
   "Обороты",
   "Мойка",
-  "Производство",
+  "Завод",
   "Потери",
   "Перемещения",
   "Отгрузки",
@@ -87,6 +89,9 @@ export function Ledger({
   initialKind?: string;
 }) {
   const pending = useRef(new Map<string, string>());
+  const [opened, setOpened] = useState<number | null>(null);
+  const [reportTotals, setReportTotals] = useState<Row>({});
+  const [loading, setLoading] = useState(true);
 
   const [tab, setTab] = useState(initialTab),
     [rows, setRows] = useState<Row[]>([]),
@@ -112,6 +117,8 @@ export function Ledger({
     [report, setReport] = useState("inventory"),
     [revision, setRevision] = useState(0),
     [result, setResult] = useState<Row | null>(null);
+  const [exportState, setExportState] = useState("");
+  const [exporting, setExporting] = useState(false);
   const has = (p: string) => permissions.includes(p);
   const resultDialog = useRef<HTMLDialogElement>(null);
   const batchErrorElement = useRef<HTMLParagraphElement>(null);
@@ -162,7 +169,7 @@ export function Ledger({
               const data = Array.isArray(x) ? x : (x.data ?? x.rows ?? []);
               items.push(...data);
               if (
-                entity !== "ledger/batches" ||
+                typeof x.total !== "number" ||
                 Array.isArray(x) ||
                 !data.length ||
                 items.length >= x.total
@@ -192,6 +199,7 @@ export function Ledger({
   useEffect(() => {
     let alive = true;
     setError("");
+    setLoading(true);
     const q = new URLSearchParams({
       page: String(page),
       pageSize: "20",
@@ -208,17 +216,23 @@ export function Ledger({
         if (!alive) return;
         setRows(Array.isArray(x) ? x : (x.rows ?? x.data ?? []));
         setTotal(x.total ?? x.rows?.length ?? x.length ?? 0);
+        setReportTotals(x.totals ?? {});
+        setLoading(false);
       })
       .catch((e) => {
         if (alive) {
           setError(e.message);
           setRows([]);
+          setReportTotals({});
+          setLoading(false);
         }
       });
+
     return () => {
       alive = false;
     };
   }, [tab, page, filter, report, revision, token]);
+  useEffect(() => setOpened(null), [tab, page, filter, report]);
   const set = (k: string, v: unknown) => setValues((x) => ({ ...x, [k]: v }));
   async function command(path: string, data: Row) {
     setBusy(true);
@@ -378,6 +392,311 @@ export function Ledger({
     </button>
   );
   const operationKind = values.kind ?? initialKind;
+  const renderRecord = (row: Row, i: number) => (
+    <article className="panel" key={row.id ?? i}>
+      <h3>
+        {row.number ??
+          row.batch?.number ??
+          row.fullName ??
+          row.batchId ??
+          `Запись ${i + 1}`}
+      </h3>
+      {tab === "stocks" && (
+        <p>
+          {row.batch?.materialType?.name ??
+            row.batch?.productType?.name ??
+            refs["material-types"]?.find(
+              (x) => x.id === row.batch?.materialTypeId,
+            )?.name ??
+            refs["product-types"]?.find(
+              (x) => x.id === row.batch?.productTypeId,
+            )?.name ??
+            "Материал"}{" "}
+          · {names[row.batch?.state] ?? row.batch?.state}
+        </p>
+      )}
+      {tab === "waybills" &&
+        row.receivedWeight != null &&
+        Number(row.declaredWeight) > 0 && (
+          <p>
+            Расхождение:{" "}
+            {(Number(row.receivedWeight) - Number(row.declaredWeight)).toFixed(
+              3,
+            )}{" "}
+            т (
+            {(
+              ((Number(row.receivedWeight) - Number(row.declaredWeight)) /
+                Number(row.declaredWeight)) *
+              100
+            ).toFixed(2)}
+            %)
+          </p>
+        )}
+      {Object.entries(row)
+        .filter(
+          ([k, v]) =>
+            v !== null &&
+            !["qrTokenHash", "organizationId"].includes(k) &&
+            (tab === "reports" ||
+              [
+                "status",
+                "state",
+                "quantity",
+                "reserved",
+                "available",
+                "availableSourceQuantity",
+                "declaredWeight",
+                "receivedWeight",
+                "kind",
+                "createdAt",
+                "capacity",
+                "warehouseId",
+                "body",
+                "title",
+                "email",
+                "warehouseScopeIds",
+                "extractionScopeIds",
+              ].includes(k)),
+        )
+        .map(([k, v]) => (
+          <div className="ledger-value" key={k}>
+            <span>
+              {(
+                {
+                  number: "Номер",
+                  initialQuantity: "Исходная масса, т",
+                  unit: "Единица измерения",
+                  updatedAt: "Изменено",
+                  confirmedAt: "Подтверждено",
+                  createdById: "Автор",
+                  confirmedById: "Подтвердил",
+                  acceptedById: "Принял",
+                  acceptedAt: "Принято",
+                  completedAt: "Завершено",
+                  version: "Версия",
+                  documentDate: "Дата документа",
+                  measurementMethod: "Способ измерения",
+                  materialTypeId: "Материал",
+                  productTypeId: "Продукция",
+                  counterpartyId: "Подрядчик",
+                  extractionSiteId: "Место добычи",
+                  originCounterpartyIds: "Подрядчики происхождения",
+                  originExtractionSiteIds: "Места добычи происхождения",
+                  destinationWarehouseId: "Склад назначения",
+                  receiptWarehouseId: "Склад приёмки",
+                  fromWarehouseId: "Исходный склад",
+                  toWarehouseId: "Склад назначения",
+                  driverId: "Водитель",
+                  vehicleId: "Транспорт",
+                  batch: "Партия",
+                  vehicle: "Транспорт",
+                  driver: "Водитель",
+                  inputs: "Входные партии",
+                  outputBatch: "Выходная партия",
+                  outputBatchId: "Выходная партия",
+                  outputQuantity: "Выход, т",
+                  shift: "Смена",
+                  line: "Линия",
+                  packaging: "Упаковка",
+                  recipient: "Получатель",
+                  documentNumber: "Номер документа",
+                  reason: "Причина",
+                  discrepancyReason: "Причина расхождения",
+                  reviewReason: "Причина проверки",
+                  comment: "Комментарий",
+                  action: "Действие",
+                  entity: "Объект",
+                  entityId: "Объект",
+                  userId: "Пользователь",
+                  oldValue: "До изменения",
+                  newValue: "После изменения",
+                  organizationId: "Организация",
+                  grossWeight: "Брутто, т",
+                  tareWeight: "Тара, т",
+                  actualWeight: "Фактическая масса, т",
+                  quantity: "Остаток, т",
+                  reserved: "Резерв, т",
+                  available: "Доступно, т",
+                  warehouseId: "Склад",
+                  opening: "На начало, т",
+                  incoming: "Приход, т",
+                  outgoing: "Расход, т",
+                  closing: "На конец, т",
+                  batchNumber: "Партия",
+                  wasteQuantity: "Отходы, т",
+                  lossQuantity: "Потери, т",
+                  defectQuantity: "Брак, т",
+                  freeQuantity: "Доступно, т",
+                  state: "Материал",
+                  status: "Статус",
+                  availableSourceQuantity: "Не распределено, т",
+                  declaredWeight: "Отправлено, т",
+                  receivedWeight: "Принято, т",
+                  difference: "Расхождение, т",
+                  differencePercent: "Расхождение, %",
+                  batchId: "ID партии",
+                  id: "ID",
+                  kind: "Операция",
+                  createdAt: "Создано",
+                } as Row
+              )[k] ?? k}
+            </span>
+            <span>
+              {["warehouseScopeIds", "extractionScopeIds"].includes(k) &&
+              Array.isArray(v)
+                ? v
+                    .map(
+                      (id) =>
+                        (
+                          refs[
+                            k === "warehouseScopeIds"
+                              ? "warehouses"
+                              : "extraction-sites"
+                          ] ?? []
+                        ).find((x) => x.id === id)?.name ??
+                        "Недоступный объект",
+                    )
+                    .join(", ") || "Не назначены"
+                : typeof v === "object"
+                  ? ((v as Row).name ??
+                    (v as Row).fullName ??
+                    (v as Row).plateNumber ??
+                    (v as Row).number ??
+                    JSON.stringify(v))
+                  : k === "warehouseId"
+                    ? ((refs.warehouses ?? []).find((x) => x.id === v)?.name ??
+                      String(v))
+                    : (names[String(v)] ?? String(v))}
+            </span>
+          </div>
+        ))}
+      <div className="toolbar">
+        {tab === "waybills" && (
+          <button
+            className="button secondary"
+            onClick={async () => {
+              try {
+                setAttachments(
+                  await call<Row[]>(`/ledger/files/Waybill/${row.id}`),
+                );
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          >
+            Фотографии и документы
+          </button>
+        )}
+        {tab === "batches" && has("batches.manage") && (
+          <>
+            {row.status === "DRAFT" &&
+              action(row, "Подтвердить", "confirm", {}, true)}
+            {!["CLOSED", "CANCELLED"].includes(row.status) &&
+              action(row, "Закрыть", "close", {}, true)}
+            {!["CLOSED", "CANCELLED"].includes(row.status) &&
+              action(row, "Отменить", "cancel", {}, true)}
+          </>
+        )}
+        {["batches", "stocks"].includes(tab) && (
+          <button
+            className="button secondary"
+            onClick={async () => {
+              try {
+                setTrace(
+                  await call<Row>(
+                    `/ledger/batches/${row.batchId ?? row.id}/trace`,
+                  ),
+                );
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          >
+            Происхождение
+          </button>
+        )}
+        {tab === "waybills" && (
+          <>
+            {has("loading.manage") && row.status === "CREATED" && (
+              <button
+                className="button"
+                onClick={() => {
+                  setValues({});
+                  setSelected({ ...row, action: "load" });
+                }}
+              >
+                Погрузка
+              </button>
+            )}
+            {has("waybills.manage") &&
+              row.status === "LOADED" &&
+              action(row, "В путь", "status", { status: "IN_TRANSIT" })}
+            {has("waybills.manage") &&
+              row.status === "IN_TRANSIT" &&
+              action(row, "Прибыла", "status", { status: "ARRIVED" })}
+            {has("waybills.accept") &&
+              row.status === "ARRIVED" &&
+              action(row, "На проверку", "status", { status: "REVIEW" }, true)}
+            {has("waybills.accept") &&
+              ["ARRIVED", "REVIEW"].includes(row.status) &&
+              action(row, "Отклонить", "status", { status: "REJECTED" }, true)}
+            {has("waybills.manage") &&
+              row.status === "REVIEW" &&
+              action(row, "Вернуть к приёмке", "status", {
+                status: "ARRIVED",
+              })}
+            {has("waybills.accept") &&
+              ["ARRIVED", "PARTIALLY_ACCEPTED"].includes(row.status) && (
+                <button
+                  className="button"
+                  onClick={() => {
+                    setValues({
+                      warehouseId: row.destinationWarehouseId,
+                    });
+                    setSelected({ ...row, action: "receipt" });
+                  }}
+                >
+                  Принять
+                </button>
+              )}
+            {has("waybills.accept") &&
+              ["ACCEPTED", "ACCEPTED_WITH_DIFFERENCE"].includes(row.status) &&
+              action(row, "Разгрузить", "unload")}
+            {has("waybills.manage") &&
+              row.status === "UNLOADED" &&
+              action(row, "Завершить", "status", { status: "COMPLETED" })}
+            {has("waybills.manage") &&
+              !["CANCELLED", "COMPLETED", "UNLOADED"].includes(row.status) &&
+              action(row, "Отменить", "status", { status: "CANCELLED" }, true)}
+          </>
+        )}
+        {tab === "operations" &&
+          (has("operations.manage") || has("inventory.manage")) && (
+            <>
+              {row.status === "DRAFT" && action(row, "Подтвердить", "confirm")}
+              {!["CLOSED", "CANCELLED"].includes(row.status) &&
+                action(row, "Отменить", "cancel", {}, true)}
+            </>
+          )}
+        {tab === "access" && has("users.manage") && (
+          <button
+            className="button"
+            onClick={() => {
+              setValues({
+                userId: row.id,
+                accessAllObjects: row.accessAllObjects ?? false,
+                warehouseScopeIds: row.warehouseScopeIds ?? [],
+                extractionScopeIds: row.extractionScopeIds ?? [],
+                counterpartyScopeId: row.counterpartyScopeId ?? "",
+              });
+            }}
+          >
+            Назначить доступ
+          </button>
+        )}
+      </div>
+    </article>
+  );
   return (
     <>
       <div className="toolbar">
@@ -416,16 +735,19 @@ export function Ledger({
         </div>
       )}
       <div className="toolbar">
-        <input
+        <LabeledInput
+          placeholder="Поиск"
           aria-label="Поиск"
-          placeholder="Номер / транспорт"
+
           value={filter.search}
           onChange={(e) => {
             setPage(1);
             setFilter({ ...filter, search: e.target.value });
           }}
         />
-        <select
+        <LabeledSelect
+          label="Склад"
+          disabled={tab === "reports" && report === "audit"}
           aria-label="Склад"
           value={filter.warehouseId}
           onChange={(e) => {
@@ -439,14 +761,16 @@ export function Ledger({
               {x.name}
             </option>
           ))}
-        </select>
-        <input
+        </LabeledSelect>
+        <LabeledInput
+          placeholder="Дата от"
           aria-label="Дата от"
           type="date"
           value={filter.dateFrom}
           onChange={(e) => setFilter({ ...filter, dateFrom: e.target.value })}
         />
-        <input
+        <LabeledInput
+          placeholder="Дата до"
           aria-label="Дата до"
           type="date"
           value={filter.dateTo}
@@ -641,7 +965,8 @@ export function Ledger({
                 select("toWarehouseId", "Склад назначения", "warehouses")}
               {inputs.map((i, n) => (
                 <div className="toolbar" key={n}>
-                  <select
+                  <LabeledSelect
+                    label="Входная партия"
                     required
                     aria-label="Входная партия"
                     value={i.batchId}
@@ -666,8 +991,8 @@ export function Ledger({
                           {x.available} т
                         </option>
                       ))}
-                  </select>
-                  <input
+                  </LabeledSelect>
+                  <LabeledInput
                     required
                     aria-label="Количество партии"
                     type="number"
@@ -812,22 +1137,30 @@ export function Ledger({
       )}
       {tab === "reports" && (
         <div className="toolbar">
-          <select
+          <LabeledSelect
+            label="Тип отчёта"
             aria-label="Тип отчёта"
             value={report}
-            onChange={(e) => setReport(e.target.value)}
+            onChange={(e) => {
+              setReport(e.target.value);
+              if (e.target.value === "audit")
+                setFilter((previous) => ({ ...previous, warehouseId: "" }));
+            }}
           >
             {reports.map((r, i) => (
               <option key={r} value={r}>
                 {reportNames[i]}
               </option>
             ))}
-          </select>
+          </LabeledSelect>
           {["csv", "xlsx", "pdf"].map((format) => (
             <button
               key={format}
               className="button secondary"
+              disabled={exporting}
               onClick={async () => {
+                setExporting(true);
+                setExportState("Формируем файл…");
                 try {
                   const q = new URLSearchParams({
                     ...Object.fromEntries(
@@ -839,9 +1172,22 @@ export function Ledger({
                     `/ledger/reports/${report}/export?${q}`,
                     token,
                   );
-                  await saveBlob(blob, `bioflow-${report}.${format}`);
+                  const saved = await saveBlob(
+                    blob,
+                    `collection-${report}.${format}`,
+                  );
+                  setExportState(
+                    saved === "cancelled"
+                      ? "Сохранение отменено — файл не сохранён"
+                      : saved === "saved"
+                        ? "Файл сохранён"
+                        : "Файл передан браузеру для скачивания",
+                  );
                 } catch (e) {
                   setError((e as Error).message);
+                  setExportState("Не удалось выгрузить файл");
+                } finally {
+                  setExporting(false);
                 }
               }}
             >
@@ -850,376 +1196,222 @@ export function Ledger({
           ))}
         </div>
       )}
-      <div className="ledger-rows">
-        {rows.map((row, i) => (
-          <article className="panel" key={row.id ?? i}>
-            <h3>
-              {row.number ??
-                row.batch?.number ??
-                row.fullName ??
-                row.batchId ??
-                `Запись ${i + 1}`}
-            </h3>
-            {tab === "stocks" && (
-              <p>
-                {row.batch?.materialType?.name ??
-                  row.batch?.productType?.name ??
-                  refs["material-types"]?.find(
-                    (x) => x.id === row.batch?.materialTypeId,
-                  )?.name ??
-                  refs["product-types"]?.find(
-                    (x) => x.id === row.batch?.productTypeId,
-                  )?.name ??
-                  "Материал"}{" "}
-                · {names[row.batch?.state] ?? row.batch?.state}
-              </p>
-            )}
-            {tab === "waybills" &&
-              row.receivedWeight != null &&
-              Number(row.declaredWeight) > 0 && (
-                <p>
-                  Расхождение:{" "}
-                  {(
-                    Number(row.receivedWeight) - Number(row.declaredWeight)
-                  ).toFixed(3)}{" "}
-                  т (
-                  {(
-                    ((Number(row.receivedWeight) - Number(row.declaredWeight)) /
-                      Number(row.declaredWeight)) *
-                    100
-                  ).toFixed(2)}
-                  %)
-                </p>
-              )}
-            {Object.entries(row)
-              .filter(
-                ([k, v]) =>
-                  v !== null &&
-                  !["qrTokenHash", "organizationId"].includes(k) &&
-                  (tab === "reports" ||
-                    [
-                      "status",
-                      "state",
-                      "quantity",
-                      "reserved",
-                      "available",
-                      "availableSourceQuantity",
-                      "declaredWeight",
-                      "receivedWeight",
-                      "kind",
-                      "createdAt",
-                      "capacity",
-                      "warehouseId",
-                      "body",
-                      "title",
-                      "email",
-                      "warehouseScopeIds",
-                      "extractionScopeIds",
-                    ].includes(k)),
-              )
-              .map(([k, v]) => (
-                <div className="ledger-value" key={k}>
-                  <span>
-                    {(
-                      {
-                        number: "Номер",
-                        initialQuantity: "Исходная масса, т",
-                        unit: "Единица измерения",
-                        updatedAt: "Изменено",
-                        confirmedAt: "Подтверждено",
-                        createdById: "Автор",
-                        confirmedById: "Подтвердил",
-                        acceptedById: "Принял",
-                        acceptedAt: "Принято",
-                        completedAt: "Завершено",
-                        version: "Версия",
-                        documentDate: "Дата документа",
-                        measurementMethod: "Способ измерения",
-                        materialTypeId: "Материал",
-                        productTypeId: "Продукция",
-                        counterpartyId: "Подрядчик",
-                        extractionSiteId: "Место добычи",
-                        originCounterpartyIds: "Подрядчики происхождения",
-                        originExtractionSiteIds: "Места добычи происхождения",
-                        destinationWarehouseId: "Склад назначения",
-                        receiptWarehouseId: "Склад приёмки",
-                        fromWarehouseId: "Исходный склад",
-                        toWarehouseId: "Склад назначения",
-                        driverId: "Водитель",
-                        vehicleId: "Транспорт",
-                        batch: "Партия",
-                        vehicle: "Транспорт",
-                        driver: "Водитель",
-                        inputs: "Входные партии",
-                        outputBatch: "Выходная партия",
-                        outputBatchId: "Выходная партия",
-                        outputQuantity: "Выход, т",
-                        shift: "Смена",
-                        line: "Линия",
-                        packaging: "Упаковка",
-                        recipient: "Получатель",
-                        documentNumber: "Номер документа",
-                        reason: "Причина",
-                        discrepancyReason: "Причина расхождения",
-                        reviewReason: "Причина проверки",
-                        comment: "Комментарий",
-                        action: "Действие",
-                        entity: "Объект",
-                        entityId: "Объект",
-                        userId: "Пользователь",
-                        oldValue: "До изменения",
-                        newValue: "После изменения",
-                        organizationId: "Организация",
-                        grossWeight: "Брутто, т",
-                        tareWeight: "Тара, т",
-                        actualWeight: "Фактическая масса, т",
-                        quantity: "Остаток, т",
-                        reserved: "Резерв, т",
-                        available: "Доступно, т",
-                        warehouseId: "Склад",
-                        opening: "На начало, т",
-                        incoming: "Приход, т",
-                        outgoing: "Расход, т",
-                        closing: "На конец, т",
-                        batchNumber: "Партия",
-                        wasteQuantity: "Отходы, т",
-                        lossQuantity: "Потери, т",
-                        defectQuantity: "Брак, т",
-                        freeQuantity: "Доступно, т",
-                        state: "Материал",
-                        status: "Статус",
-                        availableSourceQuantity: "Не распределено, т",
-                        declaredWeight: "Отправлено, т",
-                        receivedWeight: "Принято, т",
-                        difference: "Расхождение, т",
-                        differencePercent: "Расхождение, %",
-                        batchId: "ID партии",
-                        id: "ID",
-                        kind: "Операция",
-                        createdAt: "Создано",
-                      } as Row
-                    )[k] ?? k}
-                  </span>
-                  <span>
-                    {typeof v === "object"
-                      ? ((v as Row).name ??
-                        (v as Row).fullName ??
-                        (v as Row).plateNumber ??
-                        (v as Row).number ??
-                        JSON.stringify(v))
-                      : k === "warehouseId"
-                        ? ((refs.warehouses ?? []).find((x) => x.id === v)
-                            ?.name ?? String(v))
-                        : (names[String(v)] ?? String(v))}
-                  </span>
-                </div>
-              ))}
-            <div className="toolbar">
-              {tab === "waybills" && (
-                <button
-                  className="button secondary"
-                  onClick={async () => {
-                    try {
-                      setAttachments(
-                        await call<Row[]>(`/ledger/files/Waybill/${row.id}`),
-                      );
-                    } catch (e) {
-                      setError((e as Error).message);
-                    }
-                  }}
-                >
-                  Фотографии и документы
-                </button>
-              )}
-              {tab === "batches" && has("batches.manage") && (
-                <>
-                  {row.status === "DRAFT" &&
-                    action(row, "Подтвердить", "confirm", {}, true)}
-                  {!["CLOSED", "CANCELLED"].includes(row.status) &&
-                    action(row, "Закрыть", "close", {}, true)}
-                  {!["CLOSED", "CANCELLED"].includes(row.status) &&
-                    action(row, "Отменить", "cancel", {}, true)}
-                </>
-              )}
-              {["batches", "stocks"].includes(tab) && (
-                <button
-                  className="button secondary"
-                  onClick={async () => {
-                    try {
-                      setTrace(
-                        await call<Row>(
-                          `/ledger/batches/${row.batchId ?? row.id}/trace`,
-                        ),
-                      );
-                    } catch (e) {
-                      setError((e as Error).message);
-                    }
-                  }}
-                >
-                  Происхождение
-                </button>
-              )}
-              {tab === "waybills" && (
-                <>
-                  {has("loading.manage") && row.status === "CREATED" && (
-                    <button
-                      className="button"
-                      onClick={() => {
-                        setValues({});
-                        setSelected({ ...row, action: "load" });
-                      }}
-                    >
-                      Погрузка
-                    </button>
-                  )}
-                  {has("waybills.manage") &&
-                    row.status === "LOADED" &&
-                    action(row, "В путь", "status", { status: "IN_TRANSIT" })}
-                  {has("waybills.manage") &&
-                    row.status === "IN_TRANSIT" &&
-                    action(row, "Прибыла", "status", { status: "ARRIVED" })}
-                  {has("waybills.accept") &&
-                    row.status === "ARRIVED" &&
-                    action(
-                      row,
-                      "На проверку",
-                      "status",
-                      { status: "REVIEW" },
-                      true,
-                    )}
-                  {has("waybills.accept") &&
-                    ["ARRIVED", "REVIEW"].includes(row.status) &&
-                    action(
-                      row,
-                      "Отклонить",
-                      "status",
-                      { status: "REJECTED" },
-                      true,
-                    )}
-                  {has("waybills.manage") &&
-                    row.status === "REVIEW" &&
-                    action(row, "Вернуть к приёмке", "status", {
-                      status: "ARRIVED",
-                    })}
-                  {has("waybills.accept") &&
-                    ["ARRIVED", "PARTIALLY_ACCEPTED"].includes(row.status) && (
-                      <button
-                        className="button"
-                        onClick={() => {
-                          setValues({
-                            warehouseId: row.destinationWarehouseId,
-                          });
-                          setSelected({ ...row, action: "receipt" });
-                        }}
-                      >
-                        Принять
-                      </button>
-                    )}
-                  {has("waybills.accept") &&
-                    ["ACCEPTED", "ACCEPTED_WITH_DIFFERENCE"].includes(
-                      row.status,
-                    ) &&
-                    action(row, "Разгрузить", "unload")}
-                  {has("waybills.manage") &&
-                    row.status === "UNLOADED" &&
-                    action(row, "Завершить", "status", { status: "COMPLETED" })}
-                  {has("waybills.manage") &&
-                    !["CANCELLED", "COMPLETED", "UNLOADED"].includes(
-                      row.status,
-                    ) &&
-                    action(
-                      row,
-                      "Отменить",
-                      "status",
-                      { status: "CANCELLED" },
-                      true,
-                    )}
-                </>
-              )}
-              {tab === "operations" &&
-                (has("operations.manage") || has("inventory.manage")) && (
-                  <>
-                    {row.status === "DRAFT" &&
-                      action(row, "Подтвердить", "confirm")}
-                    {!["CLOSED", "CANCELLED"].includes(row.status) &&
-                      action(row, "Отменить", "cancel", {}, true)}
-                  </>
-                )}
-              {tab === "access" && has("users.manage") && (
-                <button
-                  className="button"
-                  onClick={() => {
-                    setValues({
-                      userId: row.id,
-                      accessAllObjects: row.accessAllObjects ?? false,
-                      warehouseScopeIds: (row.warehouseScopeIds ?? []).join(
-                        ",",
-                      ),
-                      extractionScopeIds: (row.extractionScopeIds ?? []).join(
-                        ",",
-                      ),
-                      counterpartyScopeId: row.counterpartyScopeId ?? "",
-                    });
-                  }}
-                >
-                  Назначить доступ
-                </button>
-              )}
+      {tab === "reports" && exportState && (
+        <p role="status" className="notice">
+          {exportState}
+        </p>
+      )}
+      {tab === "reports" ? (
+        <ReportTable rows={rows} totals={reportTotals} loading={loading} />
+      ) : (
+        <>
+          <section className="tableWrap ledger-desktop-table">
+            <h2>
+              {tab === "batches"
+                ? "Реестр партий"
+                : tab === "waybills"
+                  ? "Поставки и приёмка"
+                  : tab === "stocks"
+                    ? "Остатки по складам"
+                    : tab === "reports"
+                      ? "Результат отчёта"
+                      : "Журнал операций"}
+            </h2>
+            <div
+              className="tableScroll"
+              tabIndex={0}
+              role="region"
+              aria-label="Реестр учётных записей"
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Запись</th>
+                    <th scope="col">Состояние</th>
+                    <th scope="col">
+                      {tab === "batches"
+                        ? "Исходная масса"
+                        : tab === "waybills"
+                          ? "Отправлено"
+                          : "Количество"}
+                    </th>
+                    <th scope="col">
+                      {tab === "waybills" ? "Принято" : "Доступно"}
+                    </th>
+                    <th scope="col">Создано</th>
+                    <th scope="col">Действие</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, i) => (
+                    <tr key={row.id ?? i}>
+                      <td>
+                        <strong>
+                          {row.number ??
+                            row.batch?.number ??
+                            row.fullName ??
+                            row.batchId ??
+                            "Запись"}
+                        </strong>
+                        {row.warehouse?.name && (
+                          <small className="table-meta">
+                            {row.warehouse.name}
+                          </small>
+                        )}
+                      </td>
+                      <td>
+                        <span className="status">
+                          {names[row.status] ??
+                            names[row.batch?.state] ??
+                            names[row.state] ??
+                            row.status ??
+                            "—"}
+                        </span>
+                      </td>
+                      <td>
+                        {row.quantity ??
+                          row.initialQuantity ??
+                          row.declaredWeight ??
+                          row.outputQuantity ??
+                          "—"}
+                        {(row.quantity ??
+                          row.initialQuantity ??
+                          row.declaredWeight ??
+                          row.outputQuantity) != null
+                          ? " т"
+                          : ""}
+                      </td>
+                      <td>
+                        {tab === "waybills"
+                          ? (row.receivedWeight ?? "—")
+                          : (row.availableSourceQuantity ??
+                            row.available ??
+                            "—")}
+                      </td>
+                      <td>
+                        {row.createdAt
+                          ? new Date(row.createdAt).toLocaleString("ru-RU")
+                          : "—"}
+                      </td>
+                      <td>
+                        <button
+                          className="button secondary"
+                          onClick={() => setOpened(i)}
+                        >
+                          Открыть
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          </article>
-        ))}
-      </div>
-      {!rows.length && (
+          </section>
+          <div className="ledger-rows ledger-mobile-records">
+            {rows.map((row, i) => renderRecord(row, i))}
+          </div>
+        </>
+      )}
+      {!loading && tab !== "reports" && !rows.length && (
         <p className="metric">Нет записей по выбранным условиям</p>
       )}
       {tab === "access" && values.userId && (
-        <form
-          className="panel ledger-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            command(`/ledger/users/${values.userId}/access`, {
-              accessAllObjects: values.accessAllObjects,
-              warehouseScopeIds: String(values.warehouseScopeIds)
-                .split(",")
-                .map((x) => x.trim())
-                .filter(Boolean),
-              extractionScopeIds: String(values.extractionScopeIds)
-                .split(",")
-                .map((x) => x.trim())
-                .filter(Boolean),
-              ...(values.counterpartyScopeId
-                ? { counterpartyScopeId: values.counterpartyScopeId }
-                : {}),
-              reason: values.reason,
-            });
-          }}
+        <RecordDrawer
+          title={`Доступ к объектам: ${rows.find((user) => user.id === values.userId)?.fullName ?? "Пользователь"}`}
+          onClose={() => setValues({})}
         >
-          <label>
-            <input
-              type="checkbox"
-              checked={values.accessAllObjects}
-              onChange={(e) => set("accessAllObjects", e.target.checked)}
-            />
-            Все объекты
-          </label>
-          {field(
-            "warehouseScopeIds",
-            "ID складов через запятую",
-            "text",
-            false,
-          )}
-          {field(
-            "extractionScopeIds",
-            "ID мест добычи через запятую",
-            "text",
-            false,
-          )}
-          {select("counterpartyScopeId", "Подрядчик", "counterparties", false)}
-          {field("reason", "Причина назначения")}
-          <button className="button" disabled={busy}>
-            Сохранить
-          </button>
-        </form>
+          <form
+            className="panel ledger-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              command(`/ledger/users/${values.userId}/access`, {
+                accessAllObjects: values.accessAllObjects,
+                warehouseScopeIds: values.warehouseScopeIds ?? [],
+                extractionScopeIds: values.extractionScopeIds ?? [],
+                ...(values.counterpartyScopeId
+                  ? { counterpartyScopeId: values.counterpartyScopeId }
+                  : {}),
+                reason: values.reason,
+              });
+            }}
+          >
+            <label>
+              <input
+                type="checkbox"
+                checked={values.accessAllObjects}
+                onChange={(e) => set("accessAllObjects", e.target.checked)}
+              />
+              Все объекты
+            </label>
+            {[
+              ["warehouseScopeIds", "Склады", "warehouses"],
+              ["extractionScopeIds", "Места добычи", "extraction-sites"],
+            ].map(([key, title, entity]) => (
+              <fieldset
+                className="scope-choices"
+                key={key}
+                disabled={busy || values.accessAllObjects}
+              >
+                <legend>{title}</legend>
+                {(refs[entity] ?? []).length ? (
+                  (refs[entity] ?? []).map((object) => (
+                    <label key={object.id}>
+                      <input
+                        type="checkbox"
+                        checked={(values[key] ?? []).includes(object.id)}
+                        onChange={(event) =>
+                          set(
+                            key,
+                            event.target.checked
+                              ? [...(values[key] ?? []), object.id]
+                              : (values[key] ?? []).filter(
+                                  (id: string) => id !== object.id,
+                                ),
+                          )
+                        }
+                      />
+                      <span>{object.name}</span>
+                    </label>
+                  ))
+                ) : (
+                  <p>Нет доступных объектов</p>
+                )}
+              </fieldset>
+            ))}
+            <p className="metric">
+              Изменения вступят в силу после сохранения. Укажите причину
+              назначения.
+            </p>
+            {select(
+              "counterpartyScopeId",
+              "Подрядчик",
+              "counterparties",
+              false,
+            )}
+            {field("reason", "Причина назначения")}
+            <button className="button" disabled={busy}>
+              Сохранить
+            </button>
+            <button
+              className="button secondary"
+              type="button"
+              onClick={(event) => {
+                const container = event.currentTarget.closest("form");
+                if (
+                  window.dispatchEvent(
+                    new CustomEvent("bioflow:navigate", {
+                      cancelable: true,
+                      detail: { container },
+                    }),
+                  )
+                )
+                  setValues({});
+              }}
+            >
+              Отмена
+            </button>
+          </form>
+        </RecordDrawer>
       )}
       {["batches", "waybills", "operations"].includes(tab) && (
         <div className="toolbar">
@@ -1285,6 +1477,24 @@ export function Ledger({
             Закрыть
           </button>
         </section>
+      )}
+      {opened !== null && rows[opened] && (
+        <RecordDrawer
+          title={
+            rows[opened].number ??
+            rows[opened].batch?.number ??
+            "Учётная запись"
+          }
+          onClose={() => setOpened(null)}
+        >
+          <div
+            onClick={(e) => {
+              if ((e.target as HTMLElement).closest("button")) setOpened(null);
+            }}
+          >
+            {renderRecord(rows[opened], opened)}
+          </div>
+        </RecordDrawer>
       )}
       {trace && (
         <section className="panel">

@@ -103,13 +103,15 @@ export async function webRequest<T>(
     window.dispatchEvent(new Event("bioflow:expired"));
   if (!response.ok)
     throw Error(
-      Array.isArray(body.error?.message)
-        ? body.error.message.map(readableError).join("; ")
-        : readableError(
-            body.error?.message ??
-              body.message ??
-              "Не удалось выполнить запрос",
-          ),
+      response.status === 429
+        ? "Слишком много запросов. Подождите минуту и повторите попытку."
+        : Array.isArray(body.error?.message)
+          ? body.error.message.map(readableError).join("; ")
+          : readableError(
+              body.error?.message ??
+                body.message ??
+                "Не удалось выполнить запрос",
+            ),
     );
   if (
     init.method &&
