@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
+import { QrScanner } from "./qr-scanner";
 import { webRequest, networkFetch } from "./session";
 import { createCommandId } from "./command-id.mjs";
 import { isMobileWorkspace, mobileNotify, printQr } from "./mobile-bridge";
@@ -17,7 +18,8 @@ import { weightPreview, decimalError } from "./weight-preview.mjs";
 type Row = Record<string, any>;
 const UploadState = createContext<(busy: boolean) => void>(() => {});
 export const labels: Record<string, string> = {
-  LOADED: "Готов к выезду",
+  CREATED: "Ожидает загрузки",
+  LOADED: "Загрузился",
   IN_TRANSIT: "В пути",
   ARRIVED: "Прибыл",
   ACCEPTED: "Принят",
@@ -549,33 +551,43 @@ export function QrCards({ items }: { items: Row[] }) {
 }
 export function QrInput({ onScan }: { onScan: (qr: string) => Promise<void> }) {
   const [qr, setQr] = useState("");
+  const [scanner, setScanner] = useState(false);
   return (
-    <ActionForm
-      title="Открыть партию по QR"
-      submit="Открыть партию"
-      onSubmit={async () => {
-        await onScan(qr);
-      }}
-    >
-      {isMobileWorkspace() && (
-        <button
-          type="button"
-          className="button"
-          onClick={() => mobileNotify({ action: "scanQr" })}
-        >
-          Сканировать камерой
-        </button>
+    <>
+      <ActionForm
+        title="Открыть партию по QR"
+        submit="Открыть партию"
+        onSubmit={async () => {
+          await onScan(qr);
+        }}
+      >
+        {
+          <button
+            type="button"
+            className="button"
+            onClick={() =>
+              isMobileWorkspace()
+                ? mobileNotify({ action: "scanQr" })
+                : setScanner(true)
+            }
+          >
+            Сканировать камерой
+          </button>
+        }
+        <label>
+          QR-код
+          <input
+            required
+            value={qr}
+            onChange={(e) => setQr(e.target.value.trim())}
+            placeholder="Сканируйте или вставьте код"
+          />
+        </label>
+      </ActionForm>
+      {scanner && (
+        <QrScanner onScan={onScan} onClose={() => setScanner(false)} />
       )}
-      <label>
-        QR-код
-        <input
-          required
-          value={qr}
-          onChange={(e) => setQr(e.target.value.trim())}
-          placeholder="Сканируйте или вставьте код"
-        />
-      </label>
-    </ActionForm>
+    </>
   );
 }
 export function CollectionPanel({ token }: { token: string }) {
@@ -799,55 +811,8 @@ export function CollectionPanel({ token }: { token: string }) {
     </div>
   );
 }
-export function DriverPanel({ token }: { token: string }) {
-  const qc = useQueryClient();
-  const q = useQuery({
-    queryKey: ["driver-trips", token],
-    queryFn: () => webRequest<Row>("/tracking/trips?pageSize=100", token),
-    refetchInterval: 30000,
-  });
-  return (
-    <div className="workflow-stack">
-      <p>
-        Для фоновой передачи GPS используйте Android-приложение Collection и
-        разрешите точную геолокацию.
-      </p>
-      {q.error && <p className="error">{q.error.message}</p>}
-      {q.data?.data.map((r: Row) => (
-        <article className="panel" key={r.id}>
-          <h2>{r.vehicle.plateNumber}</h2>
-          <p>
-            {r.number} · {labels[r.status] ?? r.status}
-          </p>
-          <p>
-            {r.bagCount ?? "—"} мешков · {tonnes(r.declaredWeight)} ·{" "}
-            {r.destinationWarehouse.name}
-          </p>
-          {["LOADED", "IN_TRANSIT"].includes(r.status) && (
-            <ActionForm
-              title="Статус рейса"
-              submit={r.status === "LOADED" ? "Выезжаю" : "Прибыл"}
-              onSubmit={async (_, key) => {
-                await webRequest(`/tracking/trips/${r.id}/status`, token, {
-                  method: "POST",
-                  body: JSON.stringify({
-                    status: r.status === "LOADED" ? "IN_TRANSIT" : "ARRIVED",
-                  }),
-                });
-                await qc.invalidateQueries({ queryKey: ["driver-trips"] });
-              }}
-            >
-              <p>
-                Будет сохранено время{" "}
-                {r.status === "LOADED" ? "выезда" : "прибытия"}.
-              </p>
-            </ActionForm>
-          )}
-        </article>
-      ))}
-    </div>
-  );
-}
+export { DriverPanel } from "./driver-panel";
+
 export function EvidenceFiles({
   token,
   files,

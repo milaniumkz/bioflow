@@ -335,11 +335,40 @@ class _RoleHomeState extends State<RoleHome> with WidgetsBindingObserver {
                   Text(
                       '${trip['bagCount'] ?? '—'} мешков · ${trip['declaredWeight']} т'),
                   const SizedBox(height: 16),
+                  if (trip['loadedAt'] != null)
+                    Text(
+                        'Загрузился: ${DateTime.tryParse(trip['loadedAt'].toString())?.toLocal() ?? trip['loadedAt']}'),
+                  if (trip['departedAt'] != null)
+                    Text(
+                        'Выехал: ${DateTime.tryParse(trip['departedAt'].toString())?.toLocal() ?? trip['departedAt']}'),
+                  if (trip['arrivedAt'] != null)
+                    Text(
+                        'Прибыл: ${DateTime.tryParse(trip['arrivedAt'].toString())?.toLocal() ?? trip['arrivedAt']}'),
                   Text(status == 'IN_TRANSIT'
                       ? 'В пути'
-                      : status == 'LOADED'
-                          ? 'Готов к выезду'
-                          : 'Рейс завершён'),
+                      : status == 'CREATED'
+                          ? 'Ожидает загрузки'
+                          : status == 'LOADED'
+                              ? 'Готов к выезду'
+                              : 'Рейс завершён'),
+                  if (status == 'CREATED' && trip['bagCount'] != null) ...[
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: busy
+                          ? null
+                          : () => command(() async {
+                                if (!await requestLocation()) {
+                                  throw StateError(
+                                      'Разрешите точное местоположение перед началом рейса.');
+                                }
+                                await api.send('/tracking/trips/$id/status',
+                                    {'status': 'LOADED'},
+                                    queue: false);
+                              }),
+                      icon: const Icon(Icons.check_circle_outline),
+                      label: const Text('Загрузился'),
+                    ),
+                  ],
                   if (['LOADED', 'IN_TRANSIT'].contains(status)) ...[
                     const SizedBox(height: 12),
                     FilledButton.icon(
@@ -362,7 +391,7 @@ class _RoleHomeState extends State<RoleHome> with WidgetsBindingObserver {
                                 }),
                         icon: const Icon(Icons.location_on),
                         label: Text(status == 'LOADED'
-                            ? 'Выезжаю · включить геолокацию'
+                            ? 'Выехал · включить геолокацию'
                             : 'Включить / продолжить геолокацию')),
                     if (status == 'IN_TRANSIT')
                       OutlinedButton(

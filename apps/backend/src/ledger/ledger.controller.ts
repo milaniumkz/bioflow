@@ -119,6 +119,12 @@ export class LedgerController {
   ) {
     return this.ledger.unload(id, d, u);
   }
+  @Permissions("inventory.read") @Post("qr/view") viewQr(
+    @Body() d: ResolveQrDto,
+    @User() u: CurrentUser,
+  ) {
+    return this.ledger.resolve(d.token, u);
+  }
   @Permissions("waybills.accept") @Post("qr/resolve") resolve(
     @Body() d: ResolveQrDto,
     @User() u: CurrentUser,

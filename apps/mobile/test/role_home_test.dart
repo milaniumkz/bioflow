@@ -11,10 +11,12 @@ class HomeAdapter implements HttpClientAdapter {
   HomeAdapter({this.trips = const []});
   final List<dynamic> trips;
   final paths = <String>[];
+  final requests = <RequestOptions>[];
   @override
   Future<ResponseBody> fetch(RequestOptions options, Stream<Uint8List>? stream,
       Future<void>? cancel) async {
     paths.add(options.path);
+    requests.add(options);
     return ResponseBody.fromString(
         jsonEncode({
           'data': options.path.startsWith('/tracking/trips') ? trips : [],
@@ -94,6 +96,62 @@ void main() {
       await tester.pumpAndSettle();
     });
   }
+  testWidgets(
+      'new driver trip offers loading before departure and requests location',
+      (tester) async {
+    var starts = 0;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      if (call.method == 'status') return {'running': false};
+      if (call.method == 'start') {
+        starts++;
+        return null;
+      }
+      return true;
+    });
+    final adapter = HomeAdapter(trips: [
+      {
+        'id': 'new-trip',
+        'number': 'WB-NEW',
+        'status': 'CREATED',
+        'bagCount': 10,
+        'declaredWeight': '1',
+        'vehicle': {'plateNumber': 'TEST'},
+        'destinationWarehouse': {'name': 'Мойка'}
+      }
+    ]);
+    final client = BioflowClient()
+      ..profile = {
+        'id': 'new-driver',
+        'fullName': 'Водитель',
+        'roles': ['DRIVER'],
+        'permissions': ['tracking.write']
+      };
+    client.dio.httpClientAdapter = adapter;
+    await tester.pumpWidget(
+        MaterialApp(home: RoleHome(client: client, onLogout: () {})));
+    await tester.pumpAndSettle();
+    expect(find.text('Прибыл'), findsNothing);
+    expect(find.text('Выехал · включить геолокацию'), findsNothing);
+    await tester.scrollUntilVisible(find.text('Загрузился'), 180,
+        scrollable: find.byType(Scrollable).first);
+    await tester.drag(find.byType(ListView).first, const Offset(0, -220));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Загрузился'));
+    await tester.pumpAndSettle();
+    expect(find.text('Разрешить геолокацию'), findsOneWidget);
+    await tester.tap(find.text('Разрешить геолокацию'));
+    await tester.pumpAndSettle();
+    expect(
+        adapter.requests
+            .where((r) => r.path.endsWith('/status'))
+            .single
+            .data['status'],
+        'LOADED');
+    expect(starts, 0);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpAndSettle();
+  });
   testWidgets('denied precise location does not start a trip or tracking',
       (tester) async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -124,11 +182,11 @@ void main() {
         MaterialApp(home: RoleHome(client: client, onLogout: () {})));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-        find.text('Выезжаю · включить геолокацию'), 180,
+        find.text('Выехал · включить геолокацию'), 180,
         scrollable: find.byType(Scrollable).first);
     await tester.drag(find.byType(ListView).first, const Offset(0, -180));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Выезжаю · включить геолокацию'));
+    await tester.tap(find.text('Выехал · включить геолокацию'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Разрешить геолокацию'));
     await tester.pumpAndSettle();

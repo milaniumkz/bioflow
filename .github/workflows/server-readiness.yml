@@ -7,6 +7,11 @@ on:
         type: choice
         required: true
         options: [inspect, verify-backup, enable-https]
+      domain:
+        description: "HTTPS hostname pointing at this server"
+        type: choice
+        default: collection.109.235.118.171.sslip.io
+        options: [collection.109.235.118.171.sslip.io, bio.app.kz]
 permissions:
   contents: read
 concurrency:
@@ -25,6 +30,7 @@ jobs:
       SSHPASS: ${{ secrets.PROD_SSH_PASSWORD }}
       PROD_SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
       OPERATION: ${{ inputs.operation }}
+      HTTPS_DOMAIN: ${{ inputs.domain || 'collection.109.235.118.171.sslip.io' }}
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update -qq && sudo apt-get install -y sshpass
@@ -32,12 +38,13 @@ jobs:
         if: inputs.operation == 'inspect'
         run: |
           source infrastructure/ci-ssh.sh
-          bioflow_ssh 'bash -s' <<'REMOTE'
+          bioflow_ssh bash -s -- "$HTTPS_DOMAIN" <<'REMOTE'
           set -euo pipefail
           echo "deployed=$(cat /opt/bioflow-test/current/DEPLOYED_COMMIT)"
-          getent ahostsv4 bio.app.kz || echo 'DNS bio.app.kz: missing'
+          domain=$1
+          getent ahostsv4 "$domain" || echo "DNS $domain: missing"
           echo 'Public DNS (independent of server /etc/hosts):'
-          curl --fail --silent --show-error --max-time 20 -H 'Accept: application/dns-json' 'https://cloudflare-dns.com/dns-query?name=bio.app.kz&type=A' || echo 'Public DNS query unavailable'
+          curl --fail --silent --show-error --max-time 20 -H 'Accept: application/dns-json' "https://cloudflare-dns.com/dns-query?name=$domain&type=A" || echo 'Public DNS query unavailable'
           echo
           systemctl is-active bioflow-test-backup.timer
           echo "paired_file_backups=$(find /opt/bioflow-test/backups -maxdepth 1 -name 'bioflow-test-*-files.tgz' -type f | wc -l)"
@@ -55,6 +62,6 @@ jobs:
           bioflow_scp infrastructure/nginx/test-server-https.conf "$PROD_SSH_USER@$PROD_SSH_HOST:$target/nginx/"
           case "$OPERATION" in
             verify-backup) bioflow_ssh bash "$target/verify-test-backup.sh" ;;
-            enable-https) bioflow_ssh bash "$target/enable-test-https.sh" ;;
+            enable-https) bioflow_ssh bash "$target/enable-test-https.sh" "$HTTPS_DOMAIN" ;;
             *) exit 2 ;;
           esac

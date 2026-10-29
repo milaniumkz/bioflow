@@ -245,6 +245,11 @@ class FullWorkspaceState extends State<FullWorkspace> {
           await finish(true);
         case 'sessionEnded':
           await finish(false);
+        case 'driverHome':
+          if ((widget.client.profile?['roles'] as List? ?? [])
+              .contains('DRIVER')) {
+            await finish(false);
+          }
         case 'close':
           await finish(false);
         case 'scanQr':

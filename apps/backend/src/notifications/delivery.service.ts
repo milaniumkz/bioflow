@@ -1,3 +1,4 @@
+import { sendBrowserPush, webPushReady } from "./web-push";
 import { pushSummary } from "./push-summary";
 import {
   Injectable,
@@ -33,7 +34,8 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     this.running = true;
     try {
       await this.reminders();
-      if (process.env.FCM_SERVICE_ACCOUNT_FILE) await this.deliver();
+      if (process.env.FCM_SERVICE_ACCOUNT_FILE || webPushReady())
+        await this.deliver();
     } catch {
       this.logger.warn(
         "Notification worker failed; pending deliveries will retry",
@@ -139,15 +141,26 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     return result.access_token;
   }
   private async deliver() {
-    const credentials = JSON.parse(
-      readFileSync(process.env.FCM_SERVICE_ACCOUNT_FILE!, "utf8"),
-    ) as Credentials;
+    const credentials = process.env.FCM_SERVICE_ACCOUNT_FILE
+      ? (JSON.parse(
+          readFileSync(process.env.FCM_SERVICE_ACCOUNT_FILE, "utf8"),
+        ) as Credentials)
+      : undefined;
     if (
-      !credentials.project_id ||
-      !credentials.client_email ||
-      !credentials.private_key
+      credentials &&
+      (!credentials.project_id ||
+        !credentials.client_email ||
+        !credentials.private_key)
     )
-      throw new Error("Invalid FCM credentials");
+      throw Error("Invalid FCM credentials");
+    const webDeviceIds = credentials
+      ? undefined
+      : (
+          await this.prisma.device.findMany({
+            where: { platform: "WEB_PUSH", pushToken: { not: null } },
+            select: { id: true },
+          })
+        ).map((d) => d.id);
     await this.prisma.pushDelivery.updateMany({
       where: {
         status: "PROCESSING",
@@ -156,7 +169,11 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
       data: { status: "PENDING" },
     });
     const pending = await this.prisma.pushDelivery.findMany({
-      where: { status: "PENDING", attempts: { lt: 10 } },
+      where: {
+        status: "PENDING",
+        attempts: { lt: 10 },
+        ...(webDeviceIds ? { deviceId: { in: webDeviceIds } } : {}),
+      },
       orderBy: { createdAt: "asc" },
       take: 50,
     });
@@ -180,6 +197,18 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
         continue;
       }
       try {
+        if (device.platform === "WEB_PUSH") {
+          await sendBrowserPush(device.pushToken, {
+            ...pushSummary(notice),
+            notificationId: notice.id,
+          });
+          await this.prisma.pushDelivery.update({
+            where: { id: delivery.id },
+            data: { status: "SENT", deliveredAt: new Date(), lastError: null },
+          });
+          continue;
+        }
+        if (!credentials) throw Error("FCM not configured");
         const response = await fetch(
           `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(credentials.project_id)}/messages:send`,
           {
@@ -209,10 +238,25 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
                 lastError: `FCM HTTP ${response.status}`,
               },
         });
-      } catch {
+      } catch (error) {
+        const expired =
+          device.platform === "WEB_PUSH" &&
+          [404, 410].includes(
+            Number((error as { statusCode?: number })?.statusCode),
+          );
+        if (expired)
+          await this.prisma.device.update({
+            where: { id: device.id },
+            data: { pushToken: null },
+          });
         await this.prisma.pushDelivery.update({
           where: { id: delivery.id },
-          data: { status: "PENDING", lastError: "Delivery unavailable" },
+          data: {
+            status: expired ? "FAILED" : "PENDING",
+            lastError: expired
+              ? "Browser subscription expired"
+              : "Delivery unavailable",
+          },
         });
       }
     }

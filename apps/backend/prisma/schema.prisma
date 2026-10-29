@@ -256,6 +256,7 @@ model ProductType {
 }
 
 model Waybill {
+  loadedAt DateTime?
   departedAt DateTime?
   arrivedAt DateTime?
   bagCount Int?

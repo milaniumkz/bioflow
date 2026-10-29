@@ -277,6 +277,25 @@
         ]
       }
     },
+    "/api/v1/ledger/qr/view": {
+      "post": {
+        "operationId": "LedgerController_viewQr",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
     "/api/v1/ledger/qr/resolve": {
       "post": {
         "operationId": "LedgerController_resolve",
@@ -1833,6 +1852,44 @@
         ],
         "tags": [
           "reports"
+        ]
+      }
+    },
+    "/api/v1/notifications/browser-push-key": {
+      "get": {
+        "operationId": "NotificationsController_browserPushKey",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/browser-push": {
+      "post": {
+        "operationId": "NotificationsController_browserPush",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
         ]
       }
     },

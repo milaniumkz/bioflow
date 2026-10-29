@@ -502,8 +502,7 @@ export class LedgerService {
           actualWeight: quantity,
           documentDate: new Date(dto.measuredAt),
           qrTokenHash: hash(qrToken),
-          status: "IN_TRANSIT",
-          departedAt: new Date(),
+          status: "CREATED",
           createdById: user.id,
         },
       });

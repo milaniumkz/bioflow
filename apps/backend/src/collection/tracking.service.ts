@@ -102,6 +102,7 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
       select: {
         id: true,
         status: true,
+        loadedAt: true,
         departedAt: true,
         arrivedAt: true,
         acceptedAt: true,
@@ -166,6 +167,7 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
         movingSeconds: Math.max(0, observedSeconds - stoppedSeconds),
         signalGapSeconds,
         distanceKm: Number((distance / 1000).toFixed(3)),
+        loadedAt: trip.loadedAt,
         departedAt: trip.departedAt,
         arrivedAt: trip.arrivedAt,
       },
@@ -439,7 +441,7 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
   }
   async status(
     id: string,
-    status: "IN_TRANSIT" | "ARRIVED",
+    status: "LOADED" | "IN_TRANSIT" | "ARRIVED",
     user: CurrentUser,
   ) {
     return this.transaction(async (tx) => {
@@ -449,6 +451,11 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
       if (!trip) throw new NotFoundException("Вам не назначен этот рейс");
       if (trip.status === status) return { ok: true, status };
       if (
+        !(
+          status === "LOADED" &&
+          trip.status === "CREATED" &&
+          trip.bagCount !== null
+        ) &&
         !(status === "IN_TRANSIT" && trip.status === "LOADED") &&
         !(status === "ARRIVED" && trip.status === "IN_TRANSIT")
       )
@@ -457,9 +464,11 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
         where: { id },
         data: {
           status,
-          ...(status === "IN_TRANSIT"
-            ? { departedAt: new Date() }
-            : { arrivedAt: new Date() }),
+          ...(status === "LOADED"
+            ? { loadedAt: new Date() }
+            : status === "IN_TRANSIT"
+              ? { departedAt: new Date() }
+              : { arrivedAt: new Date() }),
           version: { increment: 1 },
         },
       });

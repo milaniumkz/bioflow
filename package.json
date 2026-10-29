@@ -33,6 +33,10 @@
     },
     "@istanbuljs/load-nyc-config": {
       "js-yaml": "4.3.2"
+    },
+    "multer": "2.5.0",
+    "@nestjs/platform-express": {
+      "multer": "2.5.0"
     }
   }
 }
