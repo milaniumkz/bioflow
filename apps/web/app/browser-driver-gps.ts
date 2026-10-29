@@ -136,7 +136,7 @@ export function startBrowserGps(
   const current = ++generation;
   let last = 0;
   const sample = (position: GeolocationPosition) => {
-    if (current !== generation) return;
+    if (current !== generation || watch === undefined) return;
     if (position.coords.accuracy > 50) {
       notify(
         "Ожидаем точную геопозицию до 50 м. Включите точное местоположение и GPS.",
@@ -169,7 +169,19 @@ export function startBrowserGps(
   );
   window.removeEventListener("bioflow:expired", stopBrowserGps);
   window.addEventListener("bioflow:expired", stopBrowserGps);
-  timer = setInterval(() => void flushBrowserGps(token), 30000);
+  timer = setInterval(() => {
+    // Some browsers do not emit watchPosition callbacks while stationary.
+    if (watch !== undefined)
+      navigator.geolocation.getCurrentPosition(
+        sample,
+        () =>
+          notify(
+            "Ожидаем свежую геопозицию. Проверьте GPS и разрешение браузера.",
+          ),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 25000 },
+      );
+    void flushBrowserGps(token);
+  }, 30000);
   notify("Геолокация включена. Не закрывайте и не сворачивайте браузер.");
   sample(first);
 }
