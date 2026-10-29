@@ -101,7 +101,7 @@ p.write_text('\n'.join(result)+'\n');p.chmod(0o600)
 PY
 # VAPID keys remain outside releases; never print or rotate an existing pair.
 if ! grep -q '^WEB_PUSH_PRIVATE_KEY=' "$shared/server.env"; then
-  keys=$("${compose[@]}" exec -T backend node -e 'const {createRequire}=require("node:module");const r=createRequire(process.cwd()+"/apps/backend/package.json");process.stdout.write(JSON.stringify(r("web-push").generateVAPIDKeys()))')
+  keys=$("${compose[@]}" exec -T backend node -e 'const c=require("node:crypto").createECDH("prime256v1");c.generateKeys();const p=c.getPrivateKey();process.stdout.write(JSON.stringify({publicKey:c.getPublicKey().toString("base64url"),privateKey:Buffer.concat([Buffer.alloc(Math.max(0,32-p.length)),p]).toString("base64url")}))')
   WEB_PUSH_KEYS="$keys" python3 - "$shared/server.env" "$domain" <<'PY'
 import json,os,sys
 from pathlib import Path
