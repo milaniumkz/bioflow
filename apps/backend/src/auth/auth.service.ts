@@ -98,6 +98,10 @@ export class AuthService {
   }
 
   async logoutAll(userId: string) {
+    await this.prisma.device.updateMany({
+      where: { userId, platform: "WEB_PUSH" },
+      data: { pushToken: null },
+    });
     await this.prisma.refreshToken.updateMany({
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },

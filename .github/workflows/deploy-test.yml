@@ -63,7 +63,7 @@ jobs:
       - name: Verify public web and API
         run: |
           curl --fail --silent --show-error http://109.235.118.171/api/v1/health
-          curl --fail --silent --show-error http://109.235.118.171/ > /tmp/bioflow-page.html
+          curl --location --fail --silent --show-error http://109.235.118.171/ > /tmp/bioflow-page.html
           grep -q '<title>Collection</title>' /tmp/bioflow-page.html
           grep -q '/branding/collection-symbol.png' /tmp/bioflow-page.html
           curl --fail --silent --show-error http://109.235.118.171/branding/icon-192.png -o /tmp/collection-icon.png

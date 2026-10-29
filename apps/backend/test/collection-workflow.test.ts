@@ -236,6 +236,23 @@ test(
           { ...driverActor, id: collector.id },
         ),
       );
+      assert.equal(trip.status, "CREATED");
+      assert.equal(trip.departedAt, null);
+      await assert.rejects(tracking.status(trip.id, "ARRIVED", driverActor));
+      await assert.rejects(tracking.status(trip.id, "IN_TRANSIT", driverActor));
+      await tracking.status(trip.id, "LOADED", driverActor);
+      const loaded = await p.waybill.findUniqueOrThrow({
+        where: { id: trip.id },
+      });
+      assert.ok(loaded.loadedAt);
+      assert.equal(loaded.departedAt, null);
+      await tracking.status(trip.id, "LOADED", driverActor);
+      assert.equal(
+        (
+          await p.waybill.findUniqueOrThrow({ where: { id: trip.id } })
+        ).loadedAt?.getTime(),
+        loaded.loadedAt.getTime(),
+      );
       await tracking.status(trip.id, "IN_TRANSIT", driverActor);
       const now = Date.now();
       await p.waybill.update({
@@ -728,6 +745,8 @@ test(
         { ...dispatch, idempotencyKey: key() },
         collector,
       )) as any;
+      await tracking.status(deviationTrip.id, "LOADED", driverActor);
+      await tracking.status(deviationTrip.id, "IN_TRANSIT", driverActor);
       await processing.receive(
         deviationTrip.id,
         {
@@ -816,6 +835,8 @@ test(
         { ...dispatch, idempotencyKey: key(), quantity: "0.412", bagCount: 14 },
         collector,
       );
+      await tracking.status(fractionalTrip.id, "LOADED", driverActor);
+      await tracking.status(fractionalTrip.id, "IN_TRANSIT", driverActor);
       await processing.receive(
         fractionalTrip.id,
         {
@@ -850,6 +871,7 @@ test(
         { ...dispatch, idempotencyKey: key(), quantity: "1", bagCount: 10 },
         collector,
       )) as any;
+      await tracking.status(routeTrip.id, "LOADED", driverActor);
       await tracking.status(routeTrip.id, "IN_TRANSIT", driverActor);
       await p.waybill.update({
         where: { id: routeTrip.id },

@@ -1445,7 +1445,14 @@ export class ProcessingService extends LedgerService {
     }));
     return {
       collected: sourceTotals._sum.initialQuantity ?? new Prisma.Decimal(0),
-      sent: sum(trips.map((t) => t.declaredWeight)),
+      sent: sum(
+        trips
+          .filter(
+            (t) =>
+              !["DRAFT", "CREATED", "LOADED", "CANCELLED"].includes(t.status),
+          )
+          .map((t) => t.declaredWeight),
+      ),
       received: sum(
         trips.map((t) => t.receivedWeight ?? new Prisma.Decimal(0)),
       ),
@@ -1475,6 +1482,14 @@ export class ProcessingService extends LedgerService {
       deviations: runs.filter((r) => r.deviation !== "NORMAL").length,
       normTotalLossPercent: 51,
       currentStages: [
+        {
+          label: "Ожидают загрузки или выезда",
+          quantity: sum(
+            trips
+              .filter((t) => ["CREATED", "LOADED"].includes(t.status))
+              .map((t) => t.declaredWeight),
+          ),
+        },
         {
           label: "На местах сбора: ещё не отправлено",
           quantity:

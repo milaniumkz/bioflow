@@ -1,4 +1,6 @@
 "use client";
+import { BrowserPush } from "./browser-push";
+import { QrScanner } from "./qr-scanner";
 import { AuditChanges } from "./audit-changes";
 
 import {
@@ -2939,7 +2941,8 @@ function App() {
   useEffect(() => {
     const change = (e: Event) => {
       const form = (e.target as HTMLElement).closest("form, .formGrid");
-      if (form) dirty.forms.add(form);
+      if (form && !form.hasAttribute("data-transient-form"))
+        dirty.forms.add(form);
     };
     const saved = (event: Event) => {
       const form = (event as CustomEvent<{ form?: Element }>).detail?.form;
@@ -3057,6 +3060,8 @@ function App() {
   const permissions: string[] = profile.data?.permissions ?? [];
   const [section, setSection] = useState("dashboard");
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [qrRecord, setQrRecord] = useState<any>(null);
   const allowed = (id: string): boolean =>
     id === "driver"
       ? permissions.includes("tracking.write") &&
@@ -3156,6 +3161,43 @@ function App() {
     navigation.index++;
     window.history.pushState({ bioflowIndex: navigation.index }, "", `#${id}`);
   };
+  const homeSection =
+    sections.find(
+      ([id]) => allowed(id) && !["sessions", "notifications"].includes(id),
+    )?.[0] ?? "sessions";
+  async function scannedParty(qr: string) {
+    if (!discardChanges())
+      throw Error(
+        "Переход отменён. Введённые данные сохранены в открытой форме.",
+      );
+    if (permissions.includes("processing.read")) {
+      // Resolve before leaving the current screen so unknown QR stays retryable.
+      await request("/processing/scan", token, {
+        method: "POST",
+        body: JSON.stringify({ token: qr }),
+      });
+      dirty.value = false;
+      setInitialQr({ token: qr, nonce: Date.now() });
+      navigate("processing");
+    } else if (profile.data?.roles?.includes("DRIVER")) {
+      await request("/tracking/scan", token, {
+        method: "POST",
+        body: JSON.stringify({ token: qr }),
+      });
+      dirty.value = false;
+      navigate("driver");
+    } else if (permissions.includes("inventory.read")) {
+      const record = await request<any>("/ledger/qr/view", token, {
+        method: "POST",
+        body: JSON.stringify({ token: qr }),
+      });
+      setQrRecord(record);
+    } else {
+      throw Error(
+        "Работа с QR партии недоступна вашей роли. Обратитесь к владельцу для назначения доступа.",
+      );
+    }
+  }
   const title = sections.find(([id]) => id === section)?.[1] ?? "Обзор";
   useEffect(() => {
     if (!isMobileWorkspace()) return;
@@ -3166,13 +3208,28 @@ function App() {
     window.addEventListener("bioflow:mobile-section", change);
     return () => window.removeEventListener("bioflow:mobile-section", change);
   });
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const opened = (event: MessageEvent) => {
+      if (
+        event.data?.type === "collection:notification" &&
+        allowed("notifications")
+      )
+        navigate("notifications");
+    };
+    navigator.serviceWorker.addEventListener("message", opened);
+    return () => navigator.serviceWorker.removeEventListener("message", opened);
+  });
   if (!token)
     return (
       <Login
         onToken={(next) => {
           void queryClient.cancelQueries();
           queryClient.clear();
-          setSection("control");
+          const target = window.location.hash.slice(1);
+          setSection(
+            sections.some(([id]) => id === target) ? target : "control",
+          );
           setToken(next);
         }}
       />
@@ -3399,6 +3456,11 @@ function App() {
               <LogOut size={16} /> Выйти
             </button>
           </div>
+          {!isMobileWorkspace() &&
+            ["notifications", "sessions"].includes(section) &&
+            permissions.includes("notifications.read") && (
+              <BrowserPush token={token} />
+            )}
           {!allowed(section) ? (
             <p>Загрузка доступного раздела…</p>
           ) : section === "driver" ? (
@@ -3481,6 +3543,84 @@ function App() {
           )}
         </div>
       </main>
+      {!isMobileWorkspace() && (
+        <nav className="role-bottom-nav" aria-label="Главное меню">
+          <button
+            type="button"
+            aria-current={section === homeSection ? "page" : undefined}
+            onClick={() => navigate(homeSection)}
+          >
+            <LayoutDashboard size={23} />
+            <span>Главная</span>
+          </button>
+          <button
+            type="button"
+            className="bottom-qr"
+            onClick={() => setScannerOpen(true)}
+          >
+            <QrCode size={28} />
+            <span>QR-сканер</span>
+          </button>
+          <button
+            type="button"
+            aria-current={section === "sessions" ? "page" : undefined}
+            onClick={() => navigate("sessions")}
+          >
+            <Users size={23} />
+            <span>Профиль</span>
+          </button>
+        </nav>
+      )}
+      {qrRecord && (
+        <RecordDrawer
+          title={`Партия по QR: ${qrRecord.number}`}
+          onClose={() => setQrRecord(null)}
+        >
+          <dl className="confirmation-list">
+            <div>
+              <dt>Номер</dt>
+              <dd>{qrRecord.number}</dd>
+            </div>
+            <div>
+              <dt>Статус</dt>
+              <dd>{fieldLabel(qrRecord.status)}</dd>
+            </div>
+            <div>
+              <dt>Вес, т</dt>
+              <dd>
+                {qrRecord.actualWeight ??
+                  qrRecord.initialQuantity ??
+                  qrRecord.declaredWeight ??
+                  "—"}
+              </dd>
+            </div>
+            <div>
+              <dt>Транспорт</dt>
+              <dd>{qrRecord.vehicle?.plateNumber ?? "—"}</dd>
+            </div>
+            <div>
+              <dt>Склад</dt>
+              <dd>{qrRecord.destinationWarehouse?.name ?? "—"}</dd>
+            </div>
+          </dl>
+          <p>Доступные операции находятся в реестре вашей роли.</p>
+          <button
+            className="button"
+            onClick={() => {
+              setQrRecord(null);
+              navigate("ledger");
+            }}
+          >
+            Открыть реестр партий
+          </button>
+        </RecordDrawer>
+      )}
+      {scannerOpen && (
+        <QrScanner
+          onScan={scannedParty}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
     </div>
   );
 }

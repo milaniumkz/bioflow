@@ -77,6 +77,7 @@ export function FleetPanel({
                 {r.number} · {tonnes(r.declaredWeight)} · {r.bagCount ?? "—"}{" "}
                 мешков
               </p>
+              <p>Загрузился: {dateTime(r.loadedAt)}</p>
               <p>Выезд: {dateTime(r.departedAt)}</p>
               <p>
                 Последняя геопозиция: {dateTime(r.routePoints[0]?.recordedAt)}

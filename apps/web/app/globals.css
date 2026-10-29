@@ -1241,3 +1241,57 @@ html[data-mobile-app="true"] .workspace-content {
   overflow-wrap: anywhere;
   margin: 6px 0;
 }
+
+/* Shared role navigation for browser users; the native shell owns its bar. */
+.role-bottom-nav {
+  position: fixed;
+  z-index: 60;
+  bottom: 0;
+  left: 260px;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  background: #fff;
+  border-top: 1px solid var(--line, #e3e9e2);
+}
+.role-bottom-nav button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 80px;
+  min-height: 56px;
+  border: 0;
+  background: transparent;
+  color: #586b61;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.role-bottom-nav button[aria-current="page"] {
+  color: #124d3e;
+  font-weight: 700;
+}
+.role-bottom-nav .bottom-qr {
+  color: #124d3e;
+}
+.workspace-content {
+  padding-bottom: calc(110px + env(safe-area-inset-bottom));
+}
+.qr-camera {
+  width: 100%;
+  max-height: 50dvh;
+  border-radius: 16px;
+  object-fit: cover;
+  background: #172b25;
+}
+.qr-camera[hidden] {
+  display: none;
+}
+@media (max-width: 900px) {
+  .role-bottom-nav {
+    left: 0;
+  }
+}

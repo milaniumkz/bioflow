@@ -1,0 +1,1 @@
+ALTER TABLE "Waybill" ADD COLUMN "loadedAt" TIMESTAMP(3);

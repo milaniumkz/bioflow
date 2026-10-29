@@ -17,7 +17,8 @@ import {
 } from "./collection.dto";
 import { TrackingService } from "./tracking.service";
 class DriverStatusDto {
-  @IsIn(["IN_TRANSIT", "ARRIVED"]) status!: "IN_TRANSIT" | "ARRIVED";
+  @IsIn(["LOADED", "IN_TRANSIT", "ARRIVED"]) status!:
+    "LOADED" | "IN_TRANSIT" | "ARRIVED";
 }
 @ApiTags("collection")
 @ApiBearerAuth()
