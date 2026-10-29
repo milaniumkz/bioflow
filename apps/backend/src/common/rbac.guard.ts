@@ -47,6 +47,8 @@ export class RbacGuard implements CanActivate {
         "/product-types",
         "/reference-values",
         "/notifications",
+        "/notifications/browser-push-key",
+        "/notifications/browser-push",
       ].includes(path) &&
       !/^\/notifications\/[^/]+\/read$/.test(path)
     )
