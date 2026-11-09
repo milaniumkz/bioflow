@@ -418,6 +418,12 @@ const scenarios = [
         .getAttribute("src");
       const png = PNG.sync.read(Buffer.from(src.split(",")[1], "base64"));
       assert.equal(
+        png.width,
+        png.height,
+        "Existing Android print bridge requires a square PNG",
+      );
+      assert(png.width <= 2048);
+      assert.equal(
         jsqr(new Uint8ClampedArray(png.data), png.width, png.height).data,
         "bag-1",
       );

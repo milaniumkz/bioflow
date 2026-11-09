@@ -33,31 +33,31 @@ export async function printableQr(row: Record<string, any>) {
   image.src = row.qrImage;
   await image.decode();
   const canvas = document.createElement("canvas");
-  canvas.width = 640;
+  canvas.width = 800;
   canvas.height = 800;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw Error("Не удалось подготовить QR к печати");
   ctx.fillStyle = "white";
-  ctx.fillRect(0, 0, 640, 800);
+  ctx.fillRect(0, 0, 800, 800);
   ctx.fillStyle = "black";
   ctx.textAlign = "center";
   ctx.font = "bold 32px sans-serif";
-  ctx.fillText(qrLabel(row), 320, 50, 600);
+  ctx.fillText(qrLabel(row), 400, 50, 600);
   const source = row.sourceNumber
     ? recordLabel(row.sourceNumber)
     : row.ordinal != null
       ? recordLabel(row.number)
       : "";
   ctx.font = "24px sans-serif";
-  ctx.fillText(source, 320, 91, 600);
+  ctx.fillText(source, 400, 91, 600);
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(image, 40, 115, 560, 560);
+  ctx.drawImage(image, 120, 115, 560, 560);
   ctx.font = "20px sans-serif";
-  ctx.fillText(qrStageLabel(row), 320, 706, 600);
+  ctx.fillText(qrStageLabel(row), 400, 706, 600);
   ctx.font = "24px sans-serif";
   ctx.fillText(
     `${Number(row.initialQuantity ?? row.declaredWeight ?? 0).toLocaleString("ru-RU")} т`,
-    320,
+    400,
     748,
     600,
   );
