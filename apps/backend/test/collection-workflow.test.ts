@@ -611,15 +611,17 @@ test(
       );
 
       await assert.rejects(
-        processing.pack(
-          dry.outputs[0].id,
-          {
-            idempotencyKey: key(),
-            workDate: new Date().toISOString().slice(0, 10),
-            shift: "Дневная",
-          },
-          finished,
-        ),
+        async () =>
+          processing.pack(
+            dry.outputs[0].id,
+            {
+              idempotencyKey: key(),
+              workDate: new Date().toISOString().slice(0, 10),
+              shift: "Дневная",
+            },
+            finished,
+          ),
+        /Недостаточно прав/,
       );
 
       await processing.receiveBag(
