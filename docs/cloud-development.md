@@ -18,15 +18,15 @@ For local API development, copy `.env.example` to `.env` only if `.env` does not
 
 ```bash
 docker compose -p bioflow-cloud up -d postgres redis
-npm run prisma:deploy
+node --env-file=.env --run prisma:deploy
 # Only for a newly created development database:
-npm run seed
-npm run dev:backend
+node --env-file=.env --run seed
+node --env-file=.env --run dev:backend
 # In a separate terminal, same repository directory:
-npm run dev:web
+node --env-file=.env --run dev:web
 ```
 
-Check the API health endpoint on port 4000, then sign in and exercise the owner dashboard against the real API. File upload workflows additionally require `docker compose -p bioflow-cloud up -d s3` and `npm run s3:init -w @bioflow/backend`; file upload readiness was not tested in this task. Live processes must be restarted in a new task; dependencies and files alone do not start services.
+Check the API health endpoint on port 4000, then sign in and exercise the owner dashboard against the real API. File upload workflows additionally require `docker compose -p bioflow-cloud up -d s3` and `npm run s3:init -w @bioflow/backend`; file upload readiness was not tested in this task. The Node 24 `--env-file` option loads the root configuration before npm enters workspace directories, including the browser API URL. Do not rely on workspace processes finding the root `.env` automatically. Live processes must be restarted in a new task; dependencies and files alone do not start services.
 
 ## Owner dashboard
 
