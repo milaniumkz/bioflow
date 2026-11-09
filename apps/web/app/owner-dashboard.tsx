@@ -151,7 +151,9 @@ export function OwnerDashboardPanel({ token }: { token: string }) {
                   <strong>
                     {key === "idle"
                       ? `${g.idleMinutes ?? 0} мин`
-                      : tonnes(g.quantity)}
+                      : key === "deviations"
+                        ? `${g.records.length} операций`
+                        : tonnes(g.quantity)}
                   </strong>
                   <span>
                     {g.batches} партий · {g.bags} биг-бэгов
