@@ -1,4 +1,6 @@
 import { AuditController } from "../src/audit/audit.controller";
+import { OwnerDashboard } from "../src/processing/owner-dashboard";
+import { CustomerDeliveryService } from "../src/processing/customer-delivery";
 import "reflect-metadata";
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -729,6 +731,66 @@ test(
       assert.equal(overview.packedBigBags, 1);
       assert.equal(overview.collected.toString(), "10");
       assert.equal(overview.soldWashed.toString(), "3.675");
+      const dashboard = new OwnerDashboard(p);
+      const ownerRows = await dashboard.read({ driverId: driver.id }, owner);
+      assert.equal(ownerRows.groups.collection.quantity, 10);
+      assert.equal(ownerRows.groups.sales.quantity, 3.675);
+      assert.equal(ownerRows.groups.laboratory.records.length, 1);
+      assert(ownerRows.groups.idle.idleMinutes >= 10);
+      const saleBag = await p.bigBag.findUniqueOrThrow({
+        where: { batchId: washed.outputs[0].id },
+      });
+      const stockSnapshot = async () =>
+        JSON.stringify(
+          await p.batchStock.findMany({
+            where: { batch: { organizationId: org.id } },
+            orderBy: { id: "asc" },
+          }),
+        );
+      const beforeDelivery = await stockSnapshot();
+      const deliveries = new CustomerDeliveryService(p);
+      const deliveryDto = {
+        sourceId: saleBag.id,
+        driverId: driver.id,
+        destination: "Тестовый покупатель",
+        route: "Склад → покупатель",
+        status: "PLANNED",
+        version: 0,
+      };
+      const plan = await deliveries.save(deliveryDto, owner);
+      await assert.rejects(
+        deliveries.save(
+          { ...deliveryDto, status: "DELIVERED", version: plan.version },
+          owner,
+        ),
+      );
+      const dispatched = await deliveries.save(
+        { ...deliveryDto, status: "IN_TRANSIT", version: plan.version },
+        owner,
+      );
+      await assert.rejects(
+        deliveries.save(
+          { ...deliveryDto, status: "DELIVERED", version: plan.version },
+          owner,
+        ),
+      );
+      await deliveries.save(
+        { ...deliveryDto, status: "DELIVERED", version: dispatched.version },
+        owner,
+      );
+      assert.equal(await stockSnapshot(), beforeDelivery);
+      const deliveredRows = await dashboard.read(
+        { driverId: driver.id },
+        owner,
+      );
+      assert.equal(
+        deliveredRows.groups.delivery.records.find((r) => r.id === saleBag.id)
+          ?.status,
+        "DELIVERED",
+      );
+      const deliveryTrace = await processing.trace(dry.outputs[0].id, owner);
+      assert.equal(deliveryTrace.deliveries[0].events.length, 3);
+      assert.equal(deliveryTrace.deliveries[0].driverName, "Тест водитель");
       await assert.rejects(async () =>
         processing.scan(washed.outputs[0].qrToken, {
           ...receiver,

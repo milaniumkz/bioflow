@@ -1,3 +1,8 @@
+import {
+  CustomerDeliveryService,
+  CustomerDeliveryDto,
+} from "./customer-delivery";
+import { OwnerDashboard, OwnerDashboardQuery } from "./owner-dashboard";
 import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import {
@@ -21,7 +26,23 @@ import { ProcessingService } from "./processing.service";
 @ApiBearerAuth()
 @Controller("processing")
 export class ProcessingController {
-  constructor(private readonly service: ProcessingService) {}
+  constructor(
+    private readonly service: ProcessingService,
+    private readonly ownerDashboard: OwnerDashboard,
+    private readonly deliveries: CustomerDeliveryService,
+  ) {}
+  @Permissions("processing.overview") @Get("owner-dashboard") owner(
+    @Query() q: OwnerDashboardQuery,
+    @User() u: CurrentUser,
+  ) {
+    return this.ownerDashboard.read(q, u);
+  }
+  @Permissions("processing.sell") @Post("deliveries") delivery(
+    @Body() d: CustomerDeliveryDto,
+    @User() u: CurrentUser,
+  ) {
+    return this.deliveries.save(d, u);
+  }
   @Permissions("processing.read") @Get("laboratory") laboratoryRegistry(
     @Query() q: ProcessingRegistryDto,
     @User() u: CurrentUser,

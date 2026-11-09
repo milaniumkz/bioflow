@@ -1,6 +1,11 @@
 name: android-ui
 on:
   workflow_dispatch:
+    inputs:
+      allow_apk:
+        description: "Explicitly allow building and installing APKs for emulator tests"
+        type: boolean
+        default: false
   pull_request:
     paths:
       - "apps/mobile/**"
@@ -13,6 +18,7 @@ permissions:
   contents: read
 jobs:
   emulator:
+    if: github.event_name == 'workflow_dispatch' && inputs.allow_apk == true
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:
