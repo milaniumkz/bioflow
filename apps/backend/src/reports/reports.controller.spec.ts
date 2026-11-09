@@ -24,7 +24,7 @@ describe("ReportsController", () => {
       res as any,
     );
 
-    expect(String(res.body)).toContain("warehouse.name");
+    expect(String(res.body)).toContain("Склад");
     expect(String(res.body)).toContain('"Main"');
   });
 
@@ -76,9 +76,9 @@ describe("ReportsController", () => {
       res as any,
     );
 
-    expect(String(res.body)).toContain("materialType.name");
+    expect(String(res.body)).toContain("Вид сырья");
     expect(String(res.body)).toContain('"Pellet"');
-    expect(String(res.body)).toContain("waybill.number");
+    expect(String(res.body)).toContain("Рейс");
   });
 
   it("exports transfer report with warehouse and item context", async () => {
@@ -111,8 +111,8 @@ describe("ReportsController", () => {
       res as any,
     );
 
-    expect(String(res.body)).toContain("fromWarehouse.name");
-    expect(String(res.body)).toContain("toWarehouse.name");
+    expect(String(res.body)).toContain("Откуда");
+    expect(String(res.body)).toContain("Куда");
     expect(String(res.body)).toContain('"Dirty stock"');
     expect(String(res.body)).toContain('"Ore:12.5"');
   });
@@ -153,15 +153,13 @@ describe("ReportsController", () => {
   it("never includes audit credentials in CSV output", async () => {
     const c = new ReportsController({
       auditLog: {
-        findMany: jest
-          .fn()
-          .mockResolvedValue([
-            {
-              id: "a",
-              oldValue: { passwordHash: "synthetic-private-hash" },
-              newValue: { refreshToken: "synthetic-private-token" },
-            },
-          ]),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: "a",
+            oldValue: { passwordHash: "synthetic-private-hash" },
+            newValue: { refreshToken: "synthetic-private-token" },
+          },
+        ]),
       },
     } as any);
     const response = fakeResponse();

@@ -1219,6 +1219,48 @@
         ]
       }
     },
+    "/api/v1/auth/browser-login": {
+      "post": {
+        "operationId": "BrowserAuthController_login",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "BrowserAuth"
+        ]
+      }
+    },
+    "/api/v1/auth/browser-refresh": {
+      "post": {
+        "operationId": "BrowserAuthController_refresh",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "BrowserAuth"
+        ]
+      }
+    },
+    "/api/v1/auth/browser-logout": {
+      "post": {
+        "operationId": "BrowserAuthController_logout",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "BrowserAuth"
+        ]
+      }
+    },
     "/api/v1/reference-values": {
       "get": {
         "operationId": "ReferenceController_list[0]",

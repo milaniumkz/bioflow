@@ -1,3 +1,4 @@
+import { documentSearch } from "../common/document-search";
 import { publicAuditValue } from "../common/audit-public";
 import {
   BadRequestException,
@@ -648,7 +649,10 @@ export class LedgerService {
       ...createdAtRange(query),
     };
     if (query.search)
-      where.number = { contains: query.search, mode: "insensitive" };
+      where.number = {
+        contains: documentSearch(query.search),
+        mode: "insensitive",
+      };
     if (query.status) where.status = query.status;
     if (query.state)
       where.state = query.state as Prisma.EnumMaterialStateFilter;
@@ -1058,10 +1062,18 @@ export class LedgerService {
       where.AND = [
         {
           OR: [
-            { number: { contains: query.search, mode: "insensitive" } },
+            {
+              number: {
+                contains: documentSearch(query.search),
+                mode: "insensitive",
+              },
+            },
             {
               vehicle: {
-                plateNumber: { contains: query.search, mode: "insensitive" },
+                plateNumber: {
+                  contains: query.search,
+                  mode: "insensitive",
+                },
               },
             },
           ],
@@ -1726,7 +1738,10 @@ export class LedgerService {
       ];
     if (query.kind) where.kind = query.kind;
     if (query.search)
-      where.number = { contains: query.search, mode: "insensitive" };
+      where.number = {
+        contains: documentSearch(query.search),
+        mode: "insensitive",
+      };
     if (query.warehouseId) {
       allowed(user, query.warehouseId);
       where.fromWarehouseId = query.warehouseId;
@@ -1784,7 +1799,12 @@ export class LedgerService {
       where.batch = {
         ...scopedBatch(user),
         ...(query.search
-          ? { number: { contains: query.search, mode: "insensitive" } }
+          ? {
+              number: {
+                contains: documentSearch(query.search),
+                mode: "insensitive",
+              },
+            }
           : {}),
         ...(query.state
           ? { state: query.state as Prisma.EnumMaterialStateFilter }

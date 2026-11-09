@@ -1,3 +1,4 @@
+import { documentSearch } from "../common/document-search";
 import {
   BadRequestException,
   ConflictException,
@@ -120,17 +121,97 @@ export class ProcessingService extends LedgerService {
         vehicle: { select: { plateNumber: true } },
       },
     });
-    const batch = trip?.batchId
-      ? await this.item(this.prisma, trip.batchId, user)
-      : await this.prisma.materialBatch
-          .findFirst({
-            where: { qrTokenHash: hash(token), ...this.scope(user) },
-          })
-          .then((b) => (b ? this.item(this.prisma, b.id, user) : null));
-    if (!batch)
+    const matched = trip?.batchId
+      ? { id: trip.batchId }
+      : await this.prisma.materialBatch.findFirst({
+          where: {
+            organizationId: user.organizationId,
+            qrTokenHash: hash(token),
+          },
+          select: { id: true },
+        });
+    if (!matched)
       throw new NotFoundException("QR партии не найден или недоступен");
-    return this.describe(batch, user, trip, token);
+    try {
+      const batch = await this.item(this.prisma, matched.id, user);
+      return this.describe(batch, user, trip, token);
+    } catch (error) {
+      // A physical worker holding a valid QR may see the stage before handover,
+      // never stock quantities, attachments, history or another warehouse's data.
+      const physical = [
+        "WASH_RECEIVER",
+        "LAB_TECHNICIAN",
+        "WASH_OPERATOR",
+        "DRYING_OPERATOR",
+        "FINISHED_RECEIVER",
+        "PACKER",
+        "SALES_STOREKEEPER",
+      ];
+      if (
+        !(error instanceof NotFoundException) ||
+        !user.warehouseScopeIds?.length ||
+        user.counterpartyScopeId ||
+        !user.roles?.some((role) => physical.includes(role))
+      )
+        throw error;
+      const batch = await this.prisma.materialBatch.findFirstOrThrow({
+        where: { id: matched.id, organizationId: user.organizationId },
+        select: { id: true, number: true, state: true },
+      });
+      const bag = await this.prisma.bigBag.findUnique({
+        where: { batchId: batch.id },
+        select: {
+          ordinal: true,
+          stage: true,
+          factoryStartedAt: true,
+          receivedAt: true,
+          packedAt: true,
+          soldAt: true,
+        },
+      });
+      const rootId = await this.root(this.prisma, batch.id);
+      const root = await this.prisma.materialBatch.findFirst({
+        where: { id: rootId, organizationId: user.organizationId },
+        select: { number: true },
+      });
+      const requiresBagQr =
+        !bag &&
+        (await this.prisma.processRun.count({
+          where: {
+            organizationId: user.organizationId,
+            rootBatchId: rootId,
+            kind: { in: ["WASHING", "DRYING"] },
+          },
+        })) > 0;
+      const stageLabel = bag?.soldAt
+        ? "Продано"
+        : bag?.packedAt
+          ? "Упаковано"
+          : bag?.receivedAt
+            ? "Готовая продукция принята на склад"
+            : bag?.stage === "DRIED"
+              ? "Готовая продукция ожидает приёмки"
+              : bag?.factoryStartedAt
+                ? "На заводе"
+                : bag
+                  ? "После мойки"
+                  : "Приёмка и подготовка к мойке";
+      return {
+        readOnly: true,
+        requiresBagQr,
+        stageLabel: requiresBagQr ? "Партия разделена на биг-бэги" : stageLabel,
+        batch: { ...batch, bigBag: bag, stocks: [] },
+        rootFacts: { number: root?.number ?? batch.number },
+        rootBatchId: rootId,
+        analyses: [],
+        trip: null,
+        preparedBatchId: null,
+        preparedAvailable: false,
+        qrImage: null,
+      };
+    }
   }
+
   async detail(id: string, user: CurrentUser) {
     const batch = await this.item(this.prisma, id, user);
     const receipt = await this.prisma.commandReceipt.findFirst({
@@ -192,6 +273,7 @@ export class ProcessingService extends LedgerService {
     const rootFacts = await this.prisma.materialBatch.findFirstOrThrow({
       where: { id: rootBatchId, organizationId: user.organizationId },
       select: {
+        number: true,
         actualCollectedQuantity: true,
         actualBagCount: true,
         waybills: {
@@ -243,6 +325,7 @@ export class ProcessingService extends LedgerService {
       preparedBatchId: prepared?.preparedBatchId ?? null,
       preparedWarehouseId: prepared?.toWarehouseId ?? null,
       preparedAvailable: Boolean(available?._sum.quantity?.gt(0)),
+      preparedQuantity: available?._sum.quantity ?? new Prisma.Decimal(0),
     };
   }
   private async processDetails(ids: string[], user: CurrentUser) {
@@ -277,7 +360,12 @@ export class ProcessingService extends LedgerService {
       batch: {
         ...this.scope(user),
         ...(q.search
-          ? { number: { contains: q.search, mode: "insensitive" } }
+          ? {
+              number: {
+                contains: documentSearch(q.search),
+                mode: "insensitive",
+              },
+            }
           : {}),
       },
       ...(q.from || q.to
@@ -332,13 +420,39 @@ export class ProcessingService extends LedgerService {
     };
   }
   async bagRegistry(q: ProcessingRegistryDto, user: CurrentUser) {
+    const bagMatch = q.search?.trim().match(/^биг[-– ]?бэг\s*№?\s*(\d+)$/iu);
+    const roots =
+      q.search && !bagMatch
+        ? await this.prisma.materialBatch.findMany({
+            where: {
+              organizationId: user.organizationId,
+              number: {
+                contains: documentSearch(q.search),
+                mode: "insensitive",
+              },
+            },
+            select: { id: true },
+          })
+        : [];
     const where: Prisma.BigBagWhereInput = {
-      batch: {
-        ...this.scope(user),
-        ...(q.search
-          ? { number: { contains: q.search, mode: "insensitive" } }
+      batch: this.scope(user),
+      ...(bagMatch
+        ? { ordinal: Math.min(2147483647, Number(bagMatch[1])) }
+        : q.search
+          ? {
+              OR: [
+                {
+                  batch: {
+                    number: {
+                      contains: documentSearch(q.search),
+                      mode: "insensitive",
+                    },
+                  },
+                },
+                { process: { rootBatchId: { in: roots.map((r) => r.id) } } },
+              ],
+            }
           : {}),
-      },
       ...(q.stage && ["WASHED", "DRIED"].includes(q.stage)
         ? { stage: q.stage }
         : {}),
@@ -378,6 +492,13 @@ export class ProcessingService extends LedgerService {
       }),
       this.prisma.bigBag.count({ where }),
     ]);
+    const rootNumbers = await this.prisma.materialBatch.findMany({
+      where: {
+        organizationId: user.organizationId,
+        id: { in: rows.map((b) => b.process.rootBatchId) },
+      },
+      select: { id: true, number: true },
+    });
     const warehouses = await this.prisma.warehouse.findMany({
       where: {
         organizationId: user.organizationId,
@@ -404,6 +525,9 @@ export class ProcessingService extends LedgerService {
       scopeEmpty:
         !user.accessAllObjects && !(user.warehouseScopeIds ?? []).length,
       data: rows.map((b) => ({
+        rootNumber:
+          rootNumbers.find((r) => r.id === b.process.rootBatchId)?.number ??
+          b.batch.number,
         ...b,
         batch: {
           ...b.batch,
@@ -1084,6 +1208,10 @@ export class ProcessingService extends LedgerService {
         if (bag.stage === "WASHED" && bag.factoryStartedAt)
           throw new ConflictException(
             "Биг-бэг уже в работе на заводе и не может быть продан как мытый",
+          );
+        if (bag.stage === "DRIED" && !bag.packedAt)
+          throw new ConflictException(
+            "Сначала упаковщик должен подтвердить упаковку биг-бэга по QR",
           );
         if (bag.stage === "DRIED" && !bag.receivedAt)
           throw new ConflictException(

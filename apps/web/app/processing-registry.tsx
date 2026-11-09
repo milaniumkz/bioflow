@@ -13,14 +13,17 @@ import {
 import { webRequest } from "./session";
 import { ProcessingPanel } from "./processing-panel";
 import { dateTime, tonnes } from "./workflow-ui";
+import { recordLabel } from "./record-label";
 type Row = Record<string, any>;
 export function ProcessingRegistry({
   token,
   permissions,
+  roles = [],
   mode,
 }: {
   token: string;
   permissions: string[];
+  roles?: string[];
   mode: "laboratory" | "bags";
 }) {
   const [search, setSearch] = useState(""),
@@ -214,10 +217,14 @@ export function ProcessingRegistry({
                     {q.data!.data.map((r: Row) => (
                       <tr key={r.id}>
                         <td>
-                          <strong>{r.batch.number}</strong>
+                          <strong>
+                            {!lab
+                              ? `Биг-бэг №${r.ordinal}`
+                              : recordLabel(r.batch.number)}
+                          </strong>
                           {!lab && (
                             <small className="table-meta">
-                              Биг-бэг №{r.ordinal}
+                              {recordLabel(r.rootNumber ?? r.batch.number)}
                             </small>
                           )}
                         </td>
@@ -368,6 +375,7 @@ export function ProcessingRegistry({
             key={batch}
             token={token}
             permissions={permissions}
+            roles={roles}
             initialBatchId={batch}
             embedded
           />

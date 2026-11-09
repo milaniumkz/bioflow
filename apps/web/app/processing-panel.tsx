@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { webRequest } from "./session";
 import {
   ActionForm,
@@ -16,21 +16,55 @@ import {
   tonnes,
   useReferences,
 } from "./workflow-ui";
+import { useRecordFocus } from "./use-record-focus";
+import { createCommandId } from "./command-id.mjs";
+import { recordLabel } from "./record-label";
+import { processingNextStep } from "./processing-next-step";
 type Row = Record<string, any>;
 export function ProcessingPanel({
   token,
   permissions,
+  roles = [],
   initialQr,
   initialBatchId,
   embedded = false,
 }: {
   token: string;
   permissions: string[];
-  initialQr?: { token: string; nonce: number };
+  roles?: string[];
+  initialQr?: { token: string; nonce: number; record?: Row };
   initialBatchId?: string;
   embedded?: boolean;
 }) {
   const refs = useReferences(token);
+  const queryClient = useQueryClient();
+  const refreshRecords = () =>
+    Promise.all(
+      [
+        "packing-stats",
+        "processing-registry",
+        "owner-dashboard",
+        "process-trace",
+      ].map((key) => queryClient.invalidateQueries({ queryKey: [key] })),
+    );
+
+  const partyRef = useRef<HTMLElement>(null),
+    actionsRef = useRef<HTMLDivElement>(null),
+    outputRef = useRef<HTMLDivElement>(null);
+  const scanVersion = useRef(0);
+  const [focusRequest, setFocusRequest] = useState<{
+    version: number;
+    target: "party" | "actions" | "outputs";
+  } | null>(null);
+  useRecordFocus(
+    focusRequest?.target === "outputs"
+      ? outputRef
+      : focusRequest?.target === "actions"
+        ? actionsRef
+        : partyRef,
+    focusRequest,
+  );
+
   const [item, setItem] = useState<Row | null>(null),
     [code, setCode] = useState(""),
     [error, setError] = useState(""),
@@ -39,21 +73,79 @@ export function ProcessingPanel({
     [selected, setSelected] = useState<Row[]>([]),
     [outputCount, setOutputCount] = useState(1),
     [showTrace, setShowTrace] = useState(false);
-  const can = (p: string) => permissions.includes(p);
+  const can = (p: string) => permissions.includes(p) && !item?.readOnly;
+  const packingMode =
+    roles.includes("PACKER") &&
+    !roles.includes("OWNER") &&
+    permissions.includes("processing.pack");
+  const [packingDate, setPackingDate] = useState(localNow().slice(0, 10)),
+    [packingShift, setPackingShift] = useState("Дневная"),
+    [packingMessage, setPackingMessage] = useState("");
+
   const post = (path: string, data: Row) =>
     webRequest<Row>(path, token, {
       method: "POST",
       body: JSON.stringify(data),
     });
-  async function scan(qr: string) {
+  async function scan(
+    qr: string,
+    afterAction = false,
+    hasOutputs = false,
+    resolved?: Row,
+  ) {
+    const version = ++scanVersion.current;
     setError("");
-    const r = qr
-      ? await post("/processing/scan", { token: qr })
-      : await webRequest<Row>(
-          `/processing/batches/${initialBatchId ?? item?.batch.id}`,
-          token,
+    let r =
+      resolved ??
+      (qr
+        ? await post("/processing/scan", { token: qr })
+        : await webRequest<Row>(
+            `/processing/batches/${initialBatchId ?? item?.batch.id}`,
+            token,
+          ));
+    if (version !== scanVersion.current) return;
+    if (!afterAction) setPackingMessage("");
+    if (
+      packingMode &&
+      !r.readOnly &&
+      qr &&
+      !afterAction &&
+      r.batch.bigBag?.stage === "DRIED" &&
+      r.batch.bigBag.receivedAt &&
+      !r.batch.bigBag.soldAt &&
+      r.batch.stocks.some((s: Row) => Number(s.quantity) > 0)
+    ) {
+      if (r.batch.bigBag.packedAt)
+        setPackingMessage(
+          "Этот биг-бэг уже упакован. Повторное сканирование не увеличивает счётчик.",
         );
+      else {
+        const result = await post(`/processing/bags/${r.batch.id}/pack`, {
+          workDate: packingDate,
+          shift: packingShift,
+          idempotencyKey: createCommandId(),
+        });
+        if (version !== scanVersion.current) return;
+        await refreshRecords();
+        setPackingMessage(
+          result.alreadyPacked
+            ? "Этот биг-бэг уже упакован. Повтор не учтён."
+            : `Биг-бэг №${r.batch.bigBag.ordinal} упакован и записан в вашу смену «${packingShift}».`,
+        );
+        r = await post("/processing/scan", { token: qr });
+        if (version !== scanVersion.current) return;
+      }
+    }
+
     setItem(r);
+    if (!afterAction) {
+      setOutputs([]);
+      setOutputCount(1);
+    }
+    setFocusRequest({
+      version,
+      target: afterAction ? (hasOutputs ? "outputs" : "actions") : "party",
+    });
     setCode(qr || r.qrToken || "");
     setFiles([]);
     setShowTrace(false);
@@ -73,7 +165,9 @@ export function ProcessingPanel({
   }
   useEffect(() => {
     if (initialQr?.token)
-      void scan(initialQr.token).catch((e) => setError(e.message));
+      void scan(initialQr.token, false, false, initialQr.record).catch((e) =>
+        setError(e.message),
+      );
   }, [initialQr?.nonce]);
   useEffect(() => {
     if (initialBatchId) void scan("").catch((e) => setError(e.message));
@@ -86,19 +180,30 @@ export function ProcessingPanel({
   });
   async function action(path: string, data: Row, key: string) {
     const r = await post(path, { ...data, idempotencyKey: key });
-    if (r.outputs) setOutputs(r.outputs);
-    await scan(code);
+    await refreshRecords();
+    if (r.outputs && data.kind !== "PREWASH")
+      setOutputs(
+        r.outputs.map((output: Row) => ({
+          ...output,
+          sourceNumber: item?.rootFacts?.number ?? item?.batch.number,
+        })),
+      );
+    if (data.kind === "PREWASH") setOutputs([]);
+    await scan(code, true, data.kind !== "PREWASH" && !!r.outputs?.length);
     return r;
   }
   const rows = (name: string) => refs.data?.[name] ?? [];
   const b = item?.batch,
     t = item?.trip,
     bag = b?.bigBag;
+  const nextStep = item ? processingNextStep(item, permissions, roles) : null;
   const currentStocks = (b?.stocks ?? []).filter(
     (s: Row) => Number(s.quantity) > 0,
   );
   const warehouseDefault =
-    currentStocks[0]?.warehouseId ?? t?.destinationWarehouseId;
+    (item?.preparedAvailable ? item.preparedWarehouseId : undefined) ??
+    currentStocks[0]?.warehouseId ??
+    t?.destinationWarehouseId;
   function processForm(
     kind: "PREWASH" | "WASHING" | "DRYING",
     batchIds: string[],
@@ -126,7 +231,7 @@ export function ProcessingPanel({
                       t?.receivedWeight ??
                       0,
                   )
-                : Number(b?.initialQuantity ?? 0),
+                : Number(item?.preparedQuantity ?? b?.initialQuantity ?? 0),
           min: kind === "PREWASH" ? 21 : kind === "DRYING" ? 36 : 0,
           max: kind === "PREWASH" ? 27 : kind === "DRYING" ? 36 : 100,
           basis:
@@ -314,7 +419,39 @@ export function ProcessingPanel({
   }
   return (
     <div className="workflow-stack">
-      {!embedded && <QrInput onScan={scan} />}
+      {packingMode && (
+        <section className="panel">
+          <h2>Упаковка по QR</h2>
+          <p>
+            Сканирование принятого на склад биг-бэга подтверждает упаковку за
+            вами. Проверьте дату и смену перед сканированием.
+          </p>
+          <label>
+            Дата смены
+            <input
+              type="date"
+              required
+              value={packingDate}
+              onChange={(e) => setPackingDate(e.target.value)}
+            />
+          </label>
+          <label>
+            Смена
+            <input
+              required
+              maxLength={80}
+              value={packingShift}
+              onChange={(e) => setPackingShift(e.target.value)}
+            />
+          </label>
+        </section>
+      )}
+      {(!embedded || packingMode) && <QrInput onScan={scan} />}
+      {packingMessage && (
+        <p className="notice" role="status">
+          {packingMessage}
+        </p>
+      )}
       {error && (
         <p className="error" role="alert">
           {error}
@@ -323,19 +460,27 @@ export function ProcessingPanel({
       {refs.error && <p className="error">{refs.error.message}</p>}
       {item && (
         <>
-          <article className="panel workflow-party">
+          <article
+            ref={partyRef}
+            tabIndex={-1}
+            className="panel workflow-party scanned-record"
+            aria-label="Открытая партия"
+          >
             <p className="eyebrow">Карточка партии</p>
-            <h2>{b.number}</h2>
+            <h2>{bag ? `Биг-бэг №${bag.ordinal}` : recordLabel(b.number)}</h2>
+            {bag && <p>{recordLabel(item.rootFacts?.number ?? b.number)}</p>}
             <p>
               {bag
-                ? `Биг-бэг №${bag.ordinal} · ${labels[bag.stage] ?? bag.stage}`
+                ? labels[bag.stage]
                 : t
                   ? (labels[t.status] ?? t.status)
                   : labels[b.state]}
             </p>
             <div className="workflow-metrics">
               <strong>
-                {tonnes(b.actualCollectedQuantity ?? b.initialQuantity)}
+                {b.actualCollectedQuantity != null || b.initialQuantity != null
+                  ? tonnes(b.actualCollectedQuantity ?? b.initialQuantity)
+                  : "Вес доступен на вашем этапе"}
               </strong>
               <strong>
                 {bag
@@ -351,12 +496,15 @@ export function ProcessingPanel({
                   ` · Принято ${tonnes(t.receivedWeight)}, ${t.receivedBagCount ?? "—"} мешков`}
               </p>
             )}
-            {bag && !bag.soldAt && currentStocks.length === 0 && (
-              <p>
-                Материал этого QR уже использован. Текущий остаток — 0.
-                Посмотрите историю партии.
-              </p>
-            )}
+            {!item.readOnly &&
+              bag &&
+              !bag.soldAt &&
+              currentStocks.length === 0 && (
+                <p>
+                  Материал этого QR уже использован. Текущий остаток — 0.
+                  Посмотрите историю партии.
+                </p>
+              )}
             {bag?.soldAt && (
               <p>
                 Продан {dateTime(bag.soldAt)} · {bag.saleRecipient}
@@ -407,282 +555,330 @@ export function ProcessingPanel({
                 <summary>
                   {bag ? "QR биг-бэга · печать" : "QR партии · печать"}
                 </summary>
-                <QrCards items={[{ ...b, qrImage: item.qrImage }]} />
+                <QrCards
+                  items={[
+                    {
+                      ...b,
+                      ordinal: bag?.ordinal,
+                      sourceNumber: item.rootFacts?.number,
+                      qrImage: item.qrImage,
+                    },
+                  ]}
+                />
               </details>
             )}
-            <button
-              className="button secondary"
-              onClick={() => setShowTrace((v) => !v)}
-            >
-              Вся история партии
-            </button>
+            {!item.readOnly && (
+              <button
+                className="button secondary"
+                onClick={() => setShowTrace((v) => !v)}
+              >
+                Вся история партии
+              </button>
+            )}
           </article>
-          {can("laboratory.manage") && item.analyses.length === 0 && (
-            <ActionForm
-              key={`lab:${b.id}`}
-              title="Лабораторный анализ"
-              submit="Сохранить влажность"
-              onSubmit={async (f, key) =>
-                action(
-                  "/processing/laboratory",
-                  {
-                    batchId: b.id,
-                    moisturePercent: f.get("moisturePercent"),
-                    sedimentPercent: f.get("sedimentPercent"),
-                    actualBagCount: Number(f.get("actualBagCount")),
-                    measuredAt: new Date(
-                      String(f.get("measuredAt")),
-                    ).toISOString(),
-                    notes: f.get("notes") || undefined,
-                    fileIds: files,
-                  },
-                  key,
-                )
-              }
-            >
-              <Field
-                name="moisturePercent"
-                label="Влажность, %"
-                type="number"
-                min={0}
-                max={100}
-                step="0.01"
-              />
-              <Field
-                name="sedimentPercent"
-                label="Осадок, %"
-                type="number"
-                min={0}
-                max={99.99}
-                step="0.01"
-              />
-              <Field
-                name="actualBagCount"
-                label="Фактическое количество мешков"
-                type="number"
-                min={1}
-                step="1"
-                defaultValue={t?.receivedBagCount ?? t?.bagCount}
-              />
-              <Field
-                name="measuredAt"
-                label="Время анализа"
-                type="datetime-local"
-                defaultValue={localNow()}
-              />
-              <Field name="notes" label="Примечание" required={false} />
-              <PhotoUpload token={token} ids={files} setIds={setFiles} />
-              <p className="notice">
-                Расчёт после осадка не вычитает влажность повторно. Исходные
-                данные сохраняются. Учётная точность — 0,001 т (1 кг).
-              </p>
-            </ActionForm>
-          )}
-          {can("processing.receive") &&
-            t &&
-            ["LOADED", "IN_TRANSIT", "ARRIVED"].includes(t.status) && (
-              <ActionForm
-                key={`receive:${t.id}`}
-                title="Приёмка на мойку"
-                submit="Принять фактически поступившее"
-                onSubmit={async (f, key) =>
-                  action(
-                    `/processing/trips/${t.id}/receive`,
-                    {
-                      warehouseId: f.get("warehouseId"),
-                      quantity: f.get("quantity"),
-                      bagCount: Number(f.get("bagCount")),
-                      reason: f.get("reason") || undefined,
-                      fileIds: files,
-                    },
-                    key,
-                  )
-                }
-              >
-                <Reference
-                  name="warehouseId"
-                  label="Склад приёмки"
-                  rows={rows("warehouses")}
-                  defaultValue={t.destinationWarehouseId}
-                />
-                <Field
-                  name="quantity"
-                  label="Фактически принято, т"
-                  type="number"
-                  min={0.001}
-                  step="0.001"
-                  defaultValue={t.declaredWeight}
-                />
-                <Field
-                  name="bagCount"
-                  label="Фактически принято мешков"
-                  type="number"
-                  min={1}
-                  step="1"
-                  defaultValue={t.bagCount}
-                />
-                <Field
-                  name="reason"
-                  label="Причина расхождения"
-                  required={false}
-                />
-                <PhotoUpload token={token} ids={files} setIds={setFiles} />
-              </ActionForm>
+          <div
+            ref={actionsRef}
+            tabIndex={-1}
+            className="workflow-stack scanned-record"
+            aria-label="Действия по партии"
+          >
+            {nextStep && (
+              <section className="panel" aria-label="Следующий шаг партии">
+                <p className="eyebrow">Дальнейшие действия</p>
+                <h3>{nextStep.title}</h3>
+                <p>{nextStep.detail}</p>
+                {!nextStep.available && nextStep.role && (
+                  <p className="notice">
+                    Этот шаг выполняет: {nextStep.role}. У вашей учётной записи
+                    нет права на это действие.
+                  </p>
+                )}
+              </section>
             )}
-          {can("processing.wash") &&
-            !bag &&
-            t?.receivedWeight &&
-            !item.preparedBatchId &&
-            processForm("PREWASH", [b.id])}
-          {can("processing.wash") &&
-            item.preparedBatchId &&
-            item.preparedAvailable &&
-            !bag &&
-            processForm("WASHING", [item.preparedBatchId])}
-          {can("processing.dry") &&
-            bag?.stage === "WASHED" &&
-            !bag.soldAt &&
-            !bag.factoryStartedAt && (
-              <ActionForm
-                key={`intake:${b.id}`}
-                title="Приём на завод"
-                submit="Принять этот биг-бэг на завод"
-                onSubmit={async (f, key) =>
-                  action(
-                    `/processing/bags/${b.id}/plant-intake`,
-                    { warehouseId: f.get("warehouseId") },
-                    key,
-                  )
-                }
-              >
-                <p>Будет принято 1 биг-бэг · {tonnes(bag.quantity)}.</p>
-                <Reference
-                  name="warehouseId"
-                  label="Склад завода"
-                  rows={rows("warehouses")}
-                />
-              </ActionForm>
-            )}
-          {can("processing.dry") &&
-            bag?.stage === "WASHED" &&
-            !bag.soldAt &&
-            bag.factoryStartedAt && (
-              <>
-                <div className="panel">
-                  <h3>Биг-бэги на завод</h3>
-                  <p>Сканируйте каждый входной QR. Повторы не добавляются.</p>
-                  {selected.map((x) => (
-                    <p key={x.id}>
-                      {x.number} · {tonnes(x.initialQuantity)}{" "}
-                      <button
-                        className="button secondary"
-                        onClick={() =>
-                          setSelected((old) => old.filter((y) => y.id !== x.id))
-                        }
-                      >
-                        Убрать
-                      </button>
-                    </p>
-                  ))}
-                </div>
-                {selected.length > 0 &&
-                  processForm(
-                    "DRYING",
-                    selected.map((x) => x.id),
-                  )}
-              </>
-            )}
-          {can("processing.finished") &&
-            bag?.stage === "DRIED" &&
-            !bag.receivedAt &&
-            !bag.soldAt && (
-              <ActionForm
-                key={`finished:${b.id}`}
-                title="Склад готовой продукции"
-                submit="Принять этот биг-бэг"
-                onSubmit={async (f, key) =>
-                  action(
-                    `/processing/bags/${b.id}/receive`,
-                    { warehouseId: f.get("warehouseId") },
-                    key,
-                  )
-                }
-              >
-                <p>1 биг-бэг · {tonnes(bag.quantity)}</p>
-                <Reference
-                  name="warehouseId"
-                  label="Склад назначения"
-                  rows={rows("warehouses")}
-                />
-              </ActionForm>
-            )}
-          {can("processing.pack") &&
-            bag?.stage === "DRIED" &&
-            !bag.receivedAt &&
-            !bag.soldAt && (
-              <p className="notice">
-                Упаковка станет доступна после приёмки биг-бэга на склад готовой
-                продукции.
-              </p>
-            )}
-          {can("processing.pack") &&
-            bag?.stage === "DRIED" &&
-            !!bag.receivedAt &&
-            !bag.packedAt &&
-            !bag.soldAt && (
-              <ActionForm
-                key={`pack:${b.id}`}
-                title="Упаковка"
-                submit="Биг-бэг упакован"
-                onSubmit={async (f, key) =>
-                  action(
-                    `/processing/bags/${b.id}/pack`,
-                    Object.fromEntries(f),
-                    key,
-                  )
-                }
-              >
-                <Field
-                  name="workDate"
-                  label="Дата смены"
-                  type="date"
-                  defaultValue={localNow().slice(0, 10)}
-                />
-                <Field name="shift" label="Смена" defaultValue="Дневная" />
-              </ActionForm>
-            )}
-          {can("processing.sell") &&
-            bag &&
-            !bag.soldAt &&
-            ((bag.stage === "WASHED" && !bag.factoryStartedAt) ||
-              bag.receivedAt) && (
-              <ActionForm
-                key={`sale:${b.id}`}
-                title={
-                  bag.stage === "WASHED"
-                    ? "Продажа мытого материала"
-                    : "Отпуск готовой продукции"
-                }
-                submit="Подтвердить продажу и списать"
-                onSubmit={async (f, key) =>
-                  action(
-                    "/processing/sales",
-                    { ...Object.fromEntries(f), batchIds: [b.id] },
-                    key,
-                  )
-                }
-              >
-                <p>Будет списан 1 биг-бэг весом {tonnes(bag.quantity)}.</p>
-                <Reference
-                  name="warehouseId"
-                  label="Склад отпуска"
-                  rows={rows("warehouses")}
-                  defaultValue={warehouseDefault}
-                />
-                <Field name="recipient" label="Покупатель" />
-                <Field name="documentNumber" label="Номер документа продажи" />
-              </ActionForm>
-            )}
+            {can("laboratory.manage") &&
+              !bag &&
+              !!t?.receivedWeight &&
+              !item.preparedBatchId &&
+              item.analyses.length === 0 && (
+                <ActionForm
+                  key={`lab:${b.id}`}
+                  title="Лабораторный анализ"
+                  submit="Сохранить влажность"
+                  onSubmit={async (f, key) =>
+                    action(
+                      "/processing/laboratory",
+                      {
+                        batchId: b.id,
+                        moisturePercent: f.get("moisturePercent"),
+                        sedimentPercent: f.get("sedimentPercent"),
+                        actualBagCount: Number(f.get("actualBagCount")),
+                        measuredAt: new Date(
+                          String(f.get("measuredAt")),
+                        ).toISOString(),
+                        notes: f.get("notes") || undefined,
+                        fileIds: files,
+                      },
+                      key,
+                    )
+                  }
+                >
+                  <Field
+                    name="moisturePercent"
+                    label="Влажность, %"
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                  />
+                  <Field
+                    name="sedimentPercent"
+                    label="Осадок, %"
+                    type="number"
+                    min={0}
+                    max={99.99}
+                    step="0.01"
+                  />
+                  <Field
+                    name="actualBagCount"
+                    label="Фактическое количество мешков"
+                    type="number"
+                    min={1}
+                    step="1"
+                    defaultValue={t?.receivedBagCount ?? t?.bagCount}
+                  />
+                  <Field
+                    name="measuredAt"
+                    label="Время анализа"
+                    type="datetime-local"
+                    defaultValue={localNow()}
+                  />
+                  <Field name="notes" label="Примечание" required={false} />
+                  <PhotoUpload token={token} ids={files} setIds={setFiles} />
+                  <p className="notice">
+                    Расчёт после осадка не вычитает влажность повторно. Исходные
+                    данные сохраняются. Учётная точность — 0,001 т (1 кг).
+                  </p>
+                </ActionForm>
+              )}
+            {can("processing.receive") &&
+              t &&
+              ["LOADED", "IN_TRANSIT", "ARRIVED"].includes(t.status) && (
+                <ActionForm
+                  key={`receive:${t.id}`}
+                  title="Приёмка на мойку"
+                  submit="Принять фактически поступившее"
+                  onSubmit={async (f, key) =>
+                    action(
+                      `/processing/trips/${t.id}/receive`,
+                      {
+                        warehouseId: f.get("warehouseId"),
+                        quantity: f.get("quantity"),
+                        bagCount: Number(f.get("bagCount")),
+                        reason: f.get("reason") || undefined,
+                        fileIds: files,
+                      },
+                      key,
+                    )
+                  }
+                >
+                  <Reference
+                    name="warehouseId"
+                    label="Склад приёмки"
+                    rows={rows("warehouses")}
+                    defaultValue={t.destinationWarehouseId}
+                  />
+                  <Field
+                    name="quantity"
+                    label="Фактически принято, т"
+                    type="number"
+                    min={0.001}
+                    step="0.001"
+                    defaultValue={t.declaredWeight}
+                  />
+                  <Field
+                    name="bagCount"
+                    label="Фактически принято мешков"
+                    type="number"
+                    min={1}
+                    step="1"
+                    defaultValue={t.bagCount}
+                  />
+                  <Field
+                    name="reason"
+                    label="Причина расхождения"
+                    required={false}
+                  />
+                  <PhotoUpload token={token} ids={files} setIds={setFiles} />
+                </ActionForm>
+              )}
+            {can("processing.wash") &&
+              !bag &&
+              t?.receivedWeight &&
+              !item.preparedBatchId &&
+              item.analyses.length > 0 &&
+              processForm("PREWASH", [b.id])}
+            {can("processing.wash") &&
+              item.preparedBatchId &&
+              item.preparedAvailable &&
+              !bag &&
+              processForm("WASHING", [item.preparedBatchId])}
+            {can("processing.dry") &&
+              bag?.stage === "WASHED" &&
+              currentStocks.length > 0 &&
+              !bag.soldAt &&
+              !bag.factoryStartedAt && (
+                <ActionForm
+                  key={`intake:${b.id}`}
+                  title="Приём на завод"
+                  submit="Принять этот биг-бэг на завод"
+                  onSubmit={async (f, key) =>
+                    action(
+                      `/processing/bags/${b.id}/plant-intake`,
+                      { warehouseId: f.get("warehouseId") },
+                      key,
+                    )
+                  }
+                >
+                  <p>Будет принято 1 биг-бэг · {tonnes(bag.quantity)}.</p>
+                  <Reference
+                    name="warehouseId"
+                    label="Склад завода"
+                    rows={rows("warehouses")}
+                  />
+                </ActionForm>
+              )}
+            {can("processing.dry") &&
+              bag?.stage === "WASHED" &&
+              currentStocks.length > 0 &&
+              !bag.soldAt &&
+              bag.factoryStartedAt && (
+                <>
+                  <div className="panel">
+                    <h3>Биг-бэги на завод</h3>
+                    <p>Сканируйте каждый входной QR. Повторы не добавляются.</p>
+                    {selected.map((x) => (
+                      <p key={x.id}>
+                        Биг-бэг №{x.bigBag?.ordinal ?? "—"} ·{" "}
+                        {tonnes(x.initialQuantity)}{" "}
+                        <button
+                          className="button secondary"
+                          onClick={() =>
+                            setSelected((old) =>
+                              old.filter((y) => y.id !== x.id),
+                            )
+                          }
+                        >
+                          Убрать
+                        </button>
+                      </p>
+                    ))}
+                  </div>
+                  {selected.length > 0 &&
+                    processForm(
+                      "DRYING",
+                      selected.map((x) => x.id),
+                    )}
+                </>
+              )}
+            {can("processing.finished") &&
+              bag?.stage === "DRIED" &&
+              currentStocks.length > 0 &&
+              !bag.receivedAt &&
+              !bag.soldAt && (
+                <ActionForm
+                  key={`finished:${b.id}`}
+                  title="Склад готовой продукции"
+                  submit="Принять этот биг-бэг"
+                  onSubmit={async (f, key) =>
+                    action(
+                      `/processing/bags/${b.id}/receive`,
+                      { warehouseId: f.get("warehouseId") },
+                      key,
+                    )
+                  }
+                >
+                  <p>1 биг-бэг · {tonnes(bag.quantity)}</p>
+                  <Reference
+                    name="warehouseId"
+                    label="Склад назначения"
+                    rows={rows("warehouses")}
+                  />
+                </ActionForm>
+              )}
+            {can("processing.pack") &&
+              bag?.stage === "DRIED" &&
+              currentStocks.length > 0 &&
+              !bag.receivedAt &&
+              !bag.soldAt && (
+                <p className="notice">
+                  Упаковка станет доступна после приёмки биг-бэга на склад
+                  готовой продукции.
+                </p>
+              )}
+            {can("processing.pack") &&
+              bag?.stage === "DRIED" &&
+              currentStocks.length > 0 &&
+              !!bag.receivedAt &&
+              !bag.packedAt &&
+              !bag.soldAt && (
+                <ActionForm
+                  key={`pack:${b.id}`}
+                  title="Упаковка"
+                  submit="Биг-бэг упакован"
+                  onSubmit={async (f, key) =>
+                    action(
+                      `/processing/bags/${b.id}/pack`,
+                      Object.fromEntries(f),
+                      key,
+                    )
+                  }
+                >
+                  <Field
+                    name="workDate"
+                    label="Дата смены"
+                    type="date"
+                    defaultValue={localNow().slice(0, 10)}
+                  />
+                  <Field name="shift" label="Смена" defaultValue="Дневная" />
+                </ActionForm>
+              )}
+            {can("processing.sell") &&
+              bag &&
+              currentStocks.length > 0 &&
+              !bag.soldAt &&
+              ((bag.stage === "WASHED" && !bag.factoryStartedAt) ||
+                bag.receivedAt) && (
+                <ActionForm
+                  key={`sale:${b.id}`}
+                  title={
+                    bag.stage === "WASHED"
+                      ? "Продажа мытого материала"
+                      : "Отпуск готовой продукции"
+                  }
+                  submit="Подтвердить продажу и списать"
+                  onSubmit={async (f, key) =>
+                    action(
+                      "/processing/sales",
+                      { ...Object.fromEntries(f), batchIds: [b.id] },
+                      key,
+                    )
+                  }
+                >
+                  <p>Будет списан 1 биг-бэг весом {tonnes(bag.quantity)}.</p>
+                  <Reference
+                    name="warehouseId"
+                    label="Склад отпуска"
+                    rows={rows("warehouses")}
+                    defaultValue={warehouseDefault}
+                  />
+                  <Field name="recipient" label="Покупатель" />
+                  <Field
+                    name="documentNumber"
+                    label="Номер документа продажи"
+                  />
+                </ActionForm>
+              )}
+          </div>
           {showTrace && (
             <section className="panel">
               <h2>История исходной партии</h2>
@@ -690,7 +886,7 @@ export function ProcessingPanel({
               {trace.data && (
                 <>
                   <p>
-                    {trace.data.root.number} · Собрано{" "}
+                    {recordLabel(trace.data.root.number)} · Собрано{" "}
                     {tonnes(trace.data.summary.collected)} · Готового
                     произведено {tonnes(trace.data.summary.finishedProduced)}
                   </p>
@@ -761,7 +957,18 @@ export function ProcessingPanel({
           )}
         </>
       )}
-      <QrCards items={outputs} />
+      {outputs.length > 0 && (
+        <div
+          ref={outputRef}
+          tabIndex={-1}
+          className="scanned-record"
+          aria-label="QR созданных биг-бэгов"
+        >
+          <h2>Созданы биг-бэги: {outputs.length}</h2>
+          <p>Каждому биг-бэгу соответствует отдельный QR для печати.</p>
+          <QrCards items={outputs} />
+        </div>
+      )}
       {can("processing.pack") && <PackingStats token={token} />}
     </div>
   );

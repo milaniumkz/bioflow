@@ -5,6 +5,7 @@ import { Bell, MapPin, Clock, Check } from "lucide-react";
 import { webRequest } from "./session";
 import { dateTime } from "./workflow-ui";
 import { RecordDrawer } from "./design-system";
+import { visibleText } from "./presentation";
 type Row = Record<string, any>;
 export function NotificationWorkbench({
   token,
@@ -100,8 +101,8 @@ export function NotificationWorkbench({
                 <span className="status">
                   {n.readAt ? "Прочитано" : "Новое"}
                 </span>
-                <h2>{n.title}</h2>
-                <p>{n.body}</p>
+                <h2>{visibleText(n.title)}</h2>
+                <p>{visibleText(n.body)}</p>
                 <small>{dateTime(n.createdAt)}</small>
                 <div className="toolbar">
                   <button
@@ -147,8 +148,11 @@ export function NotificationWorkbench({
         </p>
       )}
       {selected && (
-        <RecordDrawer title={selected.title} onClose={() => setSelected(null)}>
-          <p>{selected.body}</p>
+        <RecordDrawer
+          title={visibleText(selected.title)}
+          onClose={() => setSelected(null)}
+        >
+          <p>{visibleText(selected.body)}</p>
           <p className="metric">{dateTime(selected.createdAt)}</p>
           {selected.type === "DRIVER_GPS_STALE" && (
             <p className="notice">
@@ -158,7 +162,7 @@ export function NotificationWorkbench({
           )}
           {selected.type === "DRIVER_IDLE" && (
             <p className="notice">
-              Стоянка подтверждена последовательностью пригодных GPS-точек.
+              Стоянка подтверждена последовательностью достоверных координат.
               Пробелы связи не добавляются к длительности простоя.
             </p>
           )}

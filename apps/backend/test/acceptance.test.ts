@@ -72,6 +72,67 @@ test("BIOFLOW specification AT 01–13 on PostgreSQL and private S3", async (t) 
   );
   token = nativeLogin.accessToken;
   await t.test(
+    "Browser login survives reload through a protected rotating cookie; logout and CSRF are enforced",
+    async () => {
+      const origin = new URL(base).origin;
+      const browser = async (
+        path: string,
+        cookie?: string,
+        body?: unknown,
+        overrideOrigin = origin,
+      ) =>
+        fetch(base + path, {
+          method: "POST",
+          headers: {
+            Origin: overrideOrigin,
+            ...(cookie ? { Cookie: cookie } : {}),
+            ...(body ? { "Content-Type": "application/json" } : {}),
+          },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+      const login = await browser("/auth/browser-login", undefined, {
+        email: user.email,
+        password,
+      });
+      assert.equal(login.status, 201);
+      const first = await login.json();
+      assert(first.accessToken);
+      assert.equal(first.refreshToken, undefined);
+      const firstHeader = login.headers.get("set-cookie")!;
+      assert.match(firstHeader, /HttpOnly/i);
+      assert.match(firstHeader, /SameSite=Strict/i);
+      const cookie = firstHeader.split(";")[0];
+      const csrf = await browser(
+        "/auth/browser-refresh",
+        cookie,
+        undefined,
+        "https://untrusted.example",
+      );
+      assert.equal(csrf.status, 403);
+      const restored = await browser("/auth/browser-refresh", cookie);
+      assert.equal(restored.status, 201);
+      const current = await restored.json();
+      assert(current.accessToken);
+      assert.equal(current.refreshToken, undefined);
+      const rotated = restored.headers.get("set-cookie")!.split(";")[0];
+      assert.notEqual(rotated, cookie);
+      await api("/auth/me", undefined, 200, current.accessToken);
+      const replay = await browser("/auth/browser-refresh", cookie);
+      assert.equal(replay.status, 401);
+      const logout = await browser("/auth/browser-logout", rotated);
+      assert.equal(logout.status, 201);
+      assert.match(
+        logout.headers.get("set-cookie")!,
+        /Expires=Thu, 01 Jan 1970/i,
+      );
+      assert.equal(
+        (await browser("/auth/browser-refresh", rotated)).status,
+        401,
+      );
+      await api("/auth/me", undefined, 200, token);
+    },
+  );
+  await t.test(
     "Phone login, default temporary password and mandatory first change",
     async () => {
       await api(
@@ -620,7 +681,14 @@ test("BIOFLOW specification AT 01–13 on PostgreSQL and private S3", async (t) 
           );
         if (format === "pdf")
           assert.equal(data.subarray(0, 4).toString(), "%PDF");
-        if (format === "csv") assert.ok(data.toString().includes(finished.id));
+        if (format === "csv") {
+          const csv = data.toString();
+          const row = report.rows.find((r: any) => r.batchId === finished.id);
+          const sequence = Number(row.batchNumber.split("-").at(-1));
+          assert.ok(csv.includes(`Партия №${sequence}`));
+          assert.ok(csv.includes("На конец, т"));
+          assert.equal(csv.includes(finished.id), false);
+        }
       }
     },
   );

@@ -1,3 +1,4 @@
+import { reportFilename } from "../reports/report-labels";
 import { Body, Controller, Get, Param, Post, Query, Res } from "@nestjs/common";
 import { Response } from "express";
 import { toCsv, toXlsx, toPdf } from "../reports/reports.controller";
@@ -194,10 +195,7 @@ export class LedgerController {
           ? "application/pdf"
           : "text/csv; charset=utf-8",
     );
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="bioflow-${type}.${format}"`,
-    );
+    res.setHeader("Content-Disposition", reportFilename(type, format));
     res.send(content);
   }
   @Permissions("references.manage") @Post("archive/:entity/:id") archive(

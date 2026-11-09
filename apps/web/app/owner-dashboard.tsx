@@ -5,6 +5,7 @@ import { webRequest } from "./session";
 import { LabeledInput, LabeledSelect, RecordDrawer } from "./design-system";
 import { FleetPanel } from "./fleet-panel";
 import { dateTime, tonnes, labels } from "./workflow-ui";
+import { recordLabel } from "./record-label";
 type Row = Record<string, any>;
 const statusLabels: Record<string, string> = {
   ...labels,
@@ -188,7 +189,7 @@ export function OwnerDashboardPanel({ token }: { token: string }) {
                     setTrip("");
                   }}
                 >
-                  <strong>{r.number}</strong>
+                  <strong>{recordLabel(r.number)}</strong>
                   <span>
                     {dateTime(r.date)} · {r.employee}
                   </span>
@@ -228,7 +229,7 @@ export function OwnerDashboardPanel({ token }: { token: string }) {
       )}
       {detail && (
         <RecordDrawer
-          title={detail.number}
+          title={recordLabel(detail.number)}
           onClose={() => {
             setDetail(null);
             setTrace("");

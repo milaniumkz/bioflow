@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { webRequest } from "./session";
 import { RouteMap } from "./route-map";
 import { EvidenceFiles, dateTime, labels, tonnes } from "./workflow-ui";
+import { visibleText } from "./presentation";
+import { recordLabel } from "./record-label";
 type Row = Record<string, any>;
 export function FleetPanel({
   token,
@@ -82,8 +84,8 @@ export function FleetPanel({
                   {r.vehicle.plateNumber} · {labels[r.status] ?? r.status}
                 </p>
                 <p>
-                  {r.number} · {tonnes(r.declaredWeight)} · {r.bagCount ?? "—"}{" "}
-                  мешков
+                  {recordLabel(r.number)} · {tonnes(r.declaredWeight)} ·{" "}
+                  {r.bagCount ?? "—"} мешков
                 </p>
                 <p>Загрузился: {dateTime(r.loadedAt)}</p>
                 <p>Выезд: {dateTime(r.departedAt)}</p>
@@ -155,11 +157,11 @@ export function FleetPanel({
                   value={`${Math.round(route.data.metrics.stoppedSeconds / 60)} мин`}
                 />
                 <Metric
-                  title="Пробелы в GPS"
+                  title="Пробелы в геолокации"
                   value={`${Math.round(route.data.metrics.signalGapSeconds / 60)} мин`}
                 />
                 <Metric
-                  title="По GPS-точкам"
+                  title="По записанным координатам"
                   value={`${route.data.metrics.distanceKm} км`}
                 />
               </div>
@@ -200,7 +202,7 @@ export function FleetPanel({
           {trace.error && <p className="error">{trace.error.message}</p>}
           {trace.data && (
             <>
-              <h3>{trace.data.root.number}</h3>
+              <h3>{recordLabel(trace.data.root.number)}</h3>
               <p>
                 Сборщик: {trace.data.root.createdByName} ·{" "}
                 {dateTime(trace.data.root.measuredAt)}
@@ -294,7 +296,7 @@ export function FleetPanel({
                     {m.warehouseName} · {m.createdByName} ·{" "}
                     {dateTime(m.createdAt)}
                   </p>
-                  <p>{m.reason}</p>
+                  <p>{visibleText(m.reason)}</p>
                 </article>
               ))}
               {trace.data.root.stocks?.map((s: Row) => (
@@ -314,7 +316,7 @@ export function FleetPanel({
                     Потеря {r.coefficientPercent}% · {labels[r.deviation]}
                   </p>
                   <p>
-                    {r.createdByName ?? r.createdById}
+                    {r.createdByName ?? "Сотрудник"}
                     {r.reason ? ` · ${r.reason}` : ""}
                   </p>
                   {r.bags.map((b: Row) => (

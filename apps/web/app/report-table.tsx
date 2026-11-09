@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { RecordDrawer } from "./design-system";
+import { visibleText, businessLabels } from "./presentation";
 type Row = Record<string, any>;
 const fields: Record<string, string> = {
   number: "Документ",
@@ -94,7 +95,19 @@ function display(key: string, v: any) {
     });
   if (/Percent$/.test(key) && Number.isFinite(Number(v)))
     return Number(v).toLocaleString("ru-RU", { maximumFractionDigits: 3 });
-  return labels[String(v)] ?? String(v);
+  if (
+    [
+      "kind",
+      "state",
+      "status",
+      "coefficientBasis",
+      "deviation",
+      "entity",
+      "action",
+    ].includes(key)
+  )
+    return labels[String(v)] ?? businessLabels[String(v)];
+  return labels[String(v)] ?? visibleText(v);
 }
 export function ReportTable({
   rows,
