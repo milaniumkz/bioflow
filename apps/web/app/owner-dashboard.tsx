@@ -6,6 +6,21 @@ import { LabeledInput, LabeledSelect, RecordDrawer } from "./design-system";
 import { FleetPanel } from "./fleet-panel";
 import { dateTime, tonnes, labels } from "./workflow-ui";
 type Row = Record<string, any>;
+const statusLabels: Record<string, string> = {
+  ...labels,
+  CONFIRMED: "Подтверждена",
+  PARTIALLY_SHIPPED: "Частично отправлена",
+  FULLY_SHIPPED: "Отправлена",
+  CLOSED: "Закрыта",
+  COMPLETED: "Завершена",
+  UNLOADED: "Разгружена",
+  REJECTED: "Отклонена",
+  REVIEW: "На проверке",
+  SHIPMENT: "Отгрузка",
+  PRODUCTION: "Производство",
+  PLANNED: "Запланирована",
+  DELIVERED: "Вручена покупателю",
+};
 const stages = [
   ["collection", "Сбор"],
   ["transport", "Перевозки"],
@@ -175,7 +190,7 @@ export function OwnerDashboardPanel({ token }: { token: string }) {
                     {dateTime(r.date)} · {r.employee}
                   </span>
                   <span>
-                    {r.location} · {labels[r.status] ?? r.status}
+                      {r.location} · {statusLabels[r.status] ?? r.status}
                   </span>
                   <span>
                     {tonnes(selected === "losses" ? r.loss : r.quantity)} ·{" "}
@@ -232,7 +247,7 @@ export function OwnerDashboardPanel({ token }: { token: string }) {
           <p>
             {detail.location} · {detail.employee} · {dateTime(detail.date)}
           </p>
-          <p>{labels[detail.status] ?? detail.status}</p>
+          <p>{statusLabels[detail.status] ?? detail.status}</p>
           <div className="toolbar">
             {detail.batchIds.map((id: string, i: number) => (
               <button
