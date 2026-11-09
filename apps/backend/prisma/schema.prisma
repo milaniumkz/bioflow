@@ -820,3 +820,35 @@ model BigBag {
   @@unique([processId, ordinal])
   @@index([packedById, packingDate, packingShift])
 }
+
+// Customer delivery is independent of stock posting; confirmation never writes off stock twice.
+model CustomerDelivery {
+  id String @id @default(cuid())
+  organizationId String
+  sourceId String
+  driverId String?
+  destination String
+  route String
+  status String @default("PLANNED")
+  version Int @default(1)
+  createdById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  events CustomerDeliveryEvent[]
+  @@unique([organizationId, sourceId])
+  @@index([organizationId, status])
+}
+
+model CustomerDeliveryEvent {
+  id String @id @default(cuid())
+  deliveryId String
+  status String
+  driverId String?
+  destination String
+  route String
+  notes String?
+  createdById String
+  createdAt DateTime @default(now())
+  delivery CustomerDelivery @relation(fields: [deliveryId], references: [id])
+  @@index([deliveryId, createdAt])
+}

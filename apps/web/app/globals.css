@@ -1295,3 +1295,36 @@ html[data-mobile-app="true"] .workspace-content {
     left: 0;
   }
 }
+
+.owner-metric {
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--border, #d9dfe7);
+}
+.owner-metric.selected {
+  outline: 2px solid #254b73;
+  outline-offset: 2px;
+}
+.owner-metric:hover,
+.owner-record:hover {
+  background: #edf3f8;
+}
+.owner-records {
+  display: grid;
+  gap: 12px;
+}
+.owner-record {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.owner-metric:focus-visible,
+.owner-record:focus-visible {
+  outline: 3px solid #467fb4;
+}

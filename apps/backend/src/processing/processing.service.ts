@@ -1202,12 +1202,74 @@ export class ProcessingService extends LedgerService {
         .filter((b) => b.stage === "WASHED" && b.soldAt)
         .map((b) => b.quantity),
     );
+    const lineageIds = [
+      root.id,
+      ...runs
+        .flatMap((r) => [r.preparedBatchId, ...r.bags.map((b) => b.batchId)])
+        .filter((id): id is string => !!id),
+    ];
+    const movements = await this.prisma.batchMovement.findMany({
+      where: {
+        organizationId: user.organizationId,
+        batchId: { in: lineageIds },
+        ...(user.accessAllObjects
+          ? {}
+          : { warehouseId: { in: user.warehouseScopeIds ?? [] } }),
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    const shipmentOperations = await this.prisma.batchOperation.findMany({
+      where: {
+        organizationId: user.organizationId,
+        kind: "SHIPMENT",
+        inputs: { some: { batchId: { in: lineageIds } } },
+      },
+      select: { id: true },
+    });
+    const deliveries = await this.prisma.customerDelivery.findMany({
+      where: {
+        organizationId: user.organizationId,
+        sourceId: {
+          in: [
+            ...bags.map((b) => b.id),
+            ...shipmentOperations.map((o) => o.id),
+          ],
+        },
+      },
+      include: { events: { orderBy: { createdAt: "asc" } } },
+    });
+    const deliveryDrivers = await this.prisma.driver.findMany({
+      where: {
+        organizationId: user.organizationId,
+        id: {
+          in: deliveries
+            .flatMap((d) => [d.driverId, ...d.events.map((e) => e.driverId)])
+            .filter((id): id is string => !!id),
+        },
+      },
+      select: { id: true, fullName: true },
+    });
+    const historyWarehouses = await this.prisma.warehouse.findMany({
+      where: {
+        organizationId: user.organizationId,
+        id: {
+          in: [
+            ...movements.map((m) => m.warehouseId),
+            ...root.stocks.map((s) => s.warehouseId),
+            ...bags.flatMap((b) => b.batch.stocks.map((s) => s.warehouseId)),
+          ],
+        },
+      },
+      select: { id: true, name: true },
+    });
     const users = await this.prisma.user.findMany({
       where: {
         organizationId: user.organizationId,
         id: {
           in: [
             root.createdById,
+            ...deliveries.flatMap((d) => d.events.map((e) => e.createdById)),
+            ...movements.map((m) => m.createdById),
             ...bags
               .flatMap((b) => [b.receivedById, b.packedById, b.soldById])
               .filter((id): id is string => Boolean(id)),
@@ -1255,6 +1317,12 @@ export class ProcessingService extends LedgerService {
     return {
       root: {
         ...root,
+        stocks: root.stocks.map((s) => ({
+          ...s,
+          warehouseName:
+            historyWarehouses.find((w) => w.id === s.warehouseId)?.name ??
+            s.warehouseId,
+        })),
         createdByName:
           users.find((u) => u.id === root.createdById)?.fullName ?? "Сотрудник",
         laboratoryAnalyses: root.laboratoryAnalyses.map((a) => ({
@@ -1269,6 +1337,26 @@ export class ProcessingService extends LedgerService {
             users.find((u) => u.id === t.acceptedById)?.fullName ?? null,
         })),
       },
+      deliveries: deliveries.map((d) => ({
+        ...d,
+        driverName:
+          deliveryDrivers.find((x) => x.id === d.driverId)?.fullName ?? "—",
+        events: d.events.map((e) => ({
+          ...e,
+          createdByName:
+            users.find((x) => x.id === e.createdById)?.fullName ?? "Сотрудник",
+          driverName:
+            deliveryDrivers.find((x) => x.id === e.driverId)?.fullName ?? "—",
+        })),
+      })),
+      movements: movements.map((m) => ({
+        ...m,
+        warehouseName:
+          historyWarehouses.find((w) => w.id === m.warehouseId)?.name ??
+          m.warehouseId,
+        createdByName:
+          users.find((u) => u.id === m.createdById)?.fullName ?? "Сотрудник",
+      })),
       files,
       runs: runs.map((r) => ({
         ...r,

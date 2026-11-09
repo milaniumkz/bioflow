@@ -674,6 +674,44 @@
         ]
       }
     },
+    "/api/v1/processing/owner-dashboard": {
+      "get": {
+        "operationId": "ProcessingController_owner",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
+    "/api/v1/processing/deliveries": {
+      "post": {
+        "operationId": "ProcessingController_delivery",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      }
+    },
     "/api/v1/processing/laboratory": {
       "get": {
         "operationId": "ProcessingController_laboratoryRegistry",
