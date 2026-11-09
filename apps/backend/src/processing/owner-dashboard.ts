@@ -301,7 +301,11 @@ export class OwnerDashboard {
           r.toWarehouseId,
         ])
       ) {
-        groups[r.kind === "DRYING" ? "factory" : "washing"].push(base);
+        // Preparation and washing pass the same material twice; count only
+        // the actual washing output in the washing stage. Preparation remains
+        // visible in losses, deviations and the complete batch trace.
+        if (r.kind === "DRYING") groups.factory.push(base);
+        if (r.kind === "WASHING") groups.washing.push(base);
         if (base.loss) groups.losses.push(base);
         if (r.deviation !== "NORMAL") groups.deviations.push(base);
       }
@@ -363,8 +367,10 @@ export class OwnerDashboard {
         number: o.number,
         date: o.confirmedAt ?? o.createdAt,
         quantity: Number(
-          o.outputQuantity ??
-            o.inputs.reduce((s, i) => s + Number(i.quantity), 0),
+          ["SHIPMENT", "RETURN"].includes(o.kind)
+            ? o.inputs.reduce((s, i) => s + Number(i.quantity), 0)
+            : (o.outputQuantity ??
+                o.inputs.reduce((s, i) => s + Number(i.quantity), 0)),
         ),
         bags: 0,
         employee: name(o.createdById),
@@ -380,6 +386,8 @@ export class OwnerDashboard {
         if (eventMatches) groups.sales.push(row);
         deliveryRow(row, o.createdById, [o.fromWarehouseId, o.toWarehouseId]);
       }
+      if (eventMatches && o.kind === "RETURN")
+        groups.sales.push({ ...row, quantity: -row.quantity });
       if (eventMatches && ["WASHING", "PRODUCTION"].includes(o.kind))
         groups[o.kind === "WASHING" ? "washing" : "factory"].push(row);
       if (eventMatches && row.loss) groups.losses.push(row);

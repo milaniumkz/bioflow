@@ -17,6 +17,7 @@ const statusLabels: Record<string, string> = {
   REJECTED: "Отклонена",
   REVIEW: "На проверке",
   SHIPMENT: "Отгрузка",
+  RETURN: "Возврат покупателя",
   PRODUCTION: "Производство",
   PLANNED: "Запланирована",
   DELIVERED: "Вручена покупателю",
@@ -190,7 +191,7 @@ export function OwnerDashboardPanel({ token }: { token: string }) {
                     {dateTime(r.date)} · {r.employee}
                   </span>
                   <span>
-                      {r.location} · {statusLabels[r.status] ?? r.status}
+                    {r.location} · {statusLabels[r.status] ?? r.status}
                   </span>
                   <span>
                     {tonnes(selected === "losses" ? r.loss : r.quantity)} ·{" "}

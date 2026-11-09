@@ -276,3 +276,39 @@ test("delivery appends a snapshot with optimistic version checks and leaves sale
     "Доставка изменена",
   );
 });
+
+test("prewash output is not counted a second time as washing throughput; returns reduce net sales", async () => {
+  const { prisma, service } = fixture();
+  const runs = await prisma.processRun.findMany();
+  runs.push({
+    ...runs[0],
+    id: "prepare",
+    kind: "PREWASH",
+    bags: [],
+    inputQuantity: 10,
+    outputQuantity: 8,
+  });
+  prisma.batchOperation.findMany.mockResolvedValue(
+    ["SHIPMENT", "RETURN"].map((kind, i) => ({
+      id: kind,
+      number: kind,
+      kind,
+      createdAt: date,
+      confirmedAt: date,
+      createdById: "seller",
+      fromWarehouseId: "wash",
+      toWarehouseId: null,
+      inputs: [{ batchId: "root", quantity: i ? 1 : 3 }],
+      outputQuantity: 0,
+      lossQuantity: 0,
+      wasteQuantity: 0,
+      defectQuantity: 0,
+    })),
+  );
+  const d = await service.read({}, user);
+  expect(d.groups.washing.quantity).toBe(6);
+  expect(d.groups.washing.records).toHaveLength(1);
+  expect(d.groups.losses.quantity).toBe(4);
+  expect(d.groups.sales.quantity).toBe(8);
+  expect(d.groups.delivery.records).toHaveLength(2);
+});
