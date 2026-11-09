@@ -681,7 +681,14 @@ test("BIOFLOW specification AT 01–13 on PostgreSQL and private S3", async (t) 
           );
         if (format === "pdf")
           assert.equal(data.subarray(0, 4).toString(), "%PDF");
-        if (format === "csv") assert.ok(data.toString().includes(finished.id));
+        if (format === "csv") {
+          const csv = data.toString();
+          const row = report.rows.find((r: any) => r.batchId === finished.id);
+          const sequence = Number(row.batchNumber.split("-").at(-1));
+          assert.ok(csv.includes(`Партия №${sequence}`));
+          assert.ok(csv.includes("На конец, т"));
+          assert.equal(csv.includes(finished.id), false);
+        }
       }
     },
   );
