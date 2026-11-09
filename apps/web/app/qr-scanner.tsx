@@ -13,11 +13,11 @@ export function QrScanner({
   const stream = useRef<MediaStream | null>(null);
   const frame = useRef<number>(0);
   const lastDecode = useRef(0);
+  const cameraVersion = useRef(0);
   const alive = useRef(true),
     reading = useRef(false),
     accepted = useRef(false);
   const [error, setError] = useState(""),
-    [code, setCode] = useState(""),
     [busy, setBusy] = useState(false);
   const [camera, setCamera] = useState(false);
   function stop() {
@@ -27,8 +27,10 @@ export function QrScanner({
   }
   useEffect(() => {
     alive.current = true;
+    void start();
     return () => {
       alive.current = false;
+      cameraVersion.current++;
       stop();
     };
   }, []);
@@ -36,6 +38,7 @@ export function QrScanner({
     if (!alive.current || accepted.current || !value.trim()) return;
     accepted.current = true;
     stop();
+    setCamera(false);
     setBusy(true);
     setError("");
     try {
@@ -60,12 +63,13 @@ export function QrScanner({
     })?.data;
   }
   async function start() {
+    const generation = ++cameraVersion.current;
     stop();
     setError("");
     setCamera(false);
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       setError(
-        "Для живого сканера откройте защищённый адрес HTTPS. Можно также сфотографировать QR или выбрать фото ниже.",
+        "Для сканирования откройте защищённый адрес сайта (HTTPS) и разрешите доступ к камере.",
       );
       return;
     }
@@ -74,7 +78,7 @@ export function QrScanner({
         video: { facingMode: { ideal: "environment" } },
         audio: false,
       });
-      if (!alive.current) {
+      if (!alive.current || generation !== cameraVersion.current) {
         media.getTracks().forEach((track) => track.stop());
         return;
       }
@@ -88,7 +92,13 @@ export function QrScanner({
       setCamera(true);
       const canvas = document.createElement("canvas");
       const scan = async () => {
-        if (!alive.current || !stream.current || accepted.current) return;
+        if (
+          !alive.current ||
+          generation !== cameraVersion.current ||
+          !stream.current ||
+          accepted.current
+        )
+          return;
         if (
           !reading.current &&
           Date.now() - lastDecode.current >= 150 &&
@@ -106,7 +116,11 @@ export function QrScanner({
               ?.drawImage(video.current, 0, 0, canvas.width, canvas.height);
             const result =
               canvas.width && canvas.height ? await decode(canvas) : null;
-            if (result) {
+            if (
+              result &&
+              alive.current &&
+              generation === cameraVersion.current
+            ) {
               await accept(result);
               return;
             }
@@ -120,46 +134,14 @@ export function QrScanner({
       };
       void scan();
     } catch (e) {
+      if (generation !== cameraVersion.current) return;
       stop();
       if (alive.current)
         setError(
           (e as Error).name === "NotAllowedError"
-            ? "Разрешите доступ к камере в настройках браузера или выберите фото QR."
-            : "Камера недоступна. Закройте другие приложения камеры и повторите попытку или выберите фото QR.",
+            ? "Разрешите доступ к камере в настройках браузера и повторите сканирование."
+            : "Камера недоступна. Закройте другие приложения камеры и повторите сканирование.",
         );
-    }
-  }
-  async function photo(file?: File) {
-    if (!file || busy) return;
-    stop();
-    setCamera(false);
-    setBusy(true);
-    setError("");
-    try {
-      if (file.size > 20 * 1024 * 1024)
-        throw Error("Выберите фото размером до 20 МБ.");
-      const bitmap = await createImageBitmap(file);
-      try {
-        const scale = Math.min(1, 2000 / Math.max(bitmap.width, bitmap.height));
-        const canvas = document.createElement("canvas");
-        canvas.width = Math.round(bitmap.width * scale);
-        canvas.height = Math.round(bitmap.height * scale);
-        canvas
-          .getContext("2d")
-          ?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-        const result = await decode(canvas);
-        if (!result)
-          throw Error(
-            "QR не найден на фото. Снимите код целиком, без бликов, или введите его вручную.",
-          );
-        await accept(result);
-      } finally {
-        bitmap.close();
-      }
-    } catch (e) {
-      if (alive.current) setError((e as Error).message);
-    } finally {
-      if (alive.current && !accepted.current) setBusy(false);
     }
   }
   return (
@@ -182,61 +164,12 @@ export function QrScanner({
         className="qr-camera"
         hidden={!camera}
       />
-      <div className="toolbar">
-        <button
-          type="button"
-          className="button"
-          disabled={busy}
-          onClick={() => void start()}
-        >
-          Включить камеру
+      {!camera && !error && !busy && <p role="status">Включаем камеру…</p>}
+      {error && (
+        <button className="button" disabled={busy} onClick={() => void start()}>
+          Сканировать ещё раз
         </button>
-      </div>
-      <label className="button secondary">
-        Сфотографировать QR
-        <input
-          type="file"
-          accept="image/*"
-          capture="environment"
-          disabled={busy}
-          onChange={(e) => {
-            void photo(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-        />
-      </label>
-      <label>
-        Выбрать фото QR
-        <input
-          type="file"
-          accept="image/*"
-          disabled={busy}
-          onChange={(e) => {
-            void photo(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-        />
-      </label>
-      <form
-        data-transient-form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void accept(code);
-        }}
-      >
-        <label>
-          QR-код
-          <input
-            value={code}
-            maxLength={512}
-            required
-            onChange={(e) => setCode(e.target.value)}
-          />
-        </label>
-        <button className="button secondary" disabled={busy || !code.trim()}>
-          Открыть партию
-        </button>
-      </form>
+      )}
       {busy && <p role="status">Открываем партию…</p>}
       {error && (
         <p className="error" role="alert">

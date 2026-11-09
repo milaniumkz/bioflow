@@ -4,6 +4,22 @@ let epoch = 0;
 let access = "",
   refresh = "";
 let pending: Promise<boolean> | undefined;
+let restoring: Promise<string | undefined> | undefined;
+async function browserRequest(path: string, init: RequestInit = {}) {
+  const send = () =>
+    networkFetch(base + path, {
+      ...init,
+      method: "POST",
+      credentials: "include",
+      headers: {
+        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...init.headers,
+      },
+    });
+  if (typeof navigator !== "undefined" && navigator.locks)
+    return navigator.locks.request("bioflow:browser-session", send);
+  return send();
+}
 export function setSession(
   tokens: {
     accessToken: string;
@@ -14,31 +30,91 @@ export function setSession(
   if (!preserveIdentity) epoch++;
   access = tokens.accessToken;
   refresh = tokens.refreshToken ?? "";
+  if (!preserveIdentity && typeof window !== "undefined") {
+    try {
+      localStorage.removeItem("bioflow:logged-out");
+    } catch {}
+  }
   mobileNotify({ action: "session", sessionId: currentSessionId() });
 }
 export function clearSession() {
   epoch++;
   access = "";
   refresh = "";
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem("bioflow:logged-out", "1");
+    } catch {}
+    void browserRequest("/auth/browser-logout").catch(() => {});
+  }
   mobileNotify({ action: "sessionEnded" });
 }
 async function renew() {
-  if (!refresh) return false;
   const generation = epoch;
   try {
-    const response = await fetch(base + "/auth/refresh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: refresh }),
-    });
+    const response = refresh
+      ? await networkFetch(base + "/auth/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken: refresh }),
+        })
+      : await browserRequest("/auth/browser-refresh");
     if (!response.ok) return false;
     const tokens = await response.json();
     if (generation !== epoch) return false;
+    const subject = (value: string) => {
+      try {
+        return JSON.parse(
+          atob(value.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")),
+        ).sub;
+      } catch {
+        return undefined;
+      }
+    };
+    if (
+      subject(access) &&
+      subject(tokens.accessToken) &&
+      subject(access) !== subject(tokens.accessToken)
+    ) {
+      setSession(tokens);
+      if (typeof window !== "undefined")
+        window.dispatchEvent(
+          new CustomEvent("bioflow:identity-changed", {
+            detail: { accessToken: tokens.accessToken },
+          }),
+        );
+      return false;
+    }
     setSession(tokens, true);
     return true;
   } catch {
-    return false;
+    throw Error(
+      "Нет связи с сервером. Проверьте подключение и повторите попытку.",
+    );
   }
+}
+export function restoreBrowserSession(): Promise<string | undefined> {
+  restoring ??= restoreBrowserSessionOnce().finally(() => {
+    restoring = undefined;
+  });
+  return restoring;
+}
+async function restoreBrowserSessionOnce(): Promise<string | undefined> {
+  if (typeof window !== "undefined") {
+    try {
+      if (localStorage.getItem("bioflow:logged-out")) return undefined;
+    } catch {}
+  }
+  const generation = epoch;
+  const response = await browserRequest("/auth/browser-refresh");
+  if (generation !== epoch) return undefined;
+  if (response.status === 401 || response.status === 403) return undefined;
+  if (!response.ok)
+    throw Error("Не удалось восстановить вход. Повторите попытку.");
+  const tokens = await response.json();
+  if (generation !== epoch) return undefined;
+  setSession(tokens, true);
+  return tokens.accessToken;
 }
 export async function networkFetch(
   input: RequestInfo | URL,
@@ -71,6 +147,7 @@ export async function webRequest<T>(
   const send = () =>
     networkFetch(base + path, {
       ...init,
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
         ...(access || token
@@ -79,12 +156,21 @@ export async function webRequest<T>(
         ...init.headers,
       },
     });
-  let response = await send();
+  let response = await (path === "/auth/browser-login"
+    ? browserRequest(path, init)
+    : send());
   checkIdentity();
-  if (response.status === 401 && !path.startsWith("/auth/")) {
-    pending ??= renew();
-    const ok = await pending;
-    pending = undefined;
+  if (
+    response.status === 401 &&
+    (!path.startsWith("/auth/") || path === "/auth/me")
+  ) {
+    const renewing = (pending ??= renew());
+    let ok;
+    try {
+      ok = await renewing;
+    } finally {
+      if (pending === renewing) pending = undefined;
+    }
     if (ok) response = await send();
   }
   let body;
@@ -98,6 +184,7 @@ export async function webRequest<T>(
     response.status === 401 &&
     path !== "/auth/login" &&
     path !== "/auth/refresh" &&
+    !path.startsWith("/auth/browser-") &&
     typeof window !== "undefined"
   )
     window.dispatchEvent(new Event("bioflow:expired"));
@@ -161,7 +248,9 @@ function readableError(message: string): string {
       return "Проверьте пароль: он должен содержать не менее 8 символов";
     return "Проверьте обязательные поля и формат введённых данных";
   }
-  return message;
+  if (/[A-Za-z]/.test(message) && !/[А-Яа-яЁё]/.test(message))
+    return "Не удалось выполнить действие. Проверьте данные и доступ к партии.";
+  return message.replace(/\bc[a-z0-9]{20,}\b/gi, "указанная запись");
 }
 
 export function currentSessionId(): string | undefined {

@@ -271,7 +271,9 @@ export class OwnerDashboard {
           groups.stocks.push({
             id: s.id,
             batchIds: [b.id],
-            number: b.number,
+            number: b.bigBag
+              ? `${batches.find((x) => x.id === rootFor(b.id))?.number ?? b.number} · биг-бэг №${b.bigBag.ordinal}`
+              : b.number,
             date: s.updatedAt,
             quantity: Number(s.quantity),
             bags: b.bigBag ? 1 : 0,

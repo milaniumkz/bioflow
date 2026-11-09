@@ -1328,3 +1328,6 @@ html[data-mobile-app="true"] .workspace-content {
 .owner-record:focus-visible {
   outline: 3px solid #467fb4;
 }
+
+.scanned-record { scroll-margin-top: 24px; }
+.scanned-record:focus-visible { outline: 2px solid #254b73; outline-offset: 4px; }

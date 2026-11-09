@@ -58,7 +58,9 @@ const data = {
     const req = route.request(),
       url = new URL(req.url());
     let body = {};
-    if (url.pathname.endsWith("/auth/login"))
+    if (url.pathname.endsWith("/auth/browser-refresh"))
+      return route.fulfill({ status: 401, json: {} });
+    if (url.pathname.endsWith("/auth/browser-login"))
       body = {
         accessToken: "synthetic-ui-test",
         refreshToken: "synthetic-refresh",

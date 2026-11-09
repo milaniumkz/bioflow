@@ -1,3 +1,4 @@
+import { documentSearch } from "../common/document-search";
 import {
   BadRequestException,
   ConflictException,
@@ -60,7 +61,10 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
   async trips(user: CurrentUser, query: PageDto, driver: boolean) {
     const where = this.where(user, driver);
     if (query.search)
-      where.number = { contains: query.search, mode: "insensitive" };
+      where.number = {
+        contains: documentSearch(query.search),
+        mode: "insensitive",
+      };
     const [data, total] = await this.prisma.$transaction([
       this.prisma.waybill.findMany({
         where,

@@ -15,26 +15,16 @@ import { webRequest, networkFetch } from "./session";
 import { createCommandId } from "./command-id.mjs";
 import { isMobileWorkspace, mobileNotify, printQr } from "./mobile-bridge";
 import { weightPreview, decimalError } from "./weight-preview.mjs";
+import {
+  recordLabel,
+  qrLabel,
+  printableQr,
+  qrStageLabel,
+} from "./record-label";
+import { businessLabels } from "./presentation";
 type Row = Record<string, any>;
 const UploadState = createContext<(busy: boolean) => void>(() => {});
-export const labels: Record<string, string> = {
-  CREATED: "Ожидает загрузки",
-  LOADED: "Загрузился",
-  IN_TRANSIT: "В пути",
-  ARRIVED: "Прибыл",
-  ACCEPTED: "Принят",
-  ACCEPTED_WITH_DIFFERENCE: "Принят с расхождением",
-  DIRTY: "Собранное сырьё",
-  WASHED: "Мытое",
-  FINISHED: "Готовая продукция",
-  PREWASH: "Перед мойкой",
-  WASHING: "Мойка",
-  DRYING: "Завод",
-  NORMAL: "В норме",
-  ABOVE: "Выше нормы",
-  BELOW: "Ниже нормы",
-  DRIED: "Высушен",
-};
+export const labels = businessLabels;
 export const tonnes = (value: unknown) =>
   `${Number(value ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 3 })} т`;
 export const dateTime = (value: unknown) =>
@@ -210,7 +200,9 @@ export function ActionForm({
           input.closest("label")?.firstChild?.textContent?.trim() ||
           input.name ||
           "Поле";
-        setValidationError(`${label}: ${input.validationMessage}`);
+        setValidationError(
+          `${label}: ${input.validity.valueMissing ? "Заполните обязательное поле" : "Проверьте введённое значение"}`,
+        );
       }}
       onInput={() => {
         setValidationError("");
@@ -512,25 +504,41 @@ export function PhotoUpload({
 }
 export function QrCards({ items }: { items: Row[] }) {
   const [print, setPrint] = useState("");
+  const [printError, setPrintError] = useState("");
   return (
     <>
       <div className="workflow-grid">
         {items.map((r) => (
           <article className="panel qr-result" key={r.id}>
-            <h3>{r.number}</h3>
-            <p>{tonnes(r.initialQuantity ?? r.declaredWeight)}</p>
+            <h3>{qrLabel(r)}</h3>
+            {r.ordinal != null && (
+              <p>{recordLabel(r.sourceNumber ?? r.number)}</p>
+            )}
+            <p>
+              {qrStageLabel(r)} ·{" "}
+              {tonnes(r.initialQuantity ?? r.declaredWeight)}
+            </p>
             <img
               src={r.qrImage}
-              alt={`QR ${r.number}`}
+              alt={`QR: ${qrLabel(r)}`}
               width="220"
               height="220"
             />
             <button
               className="button secondary"
-              onClick={() => {
-                setPrint(r.qrImage);
-                if (isMobileWorkspace()) printQr(r.qrImage);
-                else setTimeout(() => window.print(), 50);
+              onClick={async () => {
+                setPrintError("");
+                try {
+                  const image = await printableQr(r);
+                  setPrint(image);
+                  if (isMobileWorkspace()) printQr(image);
+                  else
+                    requestAnimationFrame(() =>
+                      requestAnimationFrame(() => window.print()),
+                    );
+                } catch (e) {
+                  setPrintError((e as Error).message);
+                }
               }}
             >
               Печатать QR
@@ -538,6 +546,11 @@ export function QrCards({ items }: { items: Row[] }) {
           </article>
         ))}
       </div>
+      {printError && (
+        <p className="error" role="alert">
+          {printError}
+        </p>
+      )}
       {print &&
         typeof document !== "undefined" &&
         createPortal(
@@ -550,40 +563,22 @@ export function QrCards({ items }: { items: Row[] }) {
   );
 }
 export function QrInput({ onScan }: { onScan: (qr: string) => Promise<void> }) {
-  const [qr, setQr] = useState("");
   const [scanner, setScanner] = useState(false);
   return (
     <>
-      <ActionForm
-        title="Открыть партию по QR"
-        submit="Открыть партию"
-        onSubmit={async () => {
-          await onScan(qr);
-        }}
-      >
-        {
-          <button
-            type="button"
-            className="button"
-            onClick={() =>
-              isMobileWorkspace()
-                ? mobileNotify({ action: "scanQr" })
-                : setScanner(true)
-            }
-          >
-            Сканировать камерой
-          </button>
-        }
-        <label>
-          QR-код
-          <input
-            required
-            value={qr}
-            onChange={(e) => setQr(e.target.value.trim())}
-            placeholder="Сканируйте или вставьте код"
-          />
-        </label>
-      </ActionForm>
+      <section className="panel">
+        <button
+          type="button"
+          className="button"
+          onClick={() =>
+            isMobileWorkspace()
+              ? mobileNotify({ action: "scanQr" })
+              : setScanner(true)
+          }
+        >
+          Сканировать QR партии или биг-бэга
+        </button>
+      </section>
       {scanner && (
         <QrScanner onScan={onScan} onClose={() => setScanner(false)} />
       )}
@@ -798,7 +793,7 @@ export function CollectionPanel({ token }: { token: string }) {
       )}
       {trips.data?.data.map((r: Row) => (
         <article className="panel" key={r.id}>
-          <h3>{r.number}</h3>
+          <h3>{recordLabel(r.number)}</h3>
           <p>
             {r.bagCount} мешков · {tonnes(r.declaredWeight)}
           </p>

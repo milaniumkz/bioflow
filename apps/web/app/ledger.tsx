@@ -7,6 +7,8 @@ import { createPortal } from "react-dom";
 import { webRequest, downloadReport, networkFetch } from "./session";
 import { createCommandId } from "./command-id.mjs";
 import { isMobileWorkspace, printQr, saveBlob } from "./mobile-bridge";
+import { recordLabel } from "./record-label";
+import { visibleText, caption } from "./presentation";
 type Row = Record<string, any>;
 const url = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 const names: Record<string, string> = {
@@ -320,7 +322,7 @@ export function Ledger({
           )
           .map((x) => (
             <option key={x.id} value={x.id} disabled={x.status === "DRAFT"}>
-              {x.number} ·{" "}
+              {recordLabel(x.number)} ·{" "}
               {x.status === "DRAFT"
                 ? "черновик — сначала подтвердите"
                 : `доступно ${x.availableSourceQuantity} т`}
@@ -381,7 +383,12 @@ export function Ledger({
           ? window.prompt("Причина операции")
           : undefined;
         if (needReason && !reason) return;
-        if (!window.confirm(`${label}: ${row.number ?? row.id}?`)) return;
+        if (
+          !window.confirm(
+            `${label}: ${visibleText(row.number ?? "выбранная запись")}?`,
+          )
+        )
+          return;
         command(`/ledger/${tab}/${row.id}/${suffix}`, {
           ...payload,
           ...(reason ? { reason } : {}),
@@ -395,11 +402,9 @@ export function Ledger({
   const renderRecord = (row: Row, i: number) => (
     <article className="panel" key={row.id ?? i}>
       <h3>
-        {row.number ??
-          row.batch?.number ??
-          row.fullName ??
-          row.batchId ??
-          `Запись ${i + 1}`}
+        {visibleText(
+          row.number ?? row.batch?.number ?? row.fullName ?? `Запись ${i + 1}`,
+        )}
       </h3>
       {tab === "stocks" && (
         <p>
@@ -534,12 +539,12 @@ export function Ledger({
                   receivedWeight: "Принято, т",
                   difference: "Расхождение, т",
                   differencePercent: "Расхождение, %",
-                  batchId: "ID партии",
-                  id: "ID",
+                  batchId: "Партия",
+                  id: "Запись",
                   kind: "Операция",
                   createdAt: "Создано",
                 } as Row
-              )[k] ?? k}
+              )[k] ?? caption(k)}
             </span>
             <span>
               {["warehouseScopeIds", "extractionScopeIds"].includes(k) &&
@@ -561,12 +566,14 @@ export function Ledger({
                   ? ((v as Row).name ??
                     (v as Row).fullName ??
                     (v as Row).plateNumber ??
-                    (v as Row).number ??
-                    JSON.stringify(v))
+                    ((v as Row).number
+                      ? recordLabel((v as Row).number)
+                      : undefined) ??
+                    "См. связанные данные")
                   : k === "warehouseId"
                     ? ((refs.warehouses ?? []).find((x) => x.id === v)?.name ??
                       String(v))
-                    : (names[String(v)] ?? String(v))}
+                    : (names[String(v)] ?? visibleText(v))}
             </span>
           </div>
         ))}
@@ -987,8 +994,8 @@ export function Ledger({
                       )
                       .map((x) => (
                         <option key={x.id} value={x.batchId}>
-                          {x.batch.number} · {names[x.batch.state]} ·{" "}
-                          {x.available} т
+                          {recordLabel(x.batch.number)} · {names[x.batch.state]}{" "}
+                          · {x.available} т
                         </option>
                       ))}
                   </LabeledSelect>
@@ -1053,7 +1060,7 @@ export function Ledger({
                 </>
               )}
               {operationKind === "RETURN" &&
-                field("reversesOperationId", "ID исходной отгрузки")}
+                field("reversesOperationId", "Исходная отгрузка")}
               {field("reason", "Причина / комментарий", "text", false)}
               {documents}
               <button className="button" disabled={busy}>
@@ -1078,7 +1085,7 @@ export function Ledger({
         >
           <h3>
             {selected.action === "load" ? "Погрузка" : "Приёмка"}:{" "}
-            {selected.number}
+            {recordLabel(selected.number)}
           </h3>
           {selected.action === "receipt" &&
             select("warehouseId", "Склад приёмки", "warehouses")}
@@ -1247,11 +1254,12 @@ export function Ledger({
                     <tr key={row.id ?? i}>
                       <td>
                         <strong>
-                          {row.number ??
-                            row.batch?.number ??
-                            row.fullName ??
-                            row.batchId ??
-                            "Запись"}
+                          {visibleText(
+                            row.number ??
+                              row.batch?.number ??
+                              row.fullName ??
+                              "Запись",
+                          )}
                         </strong>
                         {row.warehouse?.name && (
                           <small className="table-meta">
@@ -1480,11 +1488,11 @@ export function Ledger({
       )}
       {opened !== null && rows[opened] && (
         <RecordDrawer
-          title={
+          title={visibleText(
             rows[opened].number ??
-            rows[opened].batch?.number ??
-            "Учётная запись"
-          }
+              rows[opened].batch?.number ??
+              "Учётная запись",
+          )}
           onClose={() => setOpened(null)}
         >
           <div
@@ -1512,7 +1520,7 @@ export function Ledger({
           aria-label="Документ сохранён"
           onCancel={() => setResult(null)}
         >
-          <p>Операция сохранена: {result.number ?? result.id ?? "готово"}</p>
+          <p>Операция сохранена: {visibleText(result.number ?? "готово")}</p>
           {result.qrImage && (
             <div>
               <img
@@ -1554,7 +1562,8 @@ function TraceTree({ node }: { node: Row }) {
   return (
     <details open className="panel">
       <summary>
-        {node.batch?.number ?? node.id} · {names[node.batch?.state] ?? "Партия"}
+        {visibleText(node.batch?.number ?? "Связанная партия")} ·{" "}
+        {names[node.batch?.state] ?? "Партия"}
       </summary>
       {node.batch && (
         <p>
@@ -1564,13 +1573,14 @@ function TraceTree({ node }: { node: Row }) {
       )}
       {node.operation && (
         <p>
-          {names[node.operation.kind]}: {node.operation.number}
+          {names[node.operation.kind]}: {recordLabel(node.operation.number)}
         </p>
       )}
       {(node.trips ?? []).map((t: Row) => (
         <p key={t.id}>
-          {t.number} · {t.vehicle?.plateNumber} · {t.counterparty?.name} ·{" "}
-          {t.extractionSite?.name} · {t.declaredWeight} т
+          {recordLabel(t.number)} · {t.vehicle?.plateNumber} ·{" "}
+          {t.counterparty?.name} · {t.extractionSite?.name} · {t.declaredWeight}{" "}
+          т
         </p>
       ))}
       {(node.inputs ?? []).map((i: Row, n: number) => (

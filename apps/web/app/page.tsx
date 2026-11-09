@@ -1,4 +1,5 @@
 "use client";
+import { caption, visibleText } from "./presentation";
 import { BrowserPush } from "./browser-push";
 import { QrScanner } from "./qr-scanner";
 import { AuditChanges } from "./audit-changes";
@@ -6,6 +7,7 @@ import { AuditChanges } from "./audit-changes";
 import {
   webRequest,
   setSession,
+  restoreBrowserSession,
   clearSession,
   networkFetch,
   downloadReport,
@@ -47,7 +49,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { referencePayload } from "./reference-payload.mjs";
-import { FormEvent, useMemo, useState, useEffect } from "react";
+import { FormEvent, useMemo, useState, useEffect, useRef } from "react";
 import { roleLabel, roleDescription } from "./role-labels";
 import { isMobileWorkspace, mobileNotify, saveBlob } from "./mobile-bridge";
 
@@ -101,7 +103,7 @@ const referenceFields: Record<string, Array<[string, string]>> = {
     ["name", "Название"],
     ["bin", "БИН"],
     ["phone", "Телефон"],
-    ["email", "Email"],
+    ["email", "Электронная почта"],
     ["status", "Статус"],
   ],
   vehicles: [
@@ -154,20 +156,16 @@ function Login({ onToken }: { onToken: (token: string) => void }) {
   const [message, setMessage] = useState("");
   const login = useMutation({
     mutationFn: () =>
-      request<{ accessToken: string; refreshToken: string }>(
-        "/auth/login",
-        undefined,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            ...(email.includes("@")
-              ? { email: email.trim() }
-              : { phone: email.trim() }),
-            password,
-            platform: "web",
-          }),
-        },
-      ),
+      request<{ accessToken: string }>("/auth/browser-login", undefined, {
+        method: "POST",
+        body: JSON.stringify({
+          ...(email.includes("@")
+            ? { email: email.trim() }
+            : { phone: email.trim() }),
+          password,
+          platform: "web",
+        }),
+      }),
     onSuccess: (data) => {
       setSession(data);
       onToken(data.accessToken);
@@ -476,7 +474,7 @@ const fieldNames: Record<string, string> = {
   userRoles: "Роли",
   roleDescription: "Назначение роли",
   category: "Категория",
-  email: "Email",
+  email: "Электронная почта",
   phone: "Телефон",
   bin: "БИН",
   status: "Статус",
@@ -517,7 +515,7 @@ const fieldNames: Record<string, string> = {
   asc: "По возрастанию",
 };
 function fieldLabel(key: string) {
-  return fieldNames[key] ?? key;
+  return fieldNames[key] ?? caption(key);
 }
 
 function Table({
@@ -545,7 +543,7 @@ function Table({
       return (row.items ?? [])
         .map(
           (item: any) =>
-            `${item.materialType?.name ?? item.productType?.name ?? item.materialTypeId ?? item.productTypeId}:${item.quantity}`,
+            `${item.materialType?.name ?? item.productType?.name ?? "Материал"}:${item.quantity}`,
         )
         .join(", ");
     }
@@ -562,13 +560,13 @@ function Table({
         "Нет"
       )
     ) : typeof value === "object" ? (
-      JSON.stringify(value)
+      "См. связанные данные"
     ) : ["status", "state", "type"].includes(path) ? (
       <span className="status">{fieldLabel(String(value))}</span>
     ) : /At$/.test(path) && Number.isFinite(Date.parse(String(value))) ? (
       new Date(String(value)).toLocaleString("ru-RU")
     ) : (
-      String(value)
+      visibleText(value)
     );
   };
   return (
@@ -1092,7 +1090,7 @@ function DataSection({ token, section }: { token: string; section: string }) {
                               ? new Date(value).toLocaleString("ru-RU")
                               : ["action", "entity"].includes(key)
                                 ? fieldLabel(String(value))
-                                : String(value)}
+                                : visibleText(value)}
                   </dd>
                 </div>
               );
@@ -1285,8 +1283,7 @@ function ReferenceEditForm({
               {row.name ??
                 row.fullName ??
                 row.plateNumber ??
-                row.code ??
-                row.id}
+                (row.code ? visibleText(row.code) : "Запись")}
             </option>
           ))}
         </LabeledSelect>
@@ -1456,7 +1453,7 @@ function ShipmentForm({ token }: { token: string }) {
           documentNumber: documentNumber || undefined,
         }),
       }),
-    onSuccess: (data) => setMessage(`Отгрузка проведена: ${data.id}`),
+    onSuccess: (data) => setMessage("Отгрузка проведена"),
   });
   return (
     <section className="tableWrap">
@@ -1543,7 +1540,7 @@ function NotificationsSection({ token, rows }: { token: string; rows: any[] }) {
                 <td>{fieldLabel(row.type)}</td>
                 <td>{row.title}</td>
                 <td>{row.body}</td>
-                <td>{row.createdAt}</td>
+                <td>{new Date(row.createdAt).toLocaleString("ru-RU")}</td>
                 <td>{row.readAt ? "Прочитано" : "Новое"}</td>
                 <td>
                   <button
@@ -1743,7 +1740,7 @@ function SessionActions({ token, rows }: { token: string; rows: any[] }) {
           <table>
             <thead>
               <tr>
-                <th>ID</th>
+                <th>Сеанс</th>
                 <th>Создана</th>
                 <th>Истекает</th>
                 <th>Устройство</th>
@@ -1752,12 +1749,12 @@ function SessionActions({ token, rows }: { token: string; rows: any[] }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {rows.map((row, index) => (
                 <tr key={row.id}>
-                  <td>{row.id}</td>
-                  <td>{row.createdAt}</td>
-                  <td>{row.expiresAt}</td>
-                  <td>{row.device?.platform ?? ""}</td>
+                  <td>Сеанс №{index + 1}</td>
+                  <td>{new Date(row.createdAt).toLocaleString("ru-RU")}</td>
+                  <td>{new Date(row.expiresAt).toLocaleString("ru-RU")}</td>
+                  <td>{visibleText(row.device?.platform ?? "Браузер")}</td>
                   <td>{row.revokedAt ? "Отозвана" : "Активна"}</td>
                   <td>
                     <button
@@ -1798,7 +1795,7 @@ function WriteOffForm({ token }: { token: string }) {
           reason,
         }),
       }),
-    onSuccess: (data) => setMessage(`Списание проведено: ${data.id}`),
+    onSuccess: (data) => setMessage("Списание проведено"),
   });
   return (
     <section className="tableWrap">
@@ -1884,7 +1881,7 @@ function TransferForm({ token }: { token: string }) {
           ],
         }),
       }),
-    onSuccess: (data) => setMessage(`Перемещение создано: ${data.id}`),
+    onSuccess: (data) => setMessage("Перемещение создано"),
   });
   const confirm = useMutation({
     mutationFn: (id: string) =>
@@ -2080,7 +2077,7 @@ function UserForm({ token }: { token: string }) {
         <LabeledInput
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="Email"
+          placeholder="Электронная почта"
         />
         <LabeledInput
           value={phone}
@@ -2236,7 +2233,7 @@ function ReportExport({ token }: { token: string }) {
       });
       const blob = await downloadReport(`/reports/export?${params}`, token);
       setStatus("Файл сформирован. Выберите место сохранения.");
-      const result = await saveBlob(blob, `collection-${type}.${format}`);
+      const result = await saveBlob(blob, `Отчёт.${format}`);
       setStatus(
         result === "cancelled"
           ? "Сохранение отменено. Файл не сохранён."
@@ -2335,9 +2332,9 @@ function ReportExport({ token }: { token: string }) {
             value={format}
             onChange={(e) => setFormat(e.target.value)}
           >
-            <option value="csv">CSV</option>
-            <option value="xlsx">XLSX</option>
-            <option value="pdf">PDF</option>
+            <option value="csv">Таблица с разделителями</option>
+            <option value="xlsx">Электронная таблица</option>
+            <option value="pdf">Документ для печати</option>
           </LabeledSelect>
           <LabeledInput
             placeholder="С даты"
@@ -2386,7 +2383,7 @@ function WaybillActions({ token }: { token: string }) {
       setQrToken(data.qrToken);
       setWaybillId(data.id);
       setCurrentStatus(data.status);
-      setMessage(`Создана накладная ${data.number}`);
+      setMessage(`Создана накладная ${visibleText(data.number)}`);
     },
   });
   const accept = useMutation({
@@ -2497,7 +2494,7 @@ function WaybillActions({ token }: { token: string }) {
         <LabeledInput
           value={waybillId}
           onChange={(e) => setWaybillId(e.target.value)}
-          placeholder="ID накладной"
+          placeholder="Накладная"
         />
         <LabeledInput
           value={currentStatus}
@@ -2528,7 +2525,7 @@ function WaybillActions({ token }: { token: string }) {
             }).then((data) => {
               setWaybillId(data.id);
               setCurrentStatus(data.status);
-              setMessage(`QR найден: ${data.number}`);
+              setMessage(`QR найден: ${visibleText(data.number)}`);
             })
           }
         >
@@ -2564,7 +2561,7 @@ function WaybillActions({ token }: { token: string }) {
             ).then((data) => {
               setWaybillId(data.id);
               setCurrentStatus(data.status);
-              setMessage(`Накладная найдена: ${data.number}`);
+              setMessage(`Накладная найдена: ${visibleText(data.number)}`);
             })
           }
         >
@@ -2771,7 +2768,7 @@ function Select({
         <option value="">Выберите</option>
         {rows.map((row) => (
           <option key={row.id} value={row.id}>
-            {row.name ?? row.fullName ?? row.plateNumber ?? row.id}
+            {row.name ?? row.fullName ?? row.plateNumber ?? "Запись"}
           </option>
         ))}
       </select>
@@ -2982,9 +2979,43 @@ function App() {
   }, [dirty]);
   const queryClient = useQueryClient();
   const [token, setToken] = useState("");
+  const [restoring, setRestoring] = useState(true),
+    [restoreError, setRestoreError] = useState("");
+  const [restoreAttempt, setRestoreAttempt] = useState(0);
+  useEffect(() => {
+    if (isMobileWorkspace()) {
+      setRestoring(false);
+      return;
+    }
+    let active = true;
+    setRestoring(true);
+    setRestoreError("");
+    void restoreBrowserSession()
+      .then((value) => {
+        if (active && value) setToken(value);
+      })
+      .catch((e) => {
+        if (active) setRestoreError(e.message);
+      })
+      .finally(() => {
+        if (active) setRestoring(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [restoreAttempt]);
+
+  const [driverScan, setDriverScan] = useState<{
+    id: string;
+    number: string;
+    nonce: number;
+  }>();
+  const [qrError, setQrError] = useState("");
+  const scanHandler = useRef<(qr: string) => Promise<void>>(async () => {});
   const [initialQr, setInitialQr] = useState<{
     token: string;
     nonce: number;
+    record?: Record<string, any>;
   }>();
   useEffect(() => {
     if (!isMobileWorkspace()) return;
@@ -3013,8 +3044,7 @@ function App() {
     const partyQr = (event: Event) => {
       const qr = (event as CustomEvent).detail;
       if (typeof qr === "string" && qr.length <= 512) {
-        setInitialQr({ token: qr, nonce: Date.now() });
-        setSection("processing");
+        void scanHandler.current(qr).catch((e) => setQrError(e.message));
       }
     };
     window.addEventListener("bioflow:party-qr", partyQr);
@@ -3035,6 +3065,14 @@ function App() {
       setSection("dashboard");
       setToken("");
     };
+    const changed = (event: Event) => {
+      void queryClient.cancelQueries();
+      queryClient.clear();
+      dirty.value = false;
+      setSection("dashboard");
+      setToken((event as CustomEvent).detail.accessToken);
+    };
+    window.addEventListener("bioflow:identity-changed", changed);
     window.addEventListener("bioflow:expired", expire);
     return () => window.removeEventListener("bioflow:expired", expire);
   }, [queryClient, dirty]);
@@ -3166,25 +3204,27 @@ function App() {
       ([id]) => allowed(id) && !["sessions", "notifications"].includes(id),
     )?.[0] ?? "sessions";
   async function scannedParty(qr: string) {
+    setQrError("");
     if (!discardChanges())
       throw Error(
         "Переход отменён. Введённые данные сохранены в открытой форме.",
       );
     if (permissions.includes("processing.read")) {
       // Resolve before leaving the current screen so unknown QR stays retryable.
-      await request("/processing/scan", token, {
+      const record = await request<any>("/processing/scan", token, {
         method: "POST",
         body: JSON.stringify({ token: qr }),
       });
       dirty.value = false;
-      setInitialQr({ token: qr, nonce: Date.now() });
+      setInitialQr({ token: qr, nonce: Date.now(), record });
       navigate("processing");
     } else if (profile.data?.roles?.includes("DRIVER")) {
-      await request("/tracking/scan", token, {
+      const trip = await request<any>("/tracking/scan", token, {
         method: "POST",
         body: JSON.stringify({ token: qr }),
       });
       dirty.value = false;
+      setDriverScan({ ...trip, nonce: Date.now() });
       navigate("driver");
     } else if (permissions.includes("inventory.read")) {
       const record = await request<any>("/ledger/qr/view", token, {
@@ -3198,6 +3238,7 @@ function App() {
       );
     }
   }
+  scanHandler.current = scannedParty;
   const title = sections.find(([id]) => id === section)?.[1] ?? "Обзор";
   useEffect(() => {
     if (!isMobileWorkspace()) return;
@@ -3220,6 +3261,33 @@ function App() {
     navigator.serviceWorker.addEventListener("message", opened);
     return () => navigator.serviceWorker.removeEventListener("message", opened);
   });
+  if (restoring)
+    return (
+      <p role="status" className="panel">
+        Восстанавливаем вход…
+      </p>
+    );
+  if (!token && restoreError)
+    return (
+      <section className="panel">
+        <p role="alert">{restoreError}</p>
+        <button
+          className="button"
+          onClick={() => setRestoreAttempt((n) => n + 1)}
+        >
+          Повторить вход
+        </button>
+        <button
+          className="button secondary"
+          onClick={() => {
+            clearSession();
+            setRestoreError("");
+          }}
+        >
+          Войти заново
+        </button>
+      </section>
+    );
   if (!token)
     return (
       <Login
@@ -3461,10 +3529,19 @@ function App() {
             permissions.includes("notifications.read") && (
               <BrowserPush token={token} />
             )}
+          {qrError && (
+            <p className="error" role="alert">
+              {qrError}
+            </p>
+          )}
           {!allowed(section) ? (
             <p>Загрузка доступного раздела…</p>
           ) : section === "driver" ? (
-            <DriverPanel token={token} />
+            <DriverPanel
+              token={token}
+              initialTrip={driverScan}
+              onClearTrip={() => setDriverScan(undefined)}
+            />
           ) : section === "control" ? (
             <ControlPanel token={token} />
           ) : section === "collection" ? (
@@ -3473,6 +3550,7 @@ function App() {
             <ProcessingPanel
               token={token}
               permissions={permissions}
+              roles={profile.data?.roles ?? []}
               initialQr={initialQr}
             />
           ) : section === "laboratory" || section === "big-bags" ? (
@@ -3480,6 +3558,7 @@ function App() {
               key={section}
               token={token}
               permissions={permissions}
+              roles={profile.data?.roles ?? []}
               mode={section === "laboratory" ? "laboratory" : "bags"}
             />
           ) : section === "fleet" ? (
@@ -3556,7 +3635,11 @@ function App() {
           <button
             type="button"
             className="bottom-qr"
-            onClick={() => setScannerOpen(true)}
+            onClick={() =>
+              isMobileWorkspace()
+                ? mobileNotify({ action: "scanQr" })
+                : setScannerOpen(true)
+            }
           >
             <QrCode size={28} />
             <span>QR-сканер</span>
@@ -3573,13 +3656,13 @@ function App() {
       )}
       {qrRecord && (
         <RecordDrawer
-          title={`Партия по QR: ${qrRecord.number}`}
+          title={`Партия по QR: ${visibleText(qrRecord.number)}`}
           onClose={() => setQrRecord(null)}
         >
           <dl className="confirmation-list">
             <div>
               <dt>Номер</dt>
-              <dd>{qrRecord.number}</dd>
+              <dd>{visibleText(qrRecord.number)}</dd>
             </div>
             <div>
               <dt>Статус</dt>

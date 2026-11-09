@@ -1,4 +1,5 @@
 "use client";
+import { visibleText } from "./presentation";
 import { auditDiff } from "./audit-diff.mjs";
 import { roleLabel } from "./role-labels";
 const labels: Record<string, string> = {
@@ -9,7 +10,7 @@ const labels: Record<string, string> = {
   mustChangePassword: "Обязательная смена пароля",
   fullName: "Имя",
   phone: "Телефон",
-  email: "Email",
+  email: "Электронная почта",
   roles: "Роли",
   roleCodes: "Роли",
   roleIds: "Роли",
@@ -54,7 +55,7 @@ export function AuditChanges({
       return scopeNames[key][String(value)] ?? "Недоступный объект";
     if (["roles", "roleCodes"].includes(key))
       return roleLabel({ code: String(value) });
-    return String(value);
+    return visibleText(value);
   }
   return (
     <section aria-label="Изменения записи" className="audit-changes">

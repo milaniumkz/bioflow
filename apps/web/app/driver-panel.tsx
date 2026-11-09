@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { webRequest } from "./session";
 import {
@@ -11,17 +11,38 @@ import {
 } from "./browser-driver-gps";
 import { labels, dateTime, tonnes } from "./workflow-ui";
 import { isMobileWorkspace, mobileNotify } from "./mobile-bridge";
+import { useRecordFocus } from "./use-record-focus";
+import { recordLabel } from "./record-label";
 type Row = Record<string, any>;
-export function DriverPanel({ token }: { token: string }) {
+export function DriverPanel({
+  token,
+  initialTrip,
+  onClearTrip,
+}: {
+  token: string;
+  initialTrip?: { id: string; number: string; nonce: number };
+  onClearTrip?: () => void;
+}) {
+  const partyRef = useRef<HTMLElement>(null);
   const qc = useQueryClient(),
     [gps, setGps] = useState(gpsState()),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   const q = useQuery({
-    queryKey: ["driver-trips", token],
-    queryFn: () => webRequest<Row>("/tracking/trips?pageSize=100", token),
+    queryKey: ["driver-trips", token, initialTrip?.id],
+    queryFn: () =>
+      webRequest<Row>(
+        `/tracking/trips?pageSize=100${initialTrip ? `&search=${encodeURIComponent(initialTrip.number)}` : ""}`,
+        token,
+      ),
     refetchInterval: 30000,
   });
+  useRecordFocus(
+    partyRef,
+    q.data?.data.some((r: Row) => r.id === initialTrip?.id)
+      ? initialTrip?.nonce
+      : null,
+  );
   useEffect(() => {
     const change = () => setGps(gpsState());
     window.addEventListener("collection:gps", change);
@@ -76,8 +97,8 @@ export function DriverPanel({ token }: { token: string }) {
         <p>Загрузился → Выехал → Прибыл. Время каждой отметки сохраняется.</p>
         <p>
           В браузере маршрут передаётся, пока страница открыта. При сворачивании
-          и блокировке экрана браузер может остановить GPS. Для фоновой записи
-          используйте Android-приложение.
+          и блокировке экрана браузер может остановить передачу геопозиции. Для
+          фоновой записи используйте Android-приложение.
         </p>
         {gps.running && (
           <>
@@ -103,11 +124,22 @@ export function DriverPanel({ token }: { token: string }) {
       {q.data && !q.data.data.length && (
         <p className="empty-state">Назначенных рейсов пока нет.</p>
       )}
+      {initialTrip && (
+        <button className="button secondary" onClick={onClearTrip}>
+          Показать все рейсы
+        </button>
+      )}
       {q.data?.data.map((r: Row) => (
-        <article className="panel" key={r.id}>
+        <article
+          ref={r.id === initialTrip?.id ? partyRef : undefined}
+          tabIndex={-1}
+          className="panel scanned-record"
+          key={r.id}
+          aria-label={r.id === initialTrip?.id ? "Рейс по QR" : undefined}
+        >
           <h2>{r.vehicle.plateNumber}</h2>
           <p>
-            {r.number} · {labels[r.status] ?? r.status}
+            {recordLabel(r.number)} · {labels[r.status] ?? r.status}
           </p>
           <p>
             {r.bagCount ?? "—"} мешков · {tonnes(r.declaredWeight)} ·{" "}

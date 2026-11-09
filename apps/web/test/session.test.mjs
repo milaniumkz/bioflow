@@ -118,3 +118,40 @@ test("rate limiting shows a readable wait instruction", async () => {
     );
   await assert.rejects(webRequest("/users"), /Подождите минуту/);
 });
+
+test("browser restoration coalesces simultaneous requests and uses credentials without exposing a refresh token", async () => {
+  const { restoreBrowserSession } = await import("../app/session.ts");
+  let resolve,
+    calls = 0;
+  globalThis.fetch = (_url, init) => {
+    calls++;
+    assert.equal(init.credentials, "include");
+    assert.equal(init.body, undefined);
+    return new Promise((r) => (resolve = r));
+  };
+  const first = restoreBrowserSession(),
+    second = restoreBrowserSession();
+  assert.equal(first, second);
+  resolve(Response.json({ accessToken: "restored" }));
+  assert.equal(await first, "restored");
+  assert.equal(calls, 1);
+});
+test("restoration cannot overwrite a later explicit login", async () => {
+  const { restoreBrowserSession } = await import("../app/session.ts");
+  let resolve;
+  globalThis.fetch = () => new Promise((r) => (resolve = r));
+  const old = restoreBrowserSession();
+  setSession({ accessToken: "new-identity" });
+  resolve(Response.json({ accessToken: "old-identity" }));
+  assert.equal(await old, undefined);
+});
+
+test("a cookie refreshed for another account cannot return data into the previous account UI", async () => {
+  const jwt = (sub) => `x.${btoa(JSON.stringify({ sub }))}.x`;
+  setSession({ accessToken: jwt("first") });
+  globalThis.fetch = async (url) =>
+    String(url).endsWith("/auth/browser-refresh")
+      ? Response.json({ accessToken: jwt("second") })
+      : Response.json({}, { status: 401 });
+  await assert.rejects(webRequest("/users"), /Пользователь изменился/);
+});

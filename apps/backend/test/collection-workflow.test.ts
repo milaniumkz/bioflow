@@ -188,6 +188,20 @@ test(
         measuredAt: new Date().toISOString(),
       };
       const trip = (await ledger.createCollection(dispatch, collector)) as any;
+      const earlyPreview = await processing.scan(trip.qrToken, {
+        ...packer,
+        warehouseScopeIds: [warehouses[2].id],
+      });
+      assert.equal("readOnly" in earlyPreview && earlyPreview.readOnly, true);
+      assert.equal("initialQuantity" in earlyPreview.batch, false);
+      assert.equal("files" in earlyPreview, false);
+      await assert.rejects(
+        processing.trace(earlyPreview.batch.id, {
+          ...packer,
+          warehouseScopeIds: [warehouses[2].id],
+        }),
+      );
+
       assert.equal(
         ((await ledger.createCollection(dispatch, collector)) as any).id,
         trip.id,
@@ -547,6 +561,23 @@ test(
         owner,
       );
       assert(registry.data.some((b: any) => b.batchId === dry.outputs[0].id));
+      const rootForLabel = await p.materialBatch.findUniqueOrThrow({
+        where: { id: trip.batchId },
+      });
+      const rootSequence = Number(rootForLabel.number.split("-").at(-1));
+      const readableRegistry = await processing.bagRegistry(
+        { page: 1, pageSize: 100, search: `Партия №${rootSequence}` },
+        owner,
+      );
+      assert(
+        readableRegistry.data.some((b) => b.batchId === dry.outputs[0].id),
+      );
+      assert(
+        readableRegistry.data.every(
+          (b) => b.rootNumber === rootForLabel.number,
+        ),
+      );
+
       assert.equal(
         (
           await processing.bagRegistry(
@@ -561,6 +592,36 @@ test(
         warehouseId: warehouses[2].id,
       };
       await processing.receiveBag(dry.outputs[0].id, receiveDto, finished);
+      const receivedNotPacked = await p.bigBag.findUniqueOrThrow({
+        where: { batchId: dry.outputs[0].id },
+      });
+      assert.equal(receivedNotPacked.packedAt, null);
+      await assert.rejects(
+        processing.sell(
+          {
+            idempotencyKey: key(),
+            batchIds: [dry.outputs[0].id],
+            warehouseId: warehouses[2].id,
+            recipient: "Проверка запрета до упаковки",
+            documentNumber: "UNPACKED-" + tag,
+          },
+          sales,
+        ),
+        /упаковщик/,
+      );
+
+      await assert.rejects(
+        processing.pack(
+          dry.outputs[0].id,
+          {
+            idempotencyKey: key(),
+            workDate: new Date().toISOString().slice(0, 10),
+            shift: "Дневная",
+          },
+          finished,
+        ),
+      );
+
       await processing.receiveBag(
         dry.outputs[0].id,
         { ...receiveDto, idempotencyKey: key() },
@@ -585,6 +646,11 @@ test(
         shift: "Дневная",
       };
       await processing.pack(dry.outputs[0].id, packDto, packer);
+      const creditedToPacker = await p.bigBag.findUniqueOrThrow({
+        where: { batchId: dry.outputs[0].id },
+      });
+      assert.equal(creditedToPacker.packedById, packer.id);
+
       await processing.pack(
         dry.outputs[0].id,
         { ...packDto, idempotencyKey: key() },

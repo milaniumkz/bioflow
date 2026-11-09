@@ -1,3 +1,4 @@
+import { localizeReport, reportTitles, reportFilename } from "./report-labels";
 import { publicAuditValue } from "../common/audit-public";
 import {
   BadRequestException,
@@ -45,35 +46,25 @@ export class ReportsController {
   ) {
     const report = await this.buildReport(type, user, query);
     const normalizedFormat = format || "csv";
-    const baseName = `bioflow-${report.type}`;
     if (normalizedFormat === "xlsx") {
       const buffer = await toXlsx(report.rows);
       res.setHeader(
         "Content-Type",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${baseName}.xlsx"`,
-      );
+      res.setHeader("Content-Disposition", reportFilename(report.type, "xlsx"));
       res.send(buffer);
       return;
     }
     if (normalizedFormat === "pdf") {
       const buffer = await toPdf(report);
       res.setHeader("Content-Type", "application/pdf");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${baseName}.pdf"`,
-      );
+      res.setHeader("Content-Disposition", reportFilename(report.type, "pdf"));
       res.send(buffer);
       return;
     }
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
-    res.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${baseName}.csv"`,
-    );
+    res.setHeader("Content-Disposition", reportFilename(report.type, "csv"));
     res.send(toCsv(report.rows));
   }
 
@@ -329,10 +320,12 @@ const reportTypes = new Set([
 
 export function toCsv(rows: unknown[]) {
   if (rows.length === 0) return "";
-  const flatRows = rows.map((row) => flatten(row as Record<string, unknown>));
+  const flatRows = localizeReport(
+    rows.map((row) => flatten(row as Record<string, unknown>)),
+  );
   const headers = [...new Set(flatRows.flatMap((row) => Object.keys(row)))];
   const lines = [
-    headers.join(","),
+    headers.map(csvCell).join(","),
     ...flatRows.map((row) =>
       headers.map((header) => csvCell(row[header])).join(","),
     ),
@@ -393,7 +386,9 @@ function csvCell(value: unknown) {
 }
 
 export async function toXlsx(rows: unknown[]) {
-  const flatRows = rows.map((row) => flatten(row as Record<string, unknown>));
+  const flatRows = localizeReport(
+    rows.map((row) => flatten(row as Record<string, unknown>)),
+  );
   const headers = [...new Set(flatRows.flatMap((row) => Object.keys(row)))];
   const zip = new JSZip();
   zip.file(
@@ -479,26 +474,36 @@ export async function toPdf(report: {
 }) {
   return new Promise<Buffer>((resolve) => {
     const doc = new PDFDocument({ margin: 36, size: "A4" });
-    const font =
-      process.env.REPORT_FONT_PATH ??
-      "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
-    if (require("fs").existsSync(font)) doc.font(font);
+    const font = [
+      process.env.REPORT_FONT_PATH,
+      "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+      "/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf",
+    ].find((path) => path && require("fs").existsSync(path));
+    if (!font) throw new Error("Не найден шрифт для русского отчёта");
+    doc.font(font);
     const chunks: Buffer[] = [];
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
-    doc.fontSize(18).text("BIOFLOW report");
-    doc.moveDown(0.5).fontSize(10).text(`Type: ${report.type}`);
-    doc.text(`Generated: ${report.generatedAt}`);
-    doc.text(`User: ${report.userId}`);
-    doc.text(`Filters: ${JSON.stringify(report.filters)}`);
+    doc.fontSize(18).text("Отчёт движения материала");
+    doc
+      .moveDown(0.5)
+      .fontSize(10)
+      .text(`Раздел: ${reportTitles[report.type] ?? "Движение материала"}`);
+    doc.text(
+      `Сформирован: ${new Date(report.generatedAt).toLocaleString("ru-RU", { timeZone: "Asia/Yekaterinburg" })}`,
+    );
+
     doc.moveDown();
-    const flatRows = report.rows.map((row) =>
-      flatten(row as Record<string, unknown>),
+    const flatRows = localizeReport(
+      report.rows.map((row) => flatten(row as Record<string, unknown>)),
     );
     flatRows.forEach((row, index) => {
-      doc
-        .fontSize(9)
-        .text(`${index + 1}. ${JSON.stringify(row)}`, { width: 520 });
+      doc.fontSize(9).text(
+        `${index + 1}. ${Object.entries(row)
+          .map(([label, value]) => `${label}: ${value}`)
+          .join("; ")}`,
+        { width: 520 },
+      );
       doc.moveDown(0.25);
     });
     doc.end();
