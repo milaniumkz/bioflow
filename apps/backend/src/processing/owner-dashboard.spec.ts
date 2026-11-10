@@ -237,13 +237,11 @@ test("delivery appends a snapshot with optimistic version checks and leaves sale
   const old = { id: "delivery", version: 1, status: "PLANNED" };
   const tx = {
     bigBag: {
-      findFirst: jest
-        .fn()
-        .mockResolvedValue({
-          id: "sale",
-          stage: "DRIED",
-          batch: { stocks: [] },
-        }),
+      findFirst: jest.fn().mockResolvedValue({
+        id: "sale",
+        stage: "DRIED",
+        batch: { stocks: [] },
+      }),
     },
     driver: { findFirst: jest.fn().mockResolvedValue({ id: "driver" }) },
     customerDelivery: {
@@ -323,4 +321,66 @@ test("prewash output is not counted a second time as washing throughput; returns
   expect(d.groups.losses.quantity).toBe(4);
   expect(d.groups.sales.quantity).toBe(8);
   expect(d.groups.delivery.records).toHaveLength(2);
+});
+
+test("handover keeps a departed trip's historical assignment when its driver was archived", async () => {
+  const old = {
+    id: "delivery",
+    version: 2,
+    status: "IN_TRANSIT",
+    loadedAt: date,
+    driverId: "former-driver",
+    vehicleId: "former-vehicle",
+    trackingEnabled: true,
+    warehouseId: "warehouse",
+  };
+  const tx = {
+    bigBag: {
+      findFirst: jest
+        .fn()
+        .mockResolvedValue({
+          id: "sale",
+          stage: "DRIED",
+          batch: { stocks: [] },
+        }),
+    },
+    driver: { findFirst: jest.fn().mockResolvedValue(null) },
+    vehicle: { findFirst: jest.fn().mockResolvedValue(null) },
+    customerDelivery: {
+      findUnique: jest.fn().mockResolvedValue(old),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      findUniqueOrThrow: jest
+        .fn()
+        .mockResolvedValue({ ...old, version: 3, status: "DELIVERED" }),
+    },
+    customerDeliveryEvent: { create: jest.fn().mockResolvedValue({}) },
+    routeStop: { findMany: jest.fn().mockResolvedValue([]) },
+    user: { findMany: jest.fn().mockResolvedValue([]) },
+    auditLog: { create: jest.fn().mockResolvedValue({}) },
+  };
+  const service = new CustomerDeliveryService({
+    $transaction: async (fn: any) => fn(tx),
+  } as any);
+  const dto = {
+    sourceId: "sale",
+    driverId: old.driverId,
+    vehicleId: old.vehicleId,
+    trackingEnabled: true,
+    destination: "Покупатель",
+    route: "Склад → покупатель",
+    status: "DELIVERED",
+    version: 2,
+  };
+  const result = await service.save(dto, user);
+  expect(result.status).toBe("DELIVERED");
+  expect(tx.customerDeliveryEvent.create).toHaveBeenCalledWith({
+    data: expect.objectContaining({
+      driverId: old.driverId,
+      vehicleId: old.vehicleId,
+    }),
+  });
+  await expect(
+    service.save({ ...dto, driverId: "another-driver" }, user),
+  ).rejects.toThrow("После выезда нельзя менять");
+  expect(tx.customerDelivery.updateMany).toHaveBeenCalledTimes(1);
 });
