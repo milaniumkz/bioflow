@@ -1,6 +1,9 @@
+import { saveCustomerDelivery } from "./customer-delivery";
+import { workflowNotice } from "./workflow-notifications";
 import { documentSearch } from "../common/document-search";
 import {
   BadRequestException,
+  ForbiddenException,
   ConflictException,
   Injectable,
   NotFoundException,
@@ -139,6 +142,7 @@ export class ProcessingService extends LedgerService {
       // A physical worker holding a valid QR may see the stage before handover,
       // never stock quantities, attachments, history or another warehouse's data.
       const physical = [
+        "OPERATIONS_MANAGER",
         "WASH_RECEIVER",
         "LAB_TECHNICIAN",
         "WASH_OPERATOR",
@@ -1028,7 +1032,8 @@ export class ProcessingService extends LedgerService {
     });
   }
   factoryIntake(id: string, dto: BagReceiptDto, user: CurrentUser) {
-    this.require(user, "processing.dry");
+    if (!user.permissions.includes("processing.dispatch"))
+      this.require(user, "processing.dry");
     return this.command(
       user,
       `process.factory-intake:${id}`,
@@ -1083,6 +1088,14 @@ export class ProcessingService extends LedgerService {
           bag,
           updated,
         );
+        await workflowNotice(tx, {
+          id: `factory-intake:${bag.id}`,
+          organizationId: user.organizationId,
+          warehouseIds: [stock.warehouseId, dto.warehouseId],
+          type: "FACTORY_INTAKE",
+          title: "Мытый биг-бэг отправлен на завод",
+          body: `Биг-бэг №${bag.ordinal}: ${bag.quantity} т. Ожидается обработка на заводе.`,
+        });
         return { alreadyReceived: false, bag: updated };
       },
     );
@@ -1186,7 +1199,8 @@ export class ProcessingService extends LedgerService {
     });
   }
   sell(dto: SellDto, user: CurrentUser) {
-    this.require(user, "processing.sell");
+    if (!user.permissions.includes("processing.sell.washed"))
+      this.require(user, "processing.sell");
     if (
       !dto.recipient.trim() ||
       !dto.documentNumber.trim() ||
@@ -1195,12 +1209,23 @@ export class ProcessingService extends LedgerService {
       throw new BadRequestException(
         "Укажите покупателя, документ и уникальные QR",
       );
+    if (dto.delivery && dto.batchIds.length !== 1)
+      throw new BadRequestException(
+        "Отсканируйте один биг-бэг для оформления этой доставки",
+      );
     return this.command(user, "process.sell", dto, async (tx) => {
       await this.warehouse(tx, dto.warehouseId, user);
       const bags = [];
       for (const id of dto.batchIds) {
         const batch = await this.item(tx, id, user);
         const bag = batch.bigBag;
+        if (
+          bag?.stage !== "WASHED" &&
+          !user.permissions.includes("processing.sell")
+        )
+          throw new ForbiddenException(
+            "Оператор мойки может продавать только мытый материал",
+          );
         if (!bag || bag.soldAt || !["WASHED", "DRIED"].includes(bag.stage))
           throw new ConflictException(
             "Биг-бэг уже продан или не готов к отпуску",
@@ -1255,8 +1280,22 @@ export class ProcessingService extends LedgerService {
           updated,
         );
       }
+      const delivery = dto.delivery
+        ? await saveCustomerDelivery(
+            tx,
+            {
+              ...dto.delivery,
+              sourceId: bags[0].id,
+              status: "PLANNED",
+              version: 0,
+            },
+            user,
+            dto.warehouseId,
+          )
+        : null;
       return {
         bags,
+        delivery,
         count: bags.length,
         quantity: sum(bags.map((b) => b.quantity)),
       };

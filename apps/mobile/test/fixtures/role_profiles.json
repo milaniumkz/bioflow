@@ -3,9 +3,7 @@
     "id": "layout-ADMIN",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "ADMIN"
-    ],
+    "roles": ["ADMIN"],
     "permissions": [
       "references.read",
       "dashboard.read",
@@ -21,9 +19,7 @@
     "id": "layout-AUDITOR",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "AUDITOR"
-    ],
+    "roles": ["AUDITOR"],
     "permissions": [
       "references.read",
       "dashboard.read",
@@ -38,9 +34,7 @@
     "id": "layout-COLLECTOR",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "COLLECTOR"
-    ],
+    "roles": ["COLLECTOR"],
     "permissions": [
       "collection.manage",
       "tracking.read",
@@ -54,9 +48,7 @@
     "id": "layout-CONTRACTOR_REP",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "CONTRACTOR_REP"
-    ],
+    "roles": ["CONTRACTOR_REP"],
     "permissions": [
       "references.read",
       "waybills.manage",
@@ -69,9 +61,7 @@
     "id": "layout-DISPATCHER",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "DISPATCHER"
-    ],
+    "roles": ["DISPATCHER"],
     "permissions": [
       "references.read",
       "waybills.manage",
@@ -84,22 +74,15 @@
     "id": "layout-DRIVER",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "DRIVER"
-    ],
-    "permissions": [
-      "tracking.write",
-      "notifications.read"
-    ],
+    "roles": ["DRIVER"],
+    "permissions": ["tracking.write", "notifications.read"],
     "accessAllObjects": false
   },
   {
     "id": "layout-DRYING_OPERATOR",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "DRYING_OPERATOR"
-    ],
+    "roles": ["DRYING_OPERATOR"],
     "permissions": [
       "processing.dry",
       "processing.read",
@@ -112,9 +95,7 @@
     "id": "layout-EXTRACTION_OPERATOR",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "EXTRACTION_OPERATOR"
-    ],
+    "roles": ["EXTRACTION_OPERATOR"],
     "permissions": [
       "batches.manage",
       "references.read",
@@ -127,9 +108,7 @@
     "id": "layout-FINISHED_RECEIVER",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "FINISHED_RECEIVER"
-    ],
+    "roles": ["FINISHED_RECEIVER"],
     "permissions": [
       "processing.finished",
       "processing.read",
@@ -142,9 +121,7 @@
     "id": "layout-LAB_TECHNICIAN",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "LAB_TECHNICIAN"
-    ],
+    "roles": ["LAB_TECHNICIAN"],
     "permissions": [
       "laboratory.manage",
       "processing.read",
@@ -157,9 +134,7 @@
     "id": "layout-LOADING_OPERATOR",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "LOADING_OPERATOR"
-    ],
+    "roles": ["LOADING_OPERATOR"],
     "permissions": [
       "loading.manage",
       "references.read",
@@ -172,22 +147,22 @@
     "id": "layout-OWNER",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "OWNER"
-    ],
+    "roles": ["OWNER"],
     "permissions": [
-      "collection.manage",
-      "tracking.read",
-      "tracking.write",
+      "processing.overview",
+      "processing.pack",
+      "processing.sell",
+      "processing.sell.washed",
+      "processing.dispatch",
       "laboratory.manage",
       "processing.receive",
       "processing.wash",
       "processing.dry",
       "processing.finished",
-      "processing.pack",
-      "processing.sell",
       "processing.read",
-      "processing.overview",
+      "collection.manage",
+      "tracking.read",
+      "tracking.write",
       "batches.manage",
       "loading.manage",
       "inventory.manage",
@@ -209,9 +184,7 @@
     "id": "layout-PACKER",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "PACKER"
-    ],
+    "roles": ["PACKER"],
     "permissions": [
       "processing.pack",
       "processing.read",
@@ -224,9 +197,7 @@
     "id": "layout-PRODUCTION_OPERATOR",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "PRODUCTION_OPERATOR"
-    ],
+    "roles": ["PRODUCTION_OPERATOR"],
     "permissions": [
       "references.read",
       "inventory.read",
@@ -239,9 +210,7 @@
     "id": "layout-RECEIVER",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "RECEIVER"
-    ],
+    "roles": ["RECEIVER"],
     "permissions": [
       "references.read",
       "waybills.accept",
@@ -254,9 +223,7 @@
     "id": "layout-SALES_STOREKEEPER",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "SALES_STOREKEEPER"
-    ],
+    "roles": ["SALES_STOREKEEPER"],
     "permissions": [
       "processing.sell",
       "processing.read",
@@ -269,9 +236,7 @@
     "id": "layout-WAREHOUSE_OPERATOR",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "WAREHOUSE_OPERATOR"
-    ],
+    "roles": ["WAREHOUSE_OPERATOR"],
     "permissions": [
       "inventory.manage",
       "references.read",
@@ -284,15 +249,14 @@
     "id": "layout-WASH_OPERATOR",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "WASH_OPERATOR"
-    ],
+    "roles": ["WASH_OPERATOR"],
     "permissions": [
+      "processing.sell.washed",
+      "processing.dispatch",
       "processing.wash",
       "processing.read",
+      "tracking.read",
       "references.read",
-      "inventory.read",
-      "operations.manage",
       "notifications.read"
     ],
     "accessAllObjects": false
@@ -301,9 +265,7 @@
     "id": "layout-WASH_RECEIVER",
     "fullName": "Тестовый сотрудник с длинным именем и фамилией",
     "phone": "+70000000999",
-    "roles": [
-      "WASH_RECEIVER"
-    ],
+    "roles": ["WASH_RECEIVER"],
     "permissions": [
       "processing.receive",
       "processing.read",
@@ -311,5 +273,31 @@
       "notifications.read"
     ],
     "accessAllObjects": false
+  },
+  {
+    "id": "layout-OPERATIONS_MANAGER",
+    "fullName": "Тестовый сотрудник с длинным именем и фамилией",
+    "phone": "+70000000999",
+    "roles": ["OPERATIONS_MANAGER"],
+    "permissions": [
+      "processing.overview",
+      "processing.pack",
+      "processing.sell",
+      "processing.dispatch",
+      "laboratory.manage",
+      "processing.receive",
+      "processing.wash",
+      "processing.dry",
+      "processing.finished",
+      "processing.read",
+      "tracking.read",
+      "inventory.manage",
+      "references.read",
+      "inventory.read",
+      "operations.manage",
+      "reports.read",
+      "notifications.read"
+    ],
+    "accessAllObjects": true
   }
 ]

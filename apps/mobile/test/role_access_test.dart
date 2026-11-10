@@ -43,7 +43,9 @@ void main() {
   });
   test('all standard roles have Russian labels and multiple roles are visible',
       () {
-    expect(roleNames.length, 19);
+    expect(roleNames.length, 20);
+    expect(roleSummary({"roles": ["OPERATIONS_MANAGER"]}), "Приёмка и производство");
+    expect(canOpenSection("deliveries", {"permissions": ["processing.sell.washed"]}), true);
     expect(
         roleSummary({
           'roles': ['ADMIN', 'AUDITOR']

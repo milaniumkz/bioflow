@@ -3,13 +3,14 @@
 export function recordLabel(value: unknown): string {
   const text = String(value ?? "");
   const names: Record<string, string> = {
+    DEL: "Доставка",
     LOT: "Партия",
     WB: "Рейс",
     PROC: "Обработка",
     OP: "Операция",
   };
   return text.replace(
-    /(?:[a-z0-9]{20,}-)?\b(LOT|WB|PROC|OP)-(\d+)\b/g,
+    /(?:[a-z0-9]{20,}-)?\b(LOT|WB|PROC|OP|DEL)-(\d+)\b/g,
     (_all, kind, digits) => `${names[kind]} №${Number(digits)}`,
   );
 }

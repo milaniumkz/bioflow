@@ -10,25 +10,12 @@ const prisma = new PrismaClient();
 const organizationId = "collection-role-training-v1";
 const organizationName = "Collection — учебная организация";
 const codes = [
-  "OWNER",
-  "ADMIN",
-  "COLLECTOR",
-  "DRIVER",
-  "LAB_TECHNICIAN",
-  "WASH_RECEIVER",
+  "OPERATIONS_MANAGER",
   "WASH_OPERATOR",
-  "DRYING_OPERATOR",
-  "FINISHED_RECEIVER",
   "PACKER",
-  "SALES_STOREKEEPER",
-  "CONTRACTOR_REP",
-  "RECEIVER",
-  "PRODUCTION_OPERATOR",
-  "DISPATCHER",
-  "EXTRACTION_OPERATOR",
-  "LOADING_OPERATOR",
-  "WAREHOUSE_OPERATOR",
-  "AUDITOR",
+  "DRIVER",
+  "COLLECTOR",
+  "OWNER",
 ];
 async function main() {
   const { temporaryPassword, purpose } = JSON.parse(
@@ -45,7 +32,10 @@ async function main() {
   const passwordHash = await argon2.hash(temporaryPassword);
   const accounts = await prisma.$transaction(
     async (tx) => {
-      const roles = await tx.role.findMany({ include: { permissions: true } });
+      const roles = await tx.role.findMany({
+        where: { code: { in: codes } },
+        include: { permissions: true },
+      });
       if (
         roles.length !== codes.length ||
         roles.some((r) => !codes.includes(r.code) || !r.permissions.length)

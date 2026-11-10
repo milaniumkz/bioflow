@@ -315,6 +315,26 @@ export function ProcessingRegistry({
                             <ArrowRight size={16} />
                             Открыть
                           </button>
+                          {mode === "bags" &&
+                            r.stage === "WASHED" &&
+                            !r.soldAt &&
+                            !r.factoryStartedAt &&
+                            r.batch.stocks.some(
+                              (s: Row) => Number(s.quantity) > 0,
+                            ) &&
+                            permissions.some((p) =>
+                              [
+                                "processing.sell",
+                                "processing.sell.washed",
+                              ].includes(p),
+                            ) && (
+                              <button
+                                className="button"
+                                onClick={() => setBatch(r.batch.id)}
+                              >
+                                Продать с мойки
+                              </button>
+                            )}
                         </td>
                       </tr>
                     ))}

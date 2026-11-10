@@ -2,6 +2,7 @@ import { recordLabel } from "./record-label.ts";
 const translations: Record<string, string> = {
   "acceptance.differenceThresholdPercent":
     "Допустимое расхождение при приёмке, %",
+  "sequence.DEL": "Счётчик номеров доставок",
   "sequence.LOT": "Счётчик номеров партий",
   "sequence.WB": "Счётчик номеров рейсов",
   "sequence.PROC": "Счётчик номеров обработок",
@@ -90,6 +91,7 @@ const translations: Record<string, string> = {
   Vehicle: "Автомобиль",
   Counterparty: "Контрагент",
   File: "Документ",
+  OPERATIONS_MANAGER: "Приёмка и производство",
   OWNER: "Владелец",
   ADMIN: "Администратор",
   PACKER: "Упаковщик",

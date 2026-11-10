@@ -1,3 +1,6 @@
+import { Type } from "class-transformer";
+import { ValidateNested } from "class-validator";
+import { DeliveryOptionsDto } from "./customer-delivery";
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -82,6 +85,10 @@ export class PackDto extends CommandDto {
   @IsString() @Matches(/^[^\s].{0,79}$/) shift!: string;
 }
 export class SellDto extends CommandDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DeliveryOptionsDto)
+  delivery?: DeliveryOptionsDto;
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(100)

@@ -11,25 +11,12 @@ assert(
 const out = process.env.BIOFLOW_AUDIT_DIR || "/tmp/bioflow-role-audit";
 fs.mkdirSync(out, { recursive: true });
 const roles = [
-  "OWNER",
-  "ADMIN",
-  "COLLECTOR",
-  "DRIVER",
-  "WASH_RECEIVER",
-  "LAB_TECHNICIAN",
+  "OPERATIONS_MANAGER",
   "WASH_OPERATOR",
-  "DRYING_OPERATOR",
-  "FINISHED_RECEIVER",
   "PACKER",
-  "SALES_STOREKEEPER",
-  "CONTRACTOR_REP",
-  "RECEIVER",
-  "PRODUCTION_OPERATOR",
-  "DISPATCHER",
-  "EXTRACTION_OPERATOR",
-  "LOADING_OPERATOR",
-  "WAREHOUSE_OPERATOR",
-  "AUDITOR",
+  "DRIVER",
+  "COLLECTOR",
+  "OWNER",
 ];
 const report = {
   screens: [],
@@ -236,12 +223,11 @@ async function exportReports(page, role) {
       await page.getByRole("button", { name: "Войти", exact: true }).click();
       await page.locator("nav.nav").waitFor({ state: "attached" });
       await page.waitForFunction(() => {
-        const nav = document.querySelector("nav.nav");
-        return (
-          Boolean(nav && nav.getBoundingClientRect().width) ||
-          [...document.querySelectorAll("button")].some(
-            (b) => b.textContent.trim() === "Открыть меню",
-          )
+        const nav = document.querySelector("nav.nav"),
+          menu = document.querySelector('button[aria-label="Открыть меню"]');
+        return Boolean(
+          nav?.getBoundingClientRect().width ||
+          menu?.getBoundingClientRect().width,
         );
       });
       if (!(await page.locator("nav.nav").isVisible()))

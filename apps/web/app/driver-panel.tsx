@@ -142,8 +142,9 @@ export function DriverPanel({
             {recordLabel(r.number)} · {labels[r.status] ?? r.status}
           </p>
           <p>
-            {r.bagCount ?? "—"} мешков · {tonnes(r.declaredWeight)} ·{" "}
-            {r.destinationWarehouse.name}
+            {r.bagCount ?? "—"}{" "}
+            {r.tripKind === "CUSTOMER_DELIVERY" ? "биг-бэгов" : "мешков"} ·{" "}
+            {tonnes(r.declaredWeight)} · {r.destinationWarehouse.name}
           </p>
           <p>
             Загрузился: {dateTime(r.loadedAt)}

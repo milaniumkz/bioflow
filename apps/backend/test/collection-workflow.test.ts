@@ -1,3 +1,4 @@
+import { ReferenceService } from "../src/reference/reference.service";
 import { AuditController } from "../src/audit/audit.controller";
 import { OwnerDashboard } from "../src/processing/owner-dashboard";
 import { CustomerDeliveryService } from "../src/processing/customer-delivery";
@@ -112,6 +113,7 @@ test(
         } satisfies CurrentUser;
       }
       const owner = await actor("OWNER"),
+        operations = await actor("OPERATIONS_MANAGER"),
         collector = await actor("COLLECTOR"),
         lab = await actor("LAB_TECHNICIAN"),
         receiver = await actor("WASH_RECEIVER"),
@@ -132,6 +134,45 @@ test(
         "AUDITOR",
       ])
         await actor(code);
+      const rolesPage = await new ReferenceService(p).list(
+        "roles",
+        new PageDto(),
+        owner,
+      );
+      assert.equal(rolesPage.total, 6);
+      assert.deepEqual(
+        rolesPage.data.map((r: any) => r.code).sort(),
+        [
+          "OPERATIONS_MANAGER",
+          "WASH_OPERATOR",
+          "PACKER",
+          "DRIVER",
+          "COLLECTOR",
+          "OWNER",
+        ].sort(),
+      );
+      for (const right of [
+        "processing.receive",
+        "laboratory.manage",
+        "processing.wash",
+        "processing.dry",
+        "processing.finished",
+        "processing.pack",
+        "processing.sell",
+      ])
+        assert(operations.permissions.includes(right));
+      for (const forbidden of [
+        "processing.dry",
+        "processing.finished",
+        "processing.pack",
+        "processing.receive",
+        "operations.manage",
+        "inventory.manage",
+        "processing.sell",
+        "users.manage",
+      ])
+        assert(!wash.permissions.includes(forbidden));
+      assert(wash.permissions.includes("processing.sell.washed"));
       const ledger = new LedgerService(p),
         processing = new ProcessingService(p),
         tracking = new TrackingService(p);
@@ -483,17 +524,177 @@ test(
       assert.equal(washed.outputs.length, 2);
       assert.notEqual(washed.outputs[0].qrToken, washed.outputs[1].qrToken);
       // One bag may be sold straight after washing without going through the plant.
-      const sale: any = await processing.sell(
-        {
-          idempotencyKey: key(),
-          batchIds: [washed.outputs[0].id],
-          warehouseId: warehouses[0].id,
-          recipient: "Тест покупатель",
-          documentNumber: "SALE-" + tag,
+      const notificationDevice = await p.device.create({
+        data: {
+          userId: operations.id,
+          platform: "ANDROID",
+          pushToken: "spec-only-not-a-real-push-token",
         },
-        sales,
+      });
+      const trackedSaleDto = {
+        idempotencyKey: key(),
+        batchIds: [washed.outputs[0].id],
+        warehouseId: warehouses[0].id,
+        recipient: "Тест покупатель",
+        documentNumber: "SALE-" + tag,
+        delivery: {
+          trackingEnabled: true,
+          driverId: driver.id,
+          vehicleId: vehicle.id,
+          destination: "Покупатель в Павлодаре",
+          route: "Мойка → покупатель",
+        },
+      };
+      await assert.rejects(
+        processing.sell(
+          {
+            ...trackedSaleDto,
+            delivery: { ...trackedSaleDto.delivery, vehicleId: "foreign-car" },
+          },
+          wash,
+        ),
       );
+      assert.equal(
+        (
+          await p.bigBag.findUniqueOrThrow({
+            where: { batchId: washed.outputs[0].id },
+          })
+        ).soldAt,
+        null,
+      );
+      const sale: any = await processing.sell(trackedSaleDto, wash);
       assert.equal(sale.count, 1);
+      assert(sale.delivery.trackingEnabled);
+      assert(
+        await p.pushDelivery.count({
+          where: { deviceId: notificationDevice.id },
+        }),
+      );
+      const deliveryId = sale.delivery.id;
+      const soldStock = await p.batchStock.findMany({
+        where: { batchId: washed.outputs[0].id },
+      });
+      assert.equal(
+        (await tracking.trips(driverActor, new PageDto(), true)).data.some(
+          (r: any) => r.id === deliveryId,
+        ),
+        true,
+      );
+      assert.equal(
+        (await tracking.driverScan(washed.outputs[0].qrToken, driverActor)).id,
+        deliveryId,
+      );
+      await assert.rejects(
+        tracking.status(deliveryId, "IN_TRANSIT", driverActor),
+      );
+      await assert.rejects(
+        tracking.driverState(deliveryId, { ...driverActor, id: collector.id }),
+      );
+      await assert.rejects(
+        tracking.route(deliveryId, new PageDto(), {
+          ...wash,
+          warehouseScopeIds: ["foreign"],
+        }),
+      );
+      await tracking.status(deliveryId, "LOADED", driverActor);
+      await tracking.status(deliveryId, "IN_TRANSIT", driverActor);
+      const gpsNow = Date.now();
+      await p.customerDelivery.update({
+        where: { id: deliveryId },
+        data: {
+          createdAt: new Date(gpsNow - 12 * 60000),
+          departedAt: new Date(gpsNow - 12 * 60000),
+        },
+      });
+      const deliveryPoints = Array.from({ length: 12 }, (_, i) => ({
+        id: key(),
+        recordedAt: new Date(gpsNow - (11 - i) * 60000).toISOString(),
+        latitude: 52.28,
+        longitude: 76.96,
+        accuracy: 5,
+      }));
+      const point = deliveryPoints.at(-1)!;
+      assert.equal(
+        (
+          await tracking.positions(
+            deliveryId,
+            { points: deliveryPoints },
+            driverActor,
+          )
+        ).inserted,
+        12,
+      );
+      assert.equal(
+        (
+          await tracking.positions(
+            deliveryId,
+            { points: deliveryPoints },
+            driverActor,
+          )
+        ).inserted,
+        0,
+      );
+      assert.equal(
+        (await tracking.route(deliveryId, new PageDto(), wash)).data.length,
+        12,
+      );
+      assert(
+        await p.notification.count({
+          where: { userId: operations.id, type: "DRIVER_IDLE" },
+        }),
+      );
+      await tracking.checkStaleLocations(new Date(gpsNow + 11 * 60000));
+      assert(
+        await p.notification.count({
+          where: {
+            userId: operations.id,
+            type: "DRIVER_GPS_STALE",
+            id: { contains: deliveryId },
+          },
+        }),
+      );
+      await assert.rejects(
+        tracking.positions(
+          deliveryId,
+          { points: [{ ...point, latitude: 50 }] },
+          driverActor,
+        ),
+      );
+      await tracking.status(deliveryId, "ARRIVED", driverActor);
+      const arrivedDelivery = await p.customerDelivery.findUniqueOrThrow({
+        where: { id: deliveryId },
+      });
+      assert.equal(arrivedDelivery.status, "ARRIVED");
+      await new CustomerDeliveryService(p).save(
+        {
+          ...trackedSaleDto.delivery,
+          sourceId: sale.bags[0].id,
+          status: "DELIVERED",
+          version: arrivedDelivery.version,
+        },
+        wash,
+      );
+      assert.deepEqual(
+        await p.batchStock.findMany({
+          where: { batchId: washed.outputs[0].id },
+        }),
+        soldStock,
+      );
+      assert(
+        await p.notification.count({
+          where: { userId: operations.id, type: "CUSTOMER_DELIVERY" },
+        }),
+      );
+      assert.equal(
+        await p.notification.count({
+          where: {
+            organizationId: { not: org.id },
+            id: { contains: deliveryId },
+          },
+        }),
+        0,
+      );
+
       await assert.rejects(async () =>
         processing.sell(
           {
@@ -509,7 +710,7 @@ test(
       await processing.factoryIntake(
         washed.outputs[1].id,
         { idempotencyKey: key(), warehouseId: warehouses[1].id },
-        plant,
+        wash,
       );
       const inFactory: any = await processing.overview(owner);
       assert.equal(
@@ -805,8 +1006,39 @@ test(
       assert.equal(ownerRows.groups.sales.quantity, 3.675);
       assert.equal(ownerRows.groups.laboratory.records.length, 1);
       assert(ownerRows.groups.idle.idleMinutes >= 10);
+      assert(
+        ownerRows.groups.idle.records.some(
+          (r) => r.tripId === deliveryId && (r.idleMinutes ?? 0) >= 10,
+        ),
+      );
+      assert(
+        ownerRows.groups.delivery.records.some((r) => r.tripId === deliveryId),
+      );
+      await assert.rejects(
+        processing.sell(
+          {
+            idempotencyKey: key(),
+            batchIds: [dry.outputs[0].id],
+            warehouseId: warehouses[2].id,
+            recipient: "Тест",
+            documentNumber: "WASH-FORBIDDEN",
+          },
+          wash,
+        ),
+        /только мытый/,
+      );
+      await processing.sell(
+        {
+          idempotencyKey: key(),
+          batchIds: [dry.outputs[0].id],
+          warehouseId: warehouses[2].id,
+          recipient: "Готовая продукция",
+          documentNumber: "FINISHED-SALE" + tag,
+        },
+        operations,
+      );
       const saleBag = await p.bigBag.findUniqueOrThrow({
-        where: { batchId: washed.outputs[0].id },
+        where: { batchId: dry.outputs[0].id },
       });
       const stockSnapshot = async () =>
         JSON.stringify(
@@ -815,6 +1047,18 @@ test(
             orderBy: { id: "asc" },
           }),
         );
+      await assert.rejects(
+        processing.sell(
+          {
+            idempotencyKey: key(),
+            batchIds: [dry.outputs[1]?.id ?? dry.outputs[0].id],
+            warehouseId: warehouses[2].id,
+            recipient: "Чужая стадия",
+            documentNumber: "DENIED",
+          },
+          wash,
+        ),
+      );
       const beforeDelivery = await stockSnapshot();
       const deliveries = new CustomerDeliveryService(p);
       const deliveryDto = {
@@ -825,7 +1069,10 @@ test(
         status: "PLANNED",
         version: 0,
       };
-      const plan = await deliveries.save(deliveryDto, owner);
+      const plan = await deliveries.save(
+        { ...deliveryDto, driverId: undefined },
+        operations,
+      );
       await assert.rejects(
         deliveries.save(
           { ...deliveryDto, status: "DELIVERED", version: plan.version },
@@ -857,8 +1104,16 @@ test(
         "DELIVERED",
       );
       const deliveryTrace = await processing.trace(dry.outputs[0].id, owner);
-      assert.equal(deliveryTrace.deliveries[0].events.length, 3);
-      assert.equal(deliveryTrace.deliveries[0].driverName, "Тест водитель");
+      assert.equal(
+        deliveryTrace.deliveries.find((d: any) => d.sourceId === saleBag.id)
+          .events.length,
+        3,
+      );
+      assert.equal(
+        deliveryTrace.deliveries.find((d: any) => d.sourceId === saleBag.id)
+          .driverName,
+        "Тест водитель",
+      );
       await assert.rejects(async () =>
         processing.scan(washed.outputs[0].qrToken, {
           ...receiver,

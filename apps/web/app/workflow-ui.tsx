@@ -412,23 +412,25 @@ export function Reference({
   rows,
   defaultValue,
   onChange,
+  required = true,
 }: {
   name: string;
   label: string;
   rows: Row[];
   defaultValue?: string;
   onChange?: (v: string) => void;
+  required?: boolean;
 }) {
   return (
     <label>
       {label}
       <select
         name={name}
-        required
+        required={required}
         defaultValue={defaultValue ?? (rows.length === 1 ? rows[0].id : "")}
         onChange={(e) => onChange?.(e.target.value)}
       >
-        <option value="" disabled>
+        <option value="" disabled={required}>
           Выберите…
         </option>
         {rows.map((r) => (

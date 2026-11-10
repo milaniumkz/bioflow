@@ -1,4 +1,8 @@
 "use client";
+import {
+  SaleDeliveryFields,
+  saleDeliveryPayload,
+} from "./sale-delivery-fields";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { webRequest } from "./session";
@@ -41,6 +45,8 @@ export function ProcessingPanel({
   const refreshRecords = () =>
     Promise.all(
       [
+        "deliveries",
+        "fleet",
         "packing-stats",
         "processing-registry",
         "owner-dashboard",
@@ -77,6 +83,7 @@ export function ProcessingPanel({
   const packingMode =
     roles.includes("PACKER") &&
     !roles.includes("OWNER") &&
+    !roles.includes("OPERATIONS_MANAGER") &&
     permissions.includes("processing.pack");
   const [packingDate, setPackingDate] = useState(localNow().slice(0, 10)),
     [packingShift, setPackingShift] = useState("Дневная"),
@@ -722,15 +729,23 @@ export function ProcessingPanel({
               item.preparedAvailable &&
               !bag &&
               processForm("WASHING", [item.preparedBatchId])}
-            {can("processing.dry") &&
+            {(can("processing.dispatch") || can("processing.dry")) &&
               bag?.stage === "WASHED" &&
               currentStocks.length > 0 &&
               !bag.soldAt &&
               !bag.factoryStartedAt && (
                 <ActionForm
                   key={`intake:${b.id}`}
-                  title="Приём на завод"
-                  submit="Принять этот биг-бэг на завод"
+                  title={
+                    can("processing.dry")
+                      ? "Приём на завод"
+                      : "Отправка на завод"
+                  }
+                  submit={
+                    can("processing.dry")
+                      ? "Принять этот биг-бэг на завод"
+                      : "Отправить этот биг-бэг на завод"
+                  }
                   onSubmit={async (f, key) =>
                     action(
                       `/processing/bags/${b.id}/plant-intake`,
@@ -842,24 +857,25 @@ export function ProcessingPanel({
                   <Field name="shift" label="Смена" defaultValue="Дневная" />
                 </ActionForm>
               )}
-            {can("processing.sell") &&
+            {(can("processing.sell") ||
+              (can("processing.sell.washed") && bag?.stage === "WASHED")) &&
               bag &&
               currentStocks.length > 0 &&
               !bag.soldAt &&
               ((bag.stage === "WASHED" && !bag.factoryStartedAt) ||
-                bag.receivedAt) && (
+                (bag.receivedAt && bag.packedAt)) && (
                 <ActionForm
                   key={`sale:${b.id}`}
                   title={
                     bag.stage === "WASHED"
-                      ? "Продажа мытого материала"
+                      ? "Продать с мойки"
                       : "Отпуск готовой продукции"
                   }
                   submit="Подтвердить продажу и списать"
                   onSubmit={async (f, key) =>
                     action(
                       "/processing/sales",
-                      { ...Object.fromEntries(f), batchIds: [b.id] },
+                      { ...saleDeliveryPayload(f), batchIds: [b.id] },
                       key,
                     )
                   }
@@ -875,6 +891,10 @@ export function ProcessingPanel({
                   <Field
                     name="documentNumber"
                     label="Номер документа продажи"
+                  />
+                  <SaleDeliveryFields
+                    drivers={rows("drivers")}
+                    vehicles={rows("vehicles")}
                   />
                 </ActionForm>
               )}

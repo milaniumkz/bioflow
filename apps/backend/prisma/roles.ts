@@ -4,6 +4,8 @@ export async function initializeRoles(prisma: PrismaClient) {
     "processing.overview",
     "processing.pack",
     "processing.sell",
+    "processing.sell.washed",
+    "processing.dispatch",
     "laboratory.manage",
     "processing.receive",
     "processing.wash",
@@ -37,6 +39,28 @@ export async function initializeRoles(prisma: PrismaClient) {
   }
 
   const roleMatrix: Record<string, { name: string; permissions: string[] }> = {
+    OPERATIONS_MANAGER: {
+      name: "Приёмка и производство",
+      permissions: [
+        "processing.overview",
+        "processing.receive",
+        "laboratory.manage",
+        "processing.wash",
+        "processing.dispatch",
+        "processing.dry",
+        "processing.finished",
+        "processing.pack",
+        "processing.sell",
+        "processing.read",
+        "tracking.read",
+        "references.read",
+        "inventory.read",
+        "inventory.manage",
+        "operations.manage",
+        "reports.read",
+        "notifications.read",
+      ],
+    },
     OWNER: { name: "Владелец", permissions: permissionCodes },
     PACKER: {
       name: "Упаковщик",
@@ -140,9 +164,10 @@ export async function initializeRoles(prisma: PrismaClient) {
       name: "Оператор мойки",
       permissions: [
         "processing.wash",
+        "processing.dispatch",
+        "processing.sell.washed",
         "processing.read",
-        "operations.manage",
-        "inventory.read",
+        "tracking.read",
         "references.read",
         "notifications.read",
       ],

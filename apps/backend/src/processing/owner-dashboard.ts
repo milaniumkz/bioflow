@@ -60,7 +60,10 @@ export class OwnerDashboard {
         }),
         this.prisma.customerDelivery.findMany({
           where: { organizationId: u.organizationId },
-          include: { events: { orderBy: { createdAt: "asc" } } },
+          include: {
+            events: { orderBy: { createdAt: "asc" } },
+            routeStops: true,
+          },
         }),
         this.prisma.driver.findMany({
           where: { organizationId: u.organizationId },
@@ -146,6 +149,33 @@ export class OwnerDashboard {
     ) => {
       const d = deliveries.find((d) => d.sourceId === row.id) ?? null;
       if (q.driverId && d && d.driverId !== q.driverId) return;
+      for (const stop of d?.trackingEnabled ? (d.routeStops ?? []) : []) {
+        if (
+          !row.batchIds.some((id) =>
+            matches(id, stop.startedAt, d!.createdById, locations),
+          )
+        )
+          continue;
+        const minutes = Math.max(
+          0,
+          Math.round(
+            (stop.lastObservedAt.getTime() - stop.startedAt.getTime()) / 60000,
+          ),
+        );
+        groups.idle.push({
+          ...row,
+          id: stop.id,
+          number: d!.number ?? row.number,
+          date: stop.startedAt,
+          quantity: 0,
+          bags: 0,
+          employee: name(d!.createdById),
+          driverId: d!.driverId,
+          tripId: d!.id,
+          idleMinutes: minutes,
+          detail: `${d!.destination} · Подтверждено ${minutes} мин простоя доставки`,
+        });
+      }
       const date = d?.updatedAt ?? row.date,
         actor = d?.events.at(-1)?.createdById ?? employee;
       if (!row.batchIds.some((id) => matches(id, date, actor, locations)))
@@ -163,6 +193,9 @@ export class OwnerDashboard {
         : null;
       groups.delivery.push({
         ...row,
+        number: d?.number ?? row.number,
+        tripId: d?.trackingEnabled ? d.id : undefined,
+        driverId: d?.driverId,
         date,
         employee: name(actor),
         delivery,
@@ -421,6 +454,14 @@ export class OwnerDashboard {
         ]),
       ),
       filters: {
+        vehicles: await this.prisma.vehicle.findMany({
+          where: {
+            organizationId: u.organizationId,
+            archivedAt: null,
+            status: "ACTIVE",
+          },
+          select: { id: true, plateNumber: true, status: true },
+        }),
         warehouses,
         employees,
         drivers,

@@ -85,7 +85,8 @@ export function FleetPanel({
                 </p>
                 <p>
                   {recordLabel(r.number)} · {tonnes(r.declaredWeight)} ·{" "}
-                  {r.bagCount ?? "—"} мешков
+                  {r.bagCount ?? "—"}{" "}
+                  {r.tripKind === "CUSTOMER_DELIVERY" ? "биг-бэгов" : "мешков"}
                 </p>
                 <p>Загрузился: {dateTime(r.loadedAt)}</p>
                 <p>Выезд: {dateTime(r.departedAt)}</p>

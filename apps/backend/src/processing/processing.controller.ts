@@ -37,7 +37,13 @@ export class ProcessingController {
   ) {
     return this.ownerDashboard.read(q, u);
   }
-  @Permissions("processing.sell") @Post("deliveries") delivery(
+  @Permissions("processing.read") @Get("deliveries") deliveryList(
+    @Query() q: PageDto,
+    @User() u: CurrentUser,
+  ) {
+    return this.deliveries.list(q, u);
+  }
+  @Permissions("processing.read") @Post("deliveries") delivery(
     @Body() d: CustomerDeliveryDto,
     @User() u: CurrentUser,
   ) {
@@ -91,7 +97,7 @@ export class ProcessingController {
   ) {
     return this.service.process(dto, u);
   }
-  @Permissions("processing.dry") @Post("bags/:id/plant-intake") factoryIntake(
+  @Permissions("processing.read") @Post("bags/:id/plant-intake") factoryIntake(
     @Param("id") id: string,
     @Body() dto: BagReceiptDto,
     @User() u: CurrentUser,
@@ -112,7 +118,7 @@ export class ProcessingController {
   ) {
     return this.service.pack(id, dto, u);
   }
-  @Permissions("processing.sell") @Post("sales") sell(
+  @Permissions("processing.read") @Post("sales") sell(
     @Body() dto: SellDto,
     @User() u: CurrentUser,
   ) {

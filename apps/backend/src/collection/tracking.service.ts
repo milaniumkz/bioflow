@@ -1,3 +1,12 @@
+import { documentLabel } from "../common/document-search";
+import {
+  assignedDeliveryWhere,
+  deliveryTrip,
+  deliveryDriverStatus,
+  tripLink,
+  TrackedTrip,
+} from "./delivery-tracking";
+import { workflowNotice } from "../processing/workflow-notifications";
 import { documentSearch } from "../common/document-search";
 import {
   BadRequestException,
@@ -47,16 +56,46 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
       };
     return {
       organizationId: user.organizationId,
-      ...(user.accessAllObjects
-        ? {}
-        : {
-            createdById: user.id,
-            extractionSiteId: { in: user.extractionScopeIds ?? [] },
-            ...(user.counterpartyScopeId
-              ? { counterpartyId: user.counterpartyScopeId }
-              : {}),
-          }),
+      ...(!user.accessAllObjects &&
+      user.permissions.some((p) =>
+        [
+          "processing.receive",
+          "processing.wash",
+          "processing.dry",
+          "processing.finished",
+        ].includes(p),
+      )
+        ? {
+            OR: [
+              { createdById: user.id },
+              { destinationWarehouseId: { in: user.warehouseScopeIds ?? [] } },
+            ],
+          }
+        : user.accessAllObjects
+          ? {}
+          : {
+              createdById: user.id,
+              extractionSiteId: { in: user.extractionScopeIds ?? [] },
+              ...(user.counterpartyScopeId
+                ? { counterpartyId: user.counterpartyScopeId }
+                : {}),
+            }),
     };
+  }
+  private async findTrip(
+    tx: Tx,
+    id: string,
+    user: CurrentUser,
+    driver: boolean,
+  ): Promise<TrackedTrip | null> {
+    const trip = await tx.waybill.findFirst({
+      where: { id, ...this.where(user, driver) },
+    });
+    if (trip) return trip;
+    const delivery = await tx.customerDelivery.findFirst({
+      where: { id, ...(await assignedDeliveryWhere(tx, user, driver)) },
+    });
+    return delivery ? deliveryTrip(tx, delivery) : null;
   }
   async trips(user: CurrentUser, query: PageDto, driver: boolean) {
     const where = this.where(user, driver);
@@ -65,12 +104,13 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
         contains: documentSearch(query.search),
         mode: "insensitive",
       };
+    const limit = Math.min(query.pageSize, 100),
+      end = query.page * limit;
     const [data, total] = await this.prisma.$transaction([
       this.prisma.waybill.findMany({
         where,
         orderBy: { createdAt: "desc" },
-        take: Math.min(query.pageSize, 100),
-        skip: (query.page - 1) * Math.min(query.pageSize, 100),
+        take: end,
         include: {
           vehicle: true,
           driver: { select: { fullName: true, phone: true } },
@@ -81,11 +121,37 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
       }),
       this.prisma.waybill.count({ where }),
     ]);
+    const deliveryScope = await assignedDeliveryWhere(
+      this.prisma,
+      user,
+      driver,
+    );
+    if (query.search)
+      deliveryScope.number = {
+        contains: documentSearch(query.search),
+        mode: "insensitive",
+      };
+    const [deliveryRows, deliveryCount] = await Promise.all([
+      this.prisma.customerDelivery.findMany({
+        where: deliveryScope,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: end,
+      }),
+      this.prisma.customerDelivery.count({ where: deliveryScope }),
+    ]);
+    const deliveryTrips = await Promise.all(
+      deliveryRows.map((d) => deliveryTrip(this.prisma, d)),
+    );
+    const combined = [...data, ...deliveryTrips].sort(
+      (a, b) =>
+        b.createdAt.getTime() - a.createdAt.getTime() ||
+        b.id.localeCompare(a.id),
+    );
     return {
-      data,
-      total,
+      data: combined.slice(end - limit, end),
+      total: total + deliveryCount,
       page: query.page,
-      pageSize: Math.min(query.pageSize, 100),
+      pageSize: limit,
     };
   }
   async driverScan(token: string, user: CurrentUser) {
@@ -96,47 +162,61 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
       },
       select: { id: true, number: true, status: true },
     });
-    if (!trip)
+    if (trip) return trip;
+    const bag = await this.prisma.bigBag.findFirst({
+      where: {
+        batch: {
+          organizationId: user.organizationId,
+          qrTokenHash: createHash("sha256").update(token).digest("hex"),
+        },
+      },
+      select: { id: true },
+    });
+    const delivery = bag
+      ? await this.prisma.customerDelivery.findFirst({
+          where: {
+            sourceId: bag.id,
+            ...(await assignedDeliveryWhere(this.prisma, user, true)),
+          },
+        })
+      : null;
+    if (!delivery)
       throw new NotFoundException("Этот QR не относится к вашему рейсу");
-    return trip;
+    const result = await deliveryTrip(this.prisma, delivery);
+    return { id: result.id, number: result.number, status: result.status };
   }
   async driverState(id: string, user: CurrentUser) {
-    const trip = await this.prisma.waybill.findFirst({
-      where: { id, ...this.where(user, true) },
-      select: {
-        id: true,
-        status: true,
-        loadedAt: true,
-        departedAt: true,
-        arrivedAt: true,
-        acceptedAt: true,
-      },
-    });
+    const trip = await this.findTrip(this.prisma, id, user, true);
     if (!trip) throw new NotFoundException("Вам не назначен этот рейс");
-    return trip;
+    return {
+      id: trip.id,
+      status: trip.status,
+      loadedAt: trip.loadedAt,
+      departedAt: trip.departedAt,
+      arrivedAt: trip.arrivedAt,
+      acceptedAt: trip.acceptedAt,
+    };
   }
   async route(id: string, query: PageDto, user: CurrentUser) {
-    const trip = await this.prisma.waybill.findFirst({
-      where: { id, ...this.where(user, false) },
-    });
+    const trip = await this.findTrip(this.prisma, id, user, false);
     if (!trip) throw new NotFoundException("Рейс недоступен");
     const pageSize = Math.min(query.pageSize, 100);
     const [data, total, stops] = await this.prisma.$transaction([
       this.prisma.routePoint.findMany({
-        where: { waybillId: id },
+        where: { ...tripLink(trip) },
         orderBy: [{ recordedAt: "asc" }, { id: "asc" }],
         take: pageSize,
         skip: (query.page - 1) * pageSize,
       }),
-      this.prisma.routePoint.count({ where: { waybillId: id } }),
+      this.prisma.routePoint.count({ where: { ...tripLink(trip) } }),
       this.prisma.routeStop.findMany({
-        where: { waybillId: id },
+        where: { ...tripLink(trip) },
         orderBy: { startedAt: "desc" },
         take: 200,
       }),
     ]);
     const allPoints = await this.prisma.routePoint.findMany({
-      where: { waybillId: id },
+      where: { ...tripLink(trip) },
       orderBy: [{ recordedAt: "asc" }, { id: "asc" }],
       select: { recordedAt: true, latitude: true, longitude: true },
     });
@@ -154,7 +234,7 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
       } else signalGapSeconds += gap;
     }
     const allStops = await this.prisma.routeStop.findMany({
-      where: { waybillId: id },
+      where: { ...tripLink(trip) },
     });
     const stoppedSeconds = allStops.reduce(
       (s, x) => s + (x.lastObservedAt.getTime() - x.startedAt.getTime()) / 1000,
@@ -213,9 +293,7 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
         );
     }
     return this.transaction(async (tx) => {
-      const trip = await tx.waybill.findFirst({
-        where: { id, ...this.where(user, true) },
-      });
+      const trip = await this.findTrip(tx, id, user, true);
       if (!trip) throw new NotFoundException("Вам не назначен этот рейс");
       const activeTrip = active.includes(
         trip.status as (typeof active)[number],
@@ -230,7 +308,7 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
           "Рейс завершён или ещё не отправлен; новые точки не принимаются",
         );
       let latest = await tx.routePoint.findFirst({
-        where: { waybillId: id },
+        where: { ...tripLink(trip) },
         orderBy: { recordedAt: "desc" },
       });
       let inserted = 0;
@@ -245,7 +323,9 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
         });
         if (existing) {
           if (
-            existing.waybillId !== id ||
+            (trip.deliveryId
+              ? existing.customerDeliveryId !== id
+              : existing.waybillId !== id) ||
             existing.userId !== user.id ||
             existing.recordedAt.getTime() !== at.getTime() ||
             existing.latitude !== p.latitude ||
@@ -258,13 +338,13 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
           continue;
         }
         const point = await tx.routePoint.create({
-          data: { ...p, recordedAt: at, waybillId: id, userId: user.id },
+          data: { ...p, recordedAt: at, ...tripLink(trip), userId: user.id },
         });
         inserted++;
         // Preserve late history, but never rewind or falsely prolong the live stop.
         if (latest && at <= latest.recordedAt) continue;
         let stop = await tx.routeStop.findFirst({
-          where: { waybillId: id, endedAt: null },
+          where: { ...tripLink(trip), endedAt: null },
           orderBy: { startedAt: "desc" },
         });
         if (
@@ -281,7 +361,7 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
         if (!stop)
           stop = await tx.routeStop.create({
             data: {
-              waybillId: id,
+              ...tripLink(trip),
               latitude: p.latitude,
               longitude: p.longitude,
               startedAt: at,
@@ -312,7 +392,7 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
   }
   private async idleNotification(
     tx: Tx,
-    trip: Waybill,
+    trip: TrackedTrip,
     stopId: string,
     startedAt: Date,
     lastAt: Date,
@@ -324,6 +404,23 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
         isBlocked: false,
         OR: [
           { id: trip.createdById },
+          ...(trip.deliveryId
+            ? [
+                {
+                  OR: [
+                    { accessAllObjects: true },
+                    { warehouseScopeIds: { has: trip.destinationWarehouseId } },
+                  ],
+                  userRoles: {
+                    some: {
+                      role: {
+                        code: { in: ["OPERATIONS_MANAGER", "WASH_OPERATOR"] },
+                      },
+                    },
+                  },
+                },
+              ]
+            : []),
           { userRoles: { some: { role: { code: "OWNER" } } } },
         ],
       },
@@ -341,7 +438,7 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
           userId: collector.id,
           type: "DRIVER_IDLE",
           title: "Простой водителя более 10 минут",
-          body: `${trip.number}: ${driver?.fullName ?? "Водитель"}, ${Math.floor((lastAt.getTime() - startedAt.getTime()) / 60000)} мин. Телефон: ${driver?.phone ?? "не указан"}. Последняя точка: ${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}. Свяжитесь с водителем.`,
+          body: `${documentLabel(trip.number)}: ${driver?.fullName ?? "Водитель"}, ${Math.floor((lastAt.getTime() - startedAt.getTime()) / 60000)} мин. Телефон: ${driver?.phone ?? "не указан"}. Последняя точка: ${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}. Свяжитесь с водителем.`,
         },
       });
       const devices = await tx.device.findMany({
@@ -406,7 +503,7 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
             });
             for (const recipient of recipients) {
               const id = `driver-gpslost:${trip.id}:${latest?.id ?? "no-point"}:${recipient.id}`;
-              const body = `${trip.number}: геолокация ${trip.driver?.fullName ?? "водителя"} не обновляется 10 минут. ${latest ? `Последняя точка: ${latest.latitude.toFixed(6)}, ${latest.longitude.toFixed(6)}; ${latest.recordedAt.toISOString()}.` : "Координаты ещё не получены."} Телефон: ${trip.driver?.phone ?? "не указан"}. Свяжитесь с водителем.`;
+              const body = `${documentLabel(trip.number)}: геолокация ${trip.driver?.fullName ?? "водителя"} не обновляется 10 минут. ${latest ? `Последняя точка: ${latest.latitude.toFixed(6)}, ${latest.longitude.toFixed(6)}; ${latest.recordedAt.toISOString()}.` : "Координаты ещё не получены."} Телефон: ${trip.driver?.phone ?? "не указан"}. Свяжитесь с водителем.`;
               const notice = await tx.notification.upsert({
                 where: { id },
                 update: {},
@@ -439,6 +536,54 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
         cursor = trips[trips.length - 1].id;
         if (trips.length < 100) break;
       }
+      let deliveryCursor: string | undefined;
+      for (;;) {
+        const rows = await this.prisma.customerDelivery.findMany({
+          where: {
+            trackingEnabled: true,
+            status: "IN_TRANSIT",
+            departedAt: { lte: new Date(now.getTime() - IDLE_THRESHOLD_MS) },
+          },
+          include: {
+            routePoints: { orderBy: { recordedAt: "desc" }, take: 1 },
+          },
+          orderBy: { id: "asc" },
+          take: 100,
+          ...(deliveryCursor
+            ? { cursor: { id: deliveryCursor }, skip: 1 }
+            : {}),
+        });
+        for (const delivery of rows) {
+          const latest = delivery.routePoints[0];
+          if (
+            latest &&
+            now.getTime() - latest.recordedAt.getTime() < IDLE_THRESHOLD_MS
+          )
+            continue;
+          await this.prisma.$transaction(async (tx) => {
+            if (
+              !(await tx.customerDelivery.findFirst({
+                where: {
+                  id: delivery.id,
+                  status: "IN_TRANSIT",
+                  trackingEnabled: true,
+                },
+              }))
+            )
+              return;
+            await workflowNotice(tx, {
+              id: `delivery-gpslost:${delivery.id}:${latest?.id ?? "none"}`,
+              organizationId: delivery.organizationId,
+              warehouseIds: delivery.warehouseId ? [delivery.warehouseId] : [],
+              type: "DRIVER_GPS_STALE",
+              title: "Геолокация доставки не обновляется",
+              body: `${documentLabel(delivery.number ?? "Доставка")}: координаты не обновлялись 10 минут. Свяжитесь с водителем.`,
+            });
+          });
+        }
+        if (rows.length < 100) break;
+        deliveryCursor = rows[rows.length - 1].id;
+      }
     } finally {
       this.checking = false;
     }
@@ -449,10 +594,9 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
     user: CurrentUser,
   ) {
     return this.transaction(async (tx) => {
-      const trip = await tx.waybill.findFirst({
-        where: { id, ...this.where(user, true) },
-      });
+      const trip = await this.findTrip(tx, id, user, true);
       if (!trip) throw new NotFoundException("Вам не назначен этот рейс");
+      if (trip.deliveryId) return deliveryDriverStatus(tx, trip, status, user);
       if (trip.status === status) return { ok: true, status };
       if (
         !(
@@ -495,6 +639,19 @@ export class TrackingService implements OnModuleInit, OnModuleDestroy {
           entityId: id,
           newValue: { status },
         },
+      });
+      await workflowNotice(tx, {
+        id: `trip-status:${trip.id}:${trip.version + 1}`,
+        organizationId: user.organizationId,
+        warehouseIds: [trip.destinationWarehouseId],
+        type: "TRIP_STATUS",
+        title:
+          status === "ARRIVED"
+            ? "Машина прибыла на мойку"
+            : status === "IN_TRANSIT"
+              ? "Машина выехала на мойку"
+              : "Машина загружена",
+        body: `${documentLabel(trip.number)}: ${status === "ARRIVED" ? "Ожидается приёмка" : "Рейс обновлён"}.`,
       });
       return { ok: true, status };
     });

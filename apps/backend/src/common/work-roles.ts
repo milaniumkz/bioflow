@@ -1,0 +1,8 @@
+export const WORK_ROLE_CODES = [
+  "OPERATIONS_MANAGER",
+  "WASH_OPERATOR",
+  "PACKER",
+  "DRIVER",
+  "COLLECTOR",
+  "OWNER",
+];

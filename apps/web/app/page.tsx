@@ -1,4 +1,5 @@
 "use client";
+import { DeliveryWorkspace } from "./delivery-workspace";
 import { caption, visibleText } from "./presentation";
 import { BrowserPush } from "./browser-push";
 import { QrScanner } from "./qr-scanner";
@@ -72,6 +73,7 @@ const sections = [
   ["laboratory", "Лаборатория", ClipboardList],
   ["big-bags", "Биг-бэги и упаковка", PackageCheck],
   ["fleet", "Водители и маршруты", Truck],
+  ["deliveries", "Доставка продукции", Truck],
   ["dashboard", "Обзор", LayoutDashboard],
   ["ledger", "Партии и операции", Boxes],
   ["waybills", "Поставки", ClipboardList],
@@ -3135,54 +3137,58 @@ function App() {
     id === "driver"
       ? permissions.includes("tracking.write") &&
         !!profile.data?.roles?.includes("DRIVER")
-      : id === "control"
-        ? permissions.includes("processing.overview")
-        : id === "collection"
-          ? permissions.includes("collection.manage")
-          : ["processing", "laboratory", "big-bags"].includes(id)
-            ? permissions.includes("processing.read")
-            : id === "fleet"
-              ? permissions.includes("tracking.read")
-              : id === "plants"
-                ? permissions.includes("references.read") &&
-                  !!profile.data?.accessAllObjects
-                : id === "audit"
-                  ? permissions.includes("audit.read") &&
+      : id === "deliveries"
+        ? permissions.some((p) =>
+            ["processing.sell", "processing.sell.washed"].includes(p),
+          )
+        : id === "control"
+          ? permissions.includes("processing.overview")
+          : id === "collection"
+            ? permissions.includes("collection.manage")
+            : ["processing", "laboratory", "big-bags"].includes(id)
+              ? permissions.includes("processing.read")
+              : id === "fleet"
+                ? permissions.includes("tracking.read")
+                : id === "plants"
+                  ? permissions.includes("references.read") &&
                     !!profile.data?.accessAllObjects
-                  : id === "dashboard"
-                    ? permissions.includes("dashboard.read") &&
+                  : id === "audit"
+                    ? permissions.includes("audit.read") &&
                       !!profile.data?.accessAllObjects
-                    : id === "settings"
-                      ? permissions.includes("references.manage")
-                      : [
-                            "ledger",
-                            "waybills",
-                            "inventory",
-                            "transfers",
-                            "write-offs",
-                            "shipments",
-                            "washing",
-                            "production",
-                          ].includes(id)
-                        ? permissions.includes("inventory.read")
-                        : id === "reports"
-                          ? permissions.includes("reports.read")
-                          : id === "notifications"
-                            ? permissions.includes("notifications.read")
-                            : id === "sessions"
-                              ? true
-                              : [
-                                    "users",
-                                    "roles",
-                                    "settings",
-                                    "audit",
-                                  ].includes(id)
-                                ? permissions.includes(
-                                    id === "audit"
-                                      ? "audit.read"
-                                      : "users.manage",
-                                  )
-                                : permissions.includes("references.read");
+                    : id === "dashboard"
+                      ? permissions.includes("dashboard.read") &&
+                        !!profile.data?.accessAllObjects
+                      : id === "settings"
+                        ? permissions.includes("references.manage")
+                        : [
+                              "ledger",
+                              "waybills",
+                              "inventory",
+                              "transfers",
+                              "write-offs",
+                              "shipments",
+                              "washing",
+                              "production",
+                            ].includes(id)
+                          ? permissions.includes("inventory.read")
+                          : id === "reports"
+                            ? permissions.includes("reports.read")
+                            : id === "notifications"
+                              ? permissions.includes("notifications.read")
+                              : id === "sessions"
+                                ? true
+                                : [
+                                      "users",
+                                      "roles",
+                                      "settings",
+                                      "audit",
+                                    ].includes(id)
+                                  ? permissions.includes(
+                                      id === "audit"
+                                        ? "audit.read"
+                                        : "users.manage",
+                                    )
+                                  : permissions.includes("references.read");
   useEffect(() => {
     if (profile.data && !allowed(section))
       setSection(sections.find(([id]) => allowed(id))?.[0] ?? "sessions");
@@ -3410,6 +3416,7 @@ function App() {
                 "laboratory",
                 "big-bags",
                 "fleet",
+                "deliveries",
                 "ledger",
                 "waybills",
                 "inventory",
@@ -3592,6 +3599,8 @@ function App() {
               roles={profile.data?.roles ?? []}
               mode={section === "laboratory" ? "laboratory" : "bags"}
             />
+          ) : section === "deliveries" ? (
+            <DeliveryWorkspace token={token} />
           ) : section === "fleet" ? (
             <FleetPanel token={token} />
           ) : section === "notifications" ? (
