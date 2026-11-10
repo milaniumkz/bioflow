@@ -84,7 +84,7 @@ const reportNames = [
 export function Ledger({
   token,
   initialTab = "batches",
-  initialKind = "TRANSFER",
+  initialKind,
 }: {
   token: string;
   initialTab?: string;
@@ -149,7 +149,7 @@ export function Ledger({
   });
   const referenceQuery = useQuery({
     queryKey: ["ledgerReferences", token],
-    staleTime: 10000,
+    staleTime: 60000,
     queryFn: async () =>
       Object.fromEntries(
         await Promise.all(
@@ -256,6 +256,7 @@ export function Ledger({
       setRevision((x) => x + 1);
       setSelected(null);
       setValues({});
+      setInputs([{ batchId: "", quantity: "" }]);
       setFiles([]);
     } catch (e) {
       setError((e as Error).message);
@@ -291,16 +292,23 @@ export function Ledger({
       {label}
       <select
         name={key}
+        aria-label={label}
         required={required}
         value={values[key] ?? ""}
         onChange={(e) => set(key, e.target.value)}
       >
         <option value="">Выберите</option>
-        {(refs[entity] ?? []).map((x) => (
-          <option key={x.id} value={x.id}>
-            {x.name ?? x.plateNumber ?? x.fullName}
-          </option>
-        ))}
+        {(refs[entity] ?? [])
+          .filter(
+            (x) =>
+              !x.archivedAt &&
+              (x.status === undefined || x.status === "ACTIVE"),
+          )
+          .map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.name ?? x.plateNumber ?? x.fullName}
+            </option>
+          ))}
       </select>
     </label>
   );
@@ -362,8 +370,14 @@ export function Ledger({
       <input
         type="file"
         multiple
+        disabled={busy}
         accept="image/jpeg,image/png,image/webp,application/pdf"
-        onChange={(e) => upload(e.target.files)}
+        onChange={(e) => {
+          const input = e.currentTarget;
+          void upload(input.files).finally(() => {
+            input.value = "";
+          });
+        }}
       />
       <small>Загружено: {files.length}</small>
     </label>
@@ -398,7 +412,49 @@ export function Ledger({
       {label}
     </button>
   );
-  const operationKind = values.kind ?? initialKind;
+  const canManageKind = (kind: string) =>
+    has(
+      ["WASHING", "PRODUCTION"].includes(kind)
+        ? "operations.manage"
+        : "inventory.manage",
+    );
+  const allowedKinds = [
+    "WASHING",
+    "PRODUCTION",
+    "TRANSFER",
+    "WRITE_OFF",
+    "SHIPMENT",
+    "RESERVE",
+    "RELEASE",
+    "CORRECTION",
+    "INVENTORY",
+    "RETURN",
+  ].filter(canManageKind);
+  const operationKind =
+    values.kind ??
+    initialKind ??
+    (allowedKinds.includes("TRANSFER") ? "TRANSFER" : allowedKinds[0]);
+  const requiredInputState = (
+    { WASHING: "DIRTY", PRODUCTION: "WASHED", SHIPMENT: "FINISHED" } as Row
+  )[operationKind];
+  const returnShipments = useQuery({
+    queryKey: ["return-shipments", token, revision],
+    enabled:
+      tab === "operations" &&
+      operationKind === "RETURN" &&
+      (has("inventory.manage") || has("operations.manage")),
+    queryFn: async () => {
+      const items: Row[] = [];
+      for (let page = 1; ; page++) {
+        const response = await call<{ data: Row[]; total: number }>(
+          `/ledger/operations?kind=SHIPMENT&status=CONFIRMED&pageSize=100&page=${page}`,
+        );
+        items.push(...response.data);
+        if (!response.data.length || items.length >= response.total)
+          return items;
+      }
+    },
+  });
   const renderRecord = (row: Row, i: number) => (
     <article className="panel" key={row.id ?? i}>
       <h3>
@@ -677,14 +733,19 @@ export function Ledger({
               action(row, "Отменить", "status", { status: "CANCELLED" }, true)}
           </>
         )}
-        {tab === "operations" &&
-          (has("operations.manage") || has("inventory.manage")) && (
-            <>
-              {row.status === "DRAFT" && action(row, "Подтвердить", "confirm")}
-              {!["CLOSED", "CANCELLED"].includes(row.status) &&
-                action(row, "Отменить", "cancel", {}, true)}
-            </>
-          )}
+        {tab === "operations" && canManageKind(row.kind) && (
+          <>
+            {row.status === "DRAFT" && action(row, "Подтвердить", "confirm")}
+            {!["CLOSED", "CANCELLED"].includes(row.status) &&
+              (row.kind !== "RETURN" || row.status === "DRAFT") &&
+              action(row, "Отменить", "cancel", {}, true)}
+            {row.kind === "RETURN" && row.status === "CONFIRMED" && (
+              <p>
+                Подтверждённый возврат исправляется отдельной корректировкой.
+              </p>
+            )}
+          </>
+        )}
         {tab === "access" && has("users.manage") && (
           <button
             className="button"
@@ -924,7 +985,9 @@ export function Ledger({
         </details>
       )}
       {tab === "operations" &&
-        (has("inventory.manage") || has("operations.manage")) && (
+        (initialKind
+          ? canManageKind(initialKind)
+          : allowedKinds.length > 0) && (
           <details className="panel">
             <summary>Новая операция</summary>
             <form
@@ -942,24 +1005,15 @@ export function Ledger({
               <label>
                 Операция
                 <select
+                  aria-label="Операция"
                   value={operationKind}
-                  onChange={(e) => set("kind", e.target.value)}
+                  onChange={(e) => {
+                    set("kind", e.target.value);
+                    setInputs([{ batchId: "", quantity: "" }]);
+                  }}
                 >
                   {Object.keys(names)
-                    .filter((x) =>
-                      [
-                        "WASHING",
-                        "PRODUCTION",
-                        "TRANSFER",
-                        "WRITE_OFF",
-                        "SHIPMENT",
-                        "RESERVE",
-                        "RELEASE",
-                        "CORRECTION",
-                        "INVENTORY",
-                        "RETURN",
-                      ].includes(x),
-                    )
+                    .filter((x) => allowedKinds.includes(x))
                     .map((x) => (
                       <option key={x} value={x}>
                         {names[x]}
@@ -989,8 +1043,10 @@ export function Ledger({
                     {(refs["ledger/stocks"] ?? [])
                       .filter(
                         (x) =>
-                          !values.fromWarehouseId ||
-                          x.warehouseId === values.fromWarehouseId,
+                          (!values.fromWarehouseId ||
+                            x.warehouseId === values.fromWarehouseId) &&
+                          (!requiredInputState ||
+                            x.batch.state === requiredInputState),
                       )
                       .map((x) => (
                         <option key={x.id} value={x.batchId}>
@@ -1059,8 +1115,56 @@ export function Ledger({
                   {field("documentNumber", "Номер документа")}
                 </>
               )}
-              {operationKind === "RETURN" &&
-                field("reversesOperationId", "Исходная отгрузка")}
+              {operationKind === "RETURN" && (
+                <>
+                  <LabeledSelect
+                    label="Исходная отгрузка"
+                    required
+                    value={values.reversesOperationId ?? ""}
+                    disabled={
+                      returnShipments.isPending || !!returnShipments.error
+                    }
+                    onChange={(e) => {
+                      const shipment = returnShipments.data?.find(
+                        (row) => row.id === e.target.value,
+                      );
+                      setValues((previous) => ({
+                        ...previous,
+                        reversesOperationId: e.target.value,
+                        ...(shipment
+                          ? { fromWarehouseId: shipment.fromWarehouseId }
+                          : {}),
+                      }));
+                      if (shipment)
+                        setInputs(
+                          shipment.inputs.map((input: Row) => ({
+                            batchId: input.batchId,
+                            quantity: "",
+                          })),
+                        );
+                    }}
+                  >
+                    <option value="">Выберите подтверждённую отгрузку</option>
+                    {(returnShipments.data ?? []).map((shipment) => (
+                      <option key={shipment.id} value={shipment.id}>
+                        {recordLabel(shipment.number)} ·{" "}
+                        {shipment.details?.documentNumber ?? ""} ·{" "}
+                        {shipment.details?.recipient ?? ""}
+                      </option>
+                    ))}
+                  </LabeledSelect>
+                  {returnShipments.error && (
+                    <p role="alert" className="error">
+                      {returnShipments.error.message}
+                    </p>
+                  )}
+                  {!returnShipments.isPending &&
+                    !returnShipments.error &&
+                    !returnShipments.data?.length && (
+                      <p>Подтверждённых отгрузок для возврата пока нет.</p>
+                    )}
+                </>
+              )}
               {field("reason", "Причина / комментарий", "text", false)}
               {documents}
               <button className="button" disabled={busy}>
@@ -1181,7 +1285,7 @@ export function Ledger({
                   );
                   const saved = await saveBlob(
                     blob,
-                    `collection-${report}.${format}`,
+                    `Отчёт — ${reportNames[reports.indexOf(report)] ?? "Движение материала"}.${format}`,
                   );
                   setExportState(
                     saved === "cancelled"
@@ -1536,11 +1640,6 @@ export function Ledger({
                 Печать QR
               </button>
             </div>
-          )}
-          {result.qrToken && (
-            <p>
-              QR-токен: <code>{result.qrToken}</code>
-            </p>
           )}
           <button className="button secondary" onClick={() => setResult(null)}>
             Закрыть

@@ -941,7 +941,7 @@ test("BIOFLOW specification AT 01–13 on PostgreSQL and private S3", async (t) 
         fileIds: [await file()],
         idempotencyKey: key(),
       });
-      await createAndConfirm({
+      const returned = await createAndConfirm({
         kind: "RETURN",
         fromWarehouseId: warehouse.id,
         inputs: [{ batchId: finished.id, quantity: "0.5" }],
@@ -949,6 +949,28 @@ test("BIOFLOW specification AT 01–13 on PostgreSQL and private S3", async (t) 
         reason: "AT customer return",
         idempotencyKey: key(),
       });
+      const returnDraft = await api(
+        "/ledger/operations",
+        {
+          kind: "RETURN",
+          fromWarehouseId: warehouse.id,
+          inputs: [{ batchId: finished.id, quantity: "0.1" }],
+          reversesOperationId: shipped.id,
+          reason: "AT cancelled return draft",
+          idempotencyKey: key(),
+        },
+        201,
+      );
+      await api(
+        `/ledger/operations/${returnDraft.id}/cancel`,
+        { reason: "AT discard draft", idempotencyKey: key() },
+        201,
+      );
+      await api(
+        `/ledger/operations/${returned.id}/cancel`,
+        { reason: "AT keep confirmed return immutable", idempotencyKey: key() },
+        409,
+      );
       await api(
         `/ledger/operations/${shipped.id}/cancel`,
         { reason: "AT returned shipment", idempotencyKey: key() },
