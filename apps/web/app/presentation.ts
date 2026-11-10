@@ -1,5 +1,11 @@
 import { recordLabel } from "./record-label.ts";
 const translations: Record<string, string> = {
+  "acceptance.differenceThresholdPercent":
+    "Допустимое расхождение при приёмке, %",
+  "sequence.LOT": "Счётчик номеров партий",
+  "sequence.WB": "Счётчик номеров рейсов",
+  "sequence.PROC": "Счётчик номеров обработок",
+  "sequence.OP": "Счётчик номеров операций",
   PRODUCTION_INPUT: "Передано в производство",
   PRODUCTION_OUTPUT: "Выпуск производства",
   TRANSFER_IN: "Приход при перемещении",

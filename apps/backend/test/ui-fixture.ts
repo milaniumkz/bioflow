@@ -11,7 +11,9 @@ async function main() {
   const prisma = new PrismaClient();
   try {
     const organization = await prisma.organization.findUniqueOrThrow({
-      where: { bin: "000000000000" },
+      where: process.env.UI_FIXTURE_ORGANIZATION_ID
+        ? { id: process.env.UI_FIXTURE_ORGANIZATION_ID }
+        : { bin: "000000000000" },
     });
     const roles = await prisma.role.findMany();
     const passwordHash = await argon2.hash("IntegrationOnly2026!");
@@ -19,6 +21,7 @@ async function main() {
       const user = await prisma.user.upsert({
         where: { email: `android-${role.code.toLowerCase()}@uat.local` },
         update: {
+          organizationId: organization.id,
           passwordHash,
           mustChangePassword: false,
           accessAllObjects: true,
@@ -37,6 +40,20 @@ async function main() {
         update: {},
         create: { userId: user.id, roleId: role.id },
       });
+    }
+    if (process.env.UI_FIXTURE_ORGANIZATION_ID) {
+      const driverUser = await prisma.user.findUniqueOrThrow({
+        where: { email: "android-driver@uat.local" },
+      });
+      const driver = await prisma.driver.findFirst({
+        where: { organizationId: organization.id, archivedAt: null },
+        orderBy: { id: "asc" },
+      });
+      if (driver)
+        await prisma.driver.update({
+          where: { id: driver.id },
+          data: { userId: driverUser.id },
+        });
     }
     await prisma.notification.create({
       data: {

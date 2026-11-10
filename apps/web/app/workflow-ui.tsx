@@ -14,6 +14,7 @@ import { QrScanner } from "./qr-scanner";
 import { webRequest, networkFetch } from "./session";
 import { createCommandId } from "./command-id.mjs";
 import { isMobileWorkspace, mobileNotify, printQr } from "./mobile-bridge";
+import { refreshReferenceChoices } from "./reference-cache";
 import { weightPreview, decimalError } from "./weight-preview.mjs";
 import {
   recordLabel,
@@ -375,6 +376,7 @@ export function ActionForm({
 export function useReferences(token: string) {
   return useQuery({
     queryKey: ["workflow-refs", token],
+    staleTime: 60000,
     queryFn: async () => {
       const out: Record<string, Row[]> = {};
       for (const name of [
@@ -459,7 +461,8 @@ export function PhotoUpload({
         multiple
         disabled={busy}
         onChange={async (e) => {
-          const list = Array.from(e.target.files ?? []);
+          const input = e.currentTarget;
+          const list = Array.from(input.files ?? []);
           setBusy(true);
           setParentUploading(true);
           setError("");
@@ -492,6 +495,7 @@ export function PhotoUpload({
           } catch (err) {
             setError((err as Error).message);
           } finally {
+            input.value = "";
             setBusy(false);
             setParentUploading(false);
           }
@@ -722,7 +726,7 @@ export function CollectionPanel({ token }: { token: string }) {
               ...Object.fromEntries(f),
               idempotencyKey: key,
             });
-            await qc.invalidateQueries({ queryKey: ["workflow-refs"] });
+            await refreshReferenceChoices(qc);
           }}
         >
           <Reference
@@ -748,7 +752,7 @@ export function CollectionPanel({ token }: { token: string }) {
               ...Object.fromEntries([...f].filter(([, value]) => value !== "")),
               idempotencyKey: key,
             });
-            await qc.invalidateQueries({ queryKey: ["workflow-refs"] });
+            await refreshReferenceChoices(qc);
           }}
         >
           <Reference

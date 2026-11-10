@@ -472,16 +472,18 @@ export async function toPdf(report: {
   filters: unknown;
   rows: unknown[];
 }) {
-  return new Promise<Buffer>((resolve) => {
+  return new Promise<Buffer>((resolve, reject) => {
     const doc = new PDFDocument({ margin: 36, size: "A4" });
     const font = [
       process.env.REPORT_FONT_PATH,
       "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+      "/usr/share/fonts/dejavu/DejaVuSans.ttf",
       "/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf",
     ].find((path) => path && require("fs").existsSync(path));
     if (!font) throw new Error("Не найден шрифт для русского отчёта");
     doc.font(font);
     const chunks: Buffer[] = [];
+    doc.once("error", reject);
     doc.on("data", (chunk: Buffer) => chunks.push(chunk));
     doc.on("end", () => resolve(Buffer.concat(chunks)));
     doc.fontSize(18).text("Отчёт движения материала");

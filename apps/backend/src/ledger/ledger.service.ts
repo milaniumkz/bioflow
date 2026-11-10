@@ -138,7 +138,15 @@ export class LedgerService {
           (["P2034", "P2002"].includes(e.code) ||
             (e.code === "P2010" &&
               ["40001", "40P01"].includes(String(e.meta?.code))));
-        if (retryable && attempt < 4) continue;
+        if (retryable && attempt < 4) {
+          await new Promise((resolve) =>
+            setTimeout(
+              resolve,
+              20 * 2 ** attempt + Math.floor(Math.random() * 20),
+            ),
+          );
+          continue;
+        }
         if (retryable)
           throw new ConflictException(
             "Повторите операцию после параллельного изменения",
@@ -1657,7 +1665,7 @@ export class LedgerService {
       this.require(user, operationPermission(op.kind));
       if (op.status === "CANCELLED")
         throw new ConflictException("Операция уже отменена");
-      if (op.kind === "RETURN")
+      if (op.kind === "RETURN" && op.status !== "DRAFT")
         throw new ConflictException(
           "Возврат исправляется отдельной корректировкой",
         );

@@ -90,8 +90,11 @@ export async function saveBlob(
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
+  link.hidden = true;
+  document.body.appendChild(link);
   link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
   return "download-started";
 }
 

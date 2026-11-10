@@ -3,6 +3,7 @@ import { caption, visibleText } from "./presentation";
 import { BrowserPush } from "./browser-push";
 import { QrScanner } from "./qr-scanner";
 import { AuditChanges } from "./audit-changes";
+import { refreshReferenceChoices } from "./reference-cache";
 
 import {
   webRequest,
@@ -773,16 +774,24 @@ function DataSection({ token, section }: { token: string; section: string }) {
                       "createdAt",
                     ]
                   : section === "counterparties"
-                    ? ["name", "bin", "phone", "email", "status", "createdAt"]
+                    ? [
+                        "name",
+                        "bin",
+                        "phone",
+                        "email",
+                        "status",
+                        "createdAt",
+                        "archivedAt",
+                      ]
                     : section === "vehicles"
-                      ? ["plateNumber", "brand", "type", "status"]
+                      ? ["plateNumber", "brand", "type", "status", "archivedAt"]
                       : section === "drivers"
-                        ? ["fullName", "phone"]
+                        ? ["fullName", "phone", "archivedAt"]
                         : section === "warehouses"
-                          ? ["name", "address", "lowStockLimit"]
+                          ? ["name", "address", "lowStockLimit", "archivedAt"]
                           : section === "extraction-sites" ||
                               section === "plants"
-                            ? ["name", "location", "address"]
+                            ? ["name", "location", "address", "archivedAt"]
                             : section === "material-types" ||
                                 section === "product-types"
                               ? ["name"]
@@ -1143,6 +1152,7 @@ function ReferenceCreateForm({
       setValues({});
       setMessage("Справочник сохранён");
       queryClient.invalidateQueries({ queryKey: [entity] });
+      refreshReferenceChoices(queryClient);
     },
   });
   if (fields.length === 0) return null;
@@ -1231,6 +1241,7 @@ function ReferenceEditForm({
       onUpdated?.(row);
       setMessage("Справочник обновлён");
       queryClient.invalidateQueries({ queryKey: [entity] });
+      refreshReferenceChoices(queryClient);
     },
   });
   const archive = useMutation({
@@ -1242,6 +1253,7 @@ function ReferenceEditForm({
     onSuccess: () => {
       setMessage("Запись архивирована, история сохранена");
       queryClient.invalidateQueries({ queryKey: [entity] });
+      refreshReferenceChoices(queryClient);
     },
   });
   if (fields.length === 0 || rows.length === 0) return null;
@@ -1653,6 +1665,12 @@ function SessionActions({ token, rows }: { token: string; rows: any[] }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
+  const repeatRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    repeatRef.current?.setCustomValidity(
+      newPassword === repeatPassword ? "" : "Пароли не совпадают",
+    );
+  }, [newPassword, repeatPassword]);
   const [message, setMessage] = useState("");
   const profile = useQuery({
     queryKey: ["me", token],
@@ -1698,17 +1716,23 @@ function SessionActions({ token, rows }: { token: string; rows: any[] }) {
             type="password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
+            required
+            autoComplete="current-password"
             placeholder="Текущий пароль"
           />
           <LabeledInput
             type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
+            required
+            minLength={8}
+            autoComplete="new-password"
             placeholder="Новый пароль"
           />
           <LabeledInput
             type="password"
             required
+            ref={repeatRef}
             value={repeatPassword}
             onChange={(e) => {
               setRepeatPassword(e.target.value);
@@ -2853,6 +2877,12 @@ function ForcePassword({
   const [currentPassword, setCurrent] = useState(""),
     [newPassword, setNew] = useState(""),
     [repeatPassword, setRepeatPassword] = useState("");
+  const repeatRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    repeatRef.current?.setCustomValidity(
+      newPassword === repeatPassword ? "" : "Пароли не совпадают",
+    );
+  }, [newPassword, repeatPassword]);
   const mutation = useMutation({
     mutationFn: () =>
       request("/auth/change-password", token, {
@@ -2894,6 +2924,7 @@ function ForcePassword({
           required
           autoComplete="new-password"
           placeholder="Повторите новый пароль"
+          ref={repeatRef}
           value={repeatPassword}
           onChange={(e) => {
             setRepeatPassword(e.target.value);
@@ -3709,7 +3740,11 @@ function App() {
 }
 
 export default function Page() {
-  const client = useMemo(() => new QueryClient(), []);
+  const client = useMemo(
+    () =>
+      new QueryClient({ defaultOptions: { queries: { staleTime: 10000 } } }),
+    [],
+  );
   return (
     <QueryClientProvider client={client}>
       <App />

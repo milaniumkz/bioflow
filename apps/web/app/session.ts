@@ -128,15 +128,11 @@ export async function networkFetch(
     );
   }
 }
-export async function webRequest<T>(
+async function sessionFetch(
   path: string,
   token?: string,
   init: RequestInit = {},
-): Promise<T> {
-  const form =
-    typeof document === "undefined"
-      ? undefined
-      : document.activeElement?.closest("form, .formGrid");
+) {
   const requestEpoch = epoch;
   const checkIdentity = () => {
     if (requestEpoch !== epoch)
@@ -173,6 +169,19 @@ export async function webRequest<T>(
     }
     if (ok) response = await send();
   }
+  return { response, checkIdentity };
+}
+
+export async function webRequest<T>(
+  path: string,
+  token?: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const form =
+    typeof document === "undefined"
+      ? undefined
+      : document.activeElement?.closest("form, .formGrid");
+  const { response, checkIdentity } = await sessionFetch(path, token, init);
   let body;
   try {
     body = await response.json();
@@ -212,11 +221,33 @@ export async function webRequest<T>(
   return body;
 }
 export async function downloadReport(path: string, token: string) {
-  const response = await networkFetch(base + path, {
-    headers: { Authorization: `Bearer ${access || token}` },
-  });
-  if (!response.ok) throw Error("Не удалось выгрузить отчёт");
-  return response.blob();
+  const { response, checkIdentity } = await sessionFetch(path, token);
+  if (!response.ok) {
+    if (response.status === 401 && typeof window !== "undefined")
+      window.dispatchEvent(new Event("bioflow:expired"));
+    let message = "Не удалось выгрузить отчёт. Повторите попытку.";
+    try {
+      const body = await response.json();
+      message = readableError(body.error?.message ?? body.message ?? message);
+    } catch {}
+    checkIdentity();
+    throw Error(
+      response.status === 429
+        ? "Слишком много запросов. Подождите минуту и повторите попытку."
+        : message,
+    );
+  }
+  const blob = await response.blob();
+  checkIdentity();
+  const format = new URL(path, "http://localhost").searchParams.get("format");
+  if (format === "pdf" && (await blob.slice(0, 5).text()) !== "%PDF-")
+    throw Error("Сервер не сформировал PDF. Повторите попытку.");
+  if (format === "xlsx" && (await blob.slice(0, 2).text()) !== "PK")
+    throw Error("Сервер не сформировал таблицу. Повторите попытку.");
+  if (blob.type.includes("text/html") || blob.type.includes("application/json"))
+    throw Error("Сервер не сформировал файл отчёта. Повторите попытку.");
+  checkIdentity();
+  return blob;
 }
 
 function readableError(message: string): string {

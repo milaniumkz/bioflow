@@ -105,6 +105,35 @@ test("offline exports show a readable network failure", async () => {
     /Нет связи с сервером/,
   );
 });
+test("exports renew an expired access token before downloading a PDF", async () => {
+  setSession({ accessToken: "expired", refreshToken: "refresh" });
+  globalThis.fetch = async (url, init) => {
+    if (String(url).endsWith("/auth/refresh"))
+      return Response.json({ accessToken: "renewed", refreshToken: "next" });
+    return init?.headers.Authorization === "Bearer renewed"
+      ? new Response("%PDF-fixture", {
+          headers: { "Content-Type": "application/pdf" },
+        })
+      : Response.json({ error: { message: "Unauthorized" } }, { status: 401 });
+  };
+  const blob = await downloadReport(
+    "/ledger/reports/inventory/export?format=pdf",
+    "expired",
+  );
+  assert.equal(await blob.text(), "%PDF-fixture");
+});
+test("a pending export cannot return a previous account's data after switching accounts", async () => {
+  setSession({ accessToken: "owner" });
+  let resolve;
+  globalThis.fetch = () =>
+    new Promise((r) => {
+      resolve = r;
+    });
+  const result = downloadReport("/reports/export?format=pdf", "owner");
+  setSession({ accessToken: "auditor" });
+  resolve(new Response("%PDF-owner-private"));
+  await assert.rejects(result, /Пользователь изменился/);
+});
 test("a gateway HTML response is reported without a JSON parser exception", async () => {
   globalThis.fetch = async () =>
     new Response("<h1>Bad Gateway</h1>", { status: 502 });
