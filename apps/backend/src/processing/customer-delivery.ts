@@ -103,9 +103,12 @@ export async function saveCustomerDelivery(
   const vehicleId =
     d.vehicleId === undefined ? (old?.vehicleId ?? null) : d.vehicleId || null;
   const driverId = d.driverId || null;
+  // Departure freezes the historical assignment; later archiving must not block handover.
+  const assignmentLocked =
+    !!old && (old.status !== "PLANNED" || !!old.loadedAt);
   if (
+    assignmentLocked &&
     old &&
-    (old.status !== "PLANNED" || old.loadedAt) &&
     (old.driverId !== driverId ||
       old.vehicleId !== vehicleId ||
       old.trackingEnabled !== trackingEnabled)
@@ -118,17 +121,18 @@ export async function saveCustomerDelivery(
         where: {
           id: driverId,
           organizationId: u.organizationId,
-          archivedAt: null,
+          ...(!assignmentLocked ? { archivedAt: null } : {}),
         },
         include: {
           user: { include: { userRoles: { include: { role: true } } } },
         },
       })
     : null;
-  if (driverId && !driver)
+  if (driverId && !driver && !assignmentLocked)
     throw new BadRequestException("Водитель не найден или архивирован");
   if (
     vehicleId &&
+    !assignmentLocked &&
     !(await tx.vehicle.findFirst({
       where: {
         id: vehicleId,
@@ -141,6 +145,7 @@ export async function saveCustomerDelivery(
     throw new BadRequestException("Машина не найдена или недоступна");
   if (
     trackingEnabled &&
+    !assignmentLocked &&
     (!driver?.user ||
       driver.user.isBlocked ||
       !driver.user.userRoles.some((r) => r.role.code === "DRIVER") ||
