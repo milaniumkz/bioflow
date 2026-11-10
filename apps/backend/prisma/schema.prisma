@@ -718,28 +718,34 @@ model PushDelivery {
 // Driver telemetry is separate from material stock accounting.
 model RoutePoint {
   id String @id
-  waybillId String
+  customerDeliveryId String?
+  customerDelivery CustomerDelivery? @relation(fields: [customerDeliveryId], references: [id], onDelete: Restrict)
+  waybillId String?
   userId String
   recordedAt DateTime
   receivedAt DateTime @default(now())
   latitude Float
   longitude Float
   accuracy Float
-  waybill Waybill @relation(fields: [waybillId], references: [id])
+  waybill Waybill? @relation(fields: [waybillId], references: [id], onDelete: Restrict)
   @@index([waybillId, recordedAt])
+  @@index([customerDeliveryId, recordedAt])
 }
 
 model RouteStop {
   id String @id @default(cuid())
-  waybillId String
+  customerDeliveryId String?
+  customerDelivery CustomerDelivery? @relation(fields: [customerDeliveryId], references: [id], onDelete: Restrict)
+  waybillId String?
   latitude Float
   longitude Float
   startedAt DateTime
   lastObservedAt DateTime
   endedAt DateTime?
   notifiedAt DateTime?
-  waybill Waybill @relation(fields: [waybillId], references: [id])
+  waybill Waybill? @relation(fields: [waybillId], references: [id], onDelete: Restrict)
   @@index([waybillId, endedAt])
+  @@index([customerDeliveryId, endedAt])
 }
 
 
@@ -823,6 +829,18 @@ model BigBag {
 
 // Customer delivery is independent of stock posting; confirmation never writes off stock twice.
 model CustomerDelivery {
+  number String?
+  vehicleId String?
+  trackingEnabled Boolean @default(false)
+  warehouseId String?
+  batchId String?
+  quantity Decimal @default(0) @db.Decimal(14, 3)
+  bagCount Int @default(1)
+  loadedAt DateTime?
+  departedAt DateTime?
+  arrivedAt DateTime?
+  routePoints RoutePoint[]
+  routeStops RouteStop[]
   id String @id @default(cuid())
   organizationId String
   sourceId String
@@ -836,10 +854,13 @@ model CustomerDelivery {
   updatedAt DateTime @updatedAt
   events CustomerDeliveryEvent[]
   @@unique([organizationId, sourceId])
+  @@unique([organizationId, number])
   @@index([organizationId, status])
 }
 
 model CustomerDeliveryEvent {
+  vehicleId String?
+  trackingEnabled Boolean @default(false)
   id String @id @default(cuid())
   deliveryId String
   status String

@@ -49,11 +49,16 @@ async function main() {
         where: { organizationId: organization.id, archivedAt: null },
         orderBy: { id: "asc" },
       });
-      if (driver)
+      if (driver) {
+        await prisma.driver.updateMany({
+          where: { userId: driverUser.id, id: { not: driver.id } },
+          data: { userId: null },
+        });
         await prisma.driver.update({
           where: { id: driver.id },
           data: { userId: driverUser.id },
         });
+      }
     }
     await prisma.notification.create({
       data: {

@@ -21,6 +21,7 @@ const statusLabels: Record<string, string> = {
   RETURN: "Возврат покупателя",
   PRODUCTION: "Производство",
   PLANNED: "Запланирована",
+  ARRIVED: "Прибыла к покупателю",
   DELIVERED: "Вручена покупателю",
 };
 const stages = [
@@ -242,6 +243,7 @@ export function OwnerDashboardPanel({ token }: { token: string }) {
               token={token}
               record={detail}
               drivers={q.data?.filters.drivers ?? []}
+              vehicles={q.data?.filters.vehicles ?? []}
               onSaved={() => {
                 setDetail(null);
                 void q.refetch();
@@ -294,19 +296,23 @@ export function OwnerDashboardPanel({ token }: { token: string }) {
   );
 }
 
-function DeliveryForm({
+export function DeliveryForm({
   token,
   record,
   drivers,
+  vehicles = [],
   onSaved,
 }: {
   token: string;
   record: Row;
   drivers: Row[];
+  vehicles?: Row[];
   onSaved: () => void;
 }) {
   const [values, setValues] = useState({
     driverId: record.delivery?.driverId ?? "",
+    vehicleId: record.delivery?.vehicleId ?? "",
+    trackingEnabled: record.delivery?.trackingEnabled ?? false,
     destination: record.delivery?.destination ?? "",
     route: record.delivery?.route ?? "",
     status: record.delivery?.status ?? "PLANNED",
@@ -317,6 +323,7 @@ function DeliveryForm({
   const titles: Record<string, string> = {
     PLANNED: "Запланирована",
     IN_TRANSIT: "В пути",
+    ARRIVED: "Прибыла к покупателю",
     DELIVERED: "Вручена покупателю",
   };
   return (
@@ -326,7 +333,8 @@ function DeliveryForm({
       {record.delivery?.events?.map((e: Row) => (
         <p key={e.id}>
           {dateTime(e.createdAt)} · {titles[e.status]} · {e.createdByName} ·{" "}
-          {e.driverName} · {e.route} · {e.destination} · {e.notes}
+          {e.driverName} · {e.vehiclePlate ?? ""} · {e.route} · {e.destination}{" "}
+          · {e.notes}
         </p>
       ))}
       {record.delivery?.status !== "DELIVERED" && (
@@ -353,6 +361,7 @@ function DeliveryForm({
           }}
         >
           <LabeledSelect
+            disabled={!!record.delivery && record.delivery.status !== "PLANNED"}
             label="Водитель доставки"
             value={values.driverId}
             onChange={(e) =>
@@ -366,6 +375,36 @@ function DeliveryForm({
               </option>
             ))}
           </LabeledSelect>
+          <LabeledSelect
+            label="Машина доставки"
+            disabled={!!record.delivery && record.delivery.status !== "PLANNED"}
+            value={values.vehicleId}
+            onChange={(e) =>
+              setValues((v) => ({ ...v, vehicleId: e.target.value }))
+            }
+          >
+            <option value="">Не назначена</option>
+            {vehicles
+              .filter((v) => !v.archivedAt && v.status === "ACTIVE")
+              .map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.plateNumber}
+                </option>
+              ))}
+          </LabeledSelect>
+          <label>
+            <input
+              type="checkbox"
+              disabled={
+                !!record.delivery && record.delivery.status !== "PLANNED"
+              }
+              checked={values.trackingEnabled}
+              onChange={(e) =>
+                setValues((v) => ({ ...v, trackingEnabled: e.target.checked }))
+              }
+            />
+            Отслеживать машину по GPS
+          </label>
           <LabeledInput
             placeholder="Адрес покупателя"
             required
@@ -391,11 +430,13 @@ function DeliveryForm({
               setValues((v) => ({ ...v, status: e.target.value }))
             }
           >
-            {(record.delivery?.status === "IN_TRANSIT"
-              ? ["IN_TRANSIT", "DELIVERED"]
-              : record.delivery
-                ? ["PLANNED", "IN_TRANSIT"]
-                : ["PLANNED"]
+            {(record.delivery?.status === "ARRIVED"
+              ? ["ARRIVED", "DELIVERED"]
+              : record.delivery?.status === "IN_TRANSIT"
+                ? ["IN_TRANSIT", "ARRIVED", "DELIVERED"]
+                : record.delivery
+                  ? ["PLANNED", "IN_TRANSIT"]
+                  : ["PLANNED"]
             ).map((s) => (
               <option key={s} value={s}>
                 {titles[s]}

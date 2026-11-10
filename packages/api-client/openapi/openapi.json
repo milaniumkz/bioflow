@@ -694,6 +694,23 @@
       }
     },
     "/api/v1/processing/deliveries": {
+      "get": {
+        "operationId": "ProcessingController_deliveryList",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "processing"
+        ]
+      },
       "post": {
         "operationId": "ProcessingController_delivery",
         "parameters": [],

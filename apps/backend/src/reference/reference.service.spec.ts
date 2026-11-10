@@ -246,3 +246,30 @@ describe("reference validation regressions", () => {
     );
   });
 });
+
+it("offers only the six working roles and rejects assigning a legacy role", async () => {
+  const findMany = jest.fn().mockResolvedValue([]);
+  const service = new ReferenceService({
+    role: { findMany, count: jest.fn().mockResolvedValue(0) },
+    user: { findFirst: jest.fn().mockResolvedValue({ id: "target" }) },
+    $transaction: (ops: Promise<unknown>[]) => Promise.all(ops),
+  } as any);
+  await service.list("roles", { page: 1, pageSize: 20 } as any, {
+    ...user,
+    accessAllObjects: true,
+  });
+  expect(findMany.mock.calls[0][0].where.code.in.sort()).toEqual(
+    [
+      "OPERATIONS_MANAGER",
+      "WASH_OPERATOR",
+      "PACKER",
+      "DRIVER",
+      "COLLECTOR",
+      "OWNER",
+    ].sort(),
+  );
+  await expect(
+    service.assignRoles("target", ["DRYING_OPERATOR"], user),
+  ).rejects.toThrow("шести рабочих ролей");
+  expect(findMany).toHaveBeenCalledTimes(1);
+});

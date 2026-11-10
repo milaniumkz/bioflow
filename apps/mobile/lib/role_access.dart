@@ -1,4 +1,5 @@
 const roleNames = {
+  'OPERATIONS_MANAGER': 'Приёмка и производство',
   'COLLECTOR': 'Сборщик',
   'DRIVER': 'Водитель',
   'LAB_TECHNICIAN': 'Лаборант',
@@ -35,6 +36,7 @@ const roleSections = {
   'laboratory': 'Лаборатория',
   'big-bags': 'Биг-бэги и упаковка',
   'fleet': 'Водители и маршруты',
+  'deliveries': 'Доставка продукции',
   'dashboard': 'Обзор',
   'ledger': 'Партии и операции',
   'waybills': 'Поставки',
@@ -72,6 +74,7 @@ bool canOpenSection(String id, Map<String, dynamic>? profile) {
     return can('tracking.write') &&
         (profile['roles'] as List? ?? []).contains('DRIVER');
   }
+  if (id == 'deliveries') return can('processing.sell') || can('processing.sell.washed');
   if (id == 'control') return can('processing.overview');
   if (id == 'collection') return can('collection.manage');
   if (['processing','laboratory','big-bags'].contains(id)) return can('processing.read');

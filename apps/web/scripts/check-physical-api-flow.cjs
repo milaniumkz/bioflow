@@ -33,6 +33,17 @@ async function login(role) {
   ).accessToken;
 }
 async function open(role, qr) {
+  if (
+    process.env.BIOFLOW_COMBINED_ROLES &&
+    [
+      "wash_receiver",
+      "lab_technician",
+      "drying_operator",
+      "finished_receiver",
+      "sales_storekeeper",
+    ].includes(role)
+  )
+    role = "operations_manager";
   await context?.close();
   context = await browser.newContext({
     viewport: { width: 390, height: 844 },
@@ -95,7 +106,10 @@ function form(title) {
 async function send(f, endpoint) {
   const refreshed = page.waitForResponse(
     (r) =>
-      r.url().endsWith("/processing/scan") && r.request().method() === "POST",
+      (r.url().endsWith("/processing/scan") &&
+        r.request().method() === "POST") ||
+      (r.url().includes("/processing/batches/") &&
+        r.request().method() === "GET"),
   );
   const pending = page.waitForResponse(
     (r) =>
@@ -291,6 +305,48 @@ async function send(f, endpoint) {
     await f.locator("[name=outputWeights]").nth(1).fill("3.75");
     const wash = await send(f, "/processing/runs");
     assert.equal(wash.outputs.length, 2);
+    if (process.env.BIOFLOW_COMBINED_ROLES) {
+      await open("wash_operator");
+      await page
+        .getByRole("button", { name: "Открыть меню", exact: true })
+        .click();
+      await page
+        .locator("nav.nav")
+        .getByRole("button", { name: "Биг-бэги и упаковка", exact: true })
+        .click();
+      await page
+        .getByLabel("Номер партии", { exact: true })
+        .fill(wash.outputs[1].number);
+      await page
+        .getByRole("button", { name: "Продать с мойки", exact: true })
+        .click();
+      const washedSale = form("Продать с мойки");
+      await washedSale.locator("[name=warehouseId]").selectOption(wh.id);
+      await washedSale
+        .locator("[name=recipient]")
+        .fill("Покупатель мытого материала");
+      await washedSale
+        .locator("[name=documentNumber]")
+        .fill("WASH-UI-" + Date.now());
+      await washedSale.getByLabel("Оформить доставку", { exact: true }).check();
+      await washedSale
+        .locator("[name=deliveryDestination]")
+        .fill("Покупатель без GPS");
+      await washedSale
+        .locator("[name=deliveryRoute]")
+        .fill("Мойка → покупатель");
+      await washedSale.locator("[name=deliveryDriverId]").selectOption("");
+      await washedSale.locator("[name=deliveryVehicleId]").selectOption("");
+      const sold = await send(washedSale, "/processing/sales");
+      assert.equal(sold.delivery.trackingEnabled, false);
+      assert.equal(sold.delivery.driverId, null);
+      assert.equal(sold.delivery.vehicleId, null);
+      const driverTrips = await request("/tracking/trips?pageSize=100", driver);
+      assert(!driverTrips.data.some((r) => r.id === sold.delivery.id));
+      results.push(
+        "washed registry sale and optional delivery without driver, vehicle or GPS",
+      );
+    }
     await open("drying_operator", wash.outputs[0].qrToken);
     f = form("Приём на завод");
     await f.locator("[name=warehouseId]").selectOption(plant.id);
@@ -336,60 +392,145 @@ async function send(f, endpoint) {
     await f.locator("[name=recipient]").fill("Покупатель проверки интерфейса");
     const documentNumber = "UI-" + Date.now();
     await f.locator("[name=documentNumber]").fill(documentNumber);
+    if (process.env.BIOFLOW_TRACK_DELIVERY) {
+      await f.getByLabel("Оформить доставку", { exact: true }).check();
+      await f.getByLabel("Отслеживать машину по GPS", { exact: true }).check();
+      await f
+        .locator("[name=deliveryDestination]")
+        .fill("Павлодар, тестовый покупатель");
+      await f.locator("[name=deliveryRoute]").fill("Склад → покупатель");
+      await f.locator("[name=deliveryDriverId]").selectOption(assigned.id);
+      await f.locator("[name=deliveryVehicleId]").selectOption(vehicles[0].id);
+    }
     await send(f, "/processing/sales");
     const beforeDelivery = await request(
       "/processing/batches/" + dry.outputs[0].id,
       owner,
     );
-    await open("owner", dry.outputs[0].qrToken);
-    await page
-      .getByRole("button", { name: "Открыть меню", exact: true })
-      .click();
-    await page
-      .locator("nav.nav")
-      .getByRole("button", { name: "Обзор предприятия", exact: true })
-      .click();
-    await page
-      .locator("button.owner-metric")
-      .filter({ hasText: "Доставка покупателю" })
-      .click();
-    for (const status of ["PLANNED", "IN_TRANSIT", "DELIVERED"]) {
+    if (process.env.BIOFLOW_TRACK_DELIVERY) {
+      const tracked = await request("/tracking/scan", driver, {
+        token: dry.outputs[0].qrToken,
+      });
+      await open("driver", dry.outputs[0].qrToken);
+      for (const label of [
+        "Загрузился",
+        "Выехал · включить геолокацию",
+        "Прибыл",
+      ]) {
+        const response = page.waitForResponse(
+          (r) =>
+            r.url().endsWith(`/tracking/trips/${tracked.id}/status`) &&
+            r.request().method() === "POST",
+        );
+        await page
+          .getByLabel("Рейс по QR", { exact: true })
+          .getByRole("button", { name: label, exact: true })
+          .click();
+        assert((await response).ok());
+        if (label.startsWith("Выехал")) {
+          for (let tries = 0; ; tries++) {
+            const route = await request(
+              `/tracking/trips/${tracked.id}/route?pageSize=100`,
+              owner,
+            );
+            if (route.total > 0) break;
+            assert(tries < 20, "Delivery GPS point missing");
+            await page.waitForTimeout(500);
+          }
+        }
+        results.push("customer driver " + label);
+      }
+      await open("operations_manager");
       await page
-        .locator("button.owner-record")
-        .filter({ hasText: documentNumber })
+        .getByRole("button", { name: "Открыть меню", exact: true })
+        .click();
+      await page
+        .locator("nav.nav")
+        .getByRole("button", { name: "Доставка продукции", exact: true })
+        .click();
+      const card = page.locator("article.workflow-event").filter({
+        has: page.getByRole("heading", { name: tracked.number, exact: true }),
+      });
+      await card
+        .getByRole("button", { name: "Маршрут и остановки", exact: true })
+        .click();
+      await page
+        .getByRole("heading", { name: "Маршрут и время рейса", exact: true })
+        .waitFor();
+      await page.getByText("Время выезда", { exact: true }).waitFor();
+      await card
+        .getByRole("button", { name: "Открыть доставку", exact: true })
         .click();
       const drawer = page.getByRole("dialog").last();
       await drawer
-        .getByLabel("Водитель доставки", { exact: true })
-        .selectOption(assigned.id);
-      await drawer
-        .getByLabel("Адрес покупателя", { exact: true })
-        .fill("Проверочный адрес покупателя");
-      await drawer
-        .getByLabel("Маршрут доставки", { exact: true })
-        .fill("Склад — покупатель");
-      await drawer
         .getByLabel("Статус доставки", { exact: true })
-        .selectOption(status);
-      const delivery = page.waitForResponse(
+        .selectOption("DELIVERED");
+      const saved = page.waitForResponse(
         (r) =>
           r.url().endsWith("/processing/deliveries") &&
           r.request().method() === "POST",
       );
-      const updated = page.waitForResponse(
-        (r) =>
-          r.url().includes("/processing/owner-dashboard") &&
-          r.request().method() === "GET",
-      );
       await drawer
         .getByRole("button", { name: "Сохранить доставку", exact: true })
         .click();
-      assert((await delivery).ok());
-      await (await updated).finished();
+      assert((await saved).ok());
       await drawer.waitFor({ state: "hidden" });
-      await page.waitForTimeout(200);
-      results.push("delivery " + status);
-      console.log("PASS delivery", status);
+      results.push(
+        "tracked delivery: assignment, QR, driver GPS, arrival, route and separate handover",
+      );
+    } else {
+      await open("owner", dry.outputs[0].qrToken);
+      await page
+        .getByRole("button", { name: "Открыть меню", exact: true })
+        .click();
+      await page
+        .locator("nav.nav")
+        .getByRole("button", { name: "Обзор предприятия", exact: true })
+        .click();
+      await page
+        .locator("button.owner-metric")
+        .filter({ hasText: "Доставка покупателю" })
+        .click();
+      for (const status of ["PLANNED", "IN_TRANSIT", "DELIVERED"]) {
+        await page
+          .locator("button.owner-record")
+          .filter({ hasText: documentNumber })
+          .click();
+        const drawer = page.getByRole("dialog").last();
+        const driverChoice = drawer.getByLabel("Водитель доставки", {
+          exact: true,
+        });
+        if (await driverChoice.isEnabled())
+          await driverChoice.selectOption(assigned.id);
+        await drawer
+          .getByLabel("Адрес покупателя", { exact: true })
+          .fill("Проверочный адрес покупателя");
+        await drawer
+          .getByLabel("Маршрут доставки", { exact: true })
+          .fill("Склад — покупатель");
+        await drawer
+          .getByLabel("Статус доставки", { exact: true })
+          .selectOption(status);
+        const delivery = page.waitForResponse(
+          (r) =>
+            r.url().endsWith("/processing/deliveries") &&
+            r.request().method() === "POST",
+        );
+        const updated = page.waitForResponse(
+          (r) =>
+            r.url().includes("/processing/owner-dashboard") &&
+            r.request().method() === "GET",
+        );
+        await drawer
+          .getByRole("button", { name: "Сохранить доставку", exact: true })
+          .click();
+        assert((await delivery).ok());
+        await (await updated).finished();
+        await drawer.waitFor({ state: "hidden" });
+        await page.waitForTimeout(200);
+        results.push("delivery " + status);
+        console.log("PASS delivery", status);
+      }
     }
     const afterDelivery = await request(
       "/processing/batches/" + dry.outputs[0].id,

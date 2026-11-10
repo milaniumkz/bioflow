@@ -13,7 +13,7 @@ function nextStep(item: RecordData, permissions: string[]) {
     return {
       title: "Материал отпущен покупателю",
       detail:
-        "Дальнейшая доставка и её подтверждение доступны в обзоре владельца. История партии сохранена.",
+        "Доставка и её подтверждение доступны в разделе «Доставка продукции». История партии сохранена.",
       available: false,
       role: "Владелец",
     };
@@ -36,6 +36,18 @@ function nextStep(item: RecordData, permissions: string[]) {
       "processing.sell",
       "Сотрудник продаж",
       "Укажите покупателя и документ отпуска. Мытый биг-бэг можно продать до передачи на завод.",
+    );
+  if (
+    bag?.stage === "WASHED" &&
+    !bag.factoryStartedAt &&
+    permissions.includes("processing.dispatch") &&
+    !permissions.includes("processing.dry")
+  )
+    return step(
+      "Отправить на завод или продать с мойки",
+      "processing.dispatch",
+      "Оператор мойки",
+      "Выберите склад завода или укажите покупателя и документ для продажи мытого биг-бэга.",
     );
   if (bag?.stage === "WASHED")
     return bag.factoryStartedAt
@@ -134,7 +146,11 @@ export function processingNextStep(
       role: "",
     };
   const next = nextStep(item, permissions);
-  if (roles.includes("PACKER") && !roles.includes("OWNER")) {
+  if (
+    roles.includes("PACKER") &&
+    !roles.includes("OWNER") &&
+    !roles.includes("OPERATIONS_MANAGER")
+  ) {
     if (item.batch.bigBag?.soldAt) return next;
     const bag = item.batch.bigBag;
     if (!bag || bag.stage !== "DRIED" || !bag.receivedAt)

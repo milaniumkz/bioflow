@@ -12,6 +12,8 @@ import { orderBy, PageDto } from "../common/page.dto";
 import { CurrentUser } from "../common/current-user.decorator";
 import { CreateUserDto, UpsertSettingDto } from "./reference.dto";
 
+import { WORK_ROLE_CODES } from "../common/work-roles";
+
 const ENTITY_MODEL: Record<string, string> = {
   "reference-values": "referenceValue",
   counterparties: "counterparty",
@@ -76,6 +78,7 @@ export class ReferenceService {
       throw new ForbiddenException("Недостаточно прав управления настройками");
     const model = this.model(entity);
     const where = this.orgWhere(entity, user.organizationId, query.search);
+    if (entity === "roles") where.code = { in: WORK_ROLE_CODES };
     if (!user.accessAllObjects && user.accessAllObjects !== undefined) {
       if (entity === "warehouses")
         where.id = { in: user.warehouseScopeIds ?? [] };
@@ -172,6 +175,8 @@ export class ReferenceService {
       where: { id: userId, organizationId: actor.organizationId },
     });
     if (!target) throw new NotFoundException("User not found");
+    if (roleCodes.some((code) => !WORK_ROLE_CODES.includes(code)))
+      throw new BadRequestException("Выберите одну из шести рабочих ролей");
     const roles = await this.prisma.role.findMany({
       where: { code: { in: roleCodes } },
     });

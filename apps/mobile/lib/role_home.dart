@@ -333,7 +333,7 @@ class _RoleHomeState extends State<RoleHome> with WidgetsBindingObserver {
                   Text('${trip['number']}'),
                   Text('Куда: ${trip['destinationWarehouse']?['name'] ?? ''}'),
                   Text(
-                      '${trip['bagCount'] ?? '—'} мешков · ${trip['declaredWeight']} т'),
+                      '${trip['bagCount'] ?? '—'} ${trip['tripKind'] == 'CUSTOMER_DELIVERY' ? 'биг-бэгов' : 'мешков'} · ${trip['declaredWeight']} т'),
                   const SizedBox(height: 16),
                   if (trip['loadedAt'] != null)
                     Text(

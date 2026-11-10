@@ -9,6 +9,7 @@ const user = {
   id: "owner",
   organizationId: "org",
   accessAllObjects: true,
+  permissions: ["processing.sell"],
 } as CurrentUser;
 function fixture() {
   const batch = {
@@ -68,6 +69,7 @@ function fixture() {
     bigBag: null,
   };
   const prisma: any = {
+    vehicle: { findMany: jest.fn().mockResolvedValue([]) },
     materialBatch: { findMany: jest.fn().mockResolvedValue([batch]) },
     processRun: {
       findMany: jest.fn().mockResolvedValue([
@@ -234,7 +236,15 @@ test("delivery period and assigned driver use delivery event rather than sale da
 test("delivery appends a snapshot with optimistic version checks and leaves sale inventory alone", async () => {
   const old = { id: "delivery", version: 1, status: "PLANNED" };
   const tx = {
-    bigBag: { findFirst: jest.fn().mockResolvedValue({ id: "sale" }) },
+    bigBag: {
+      findFirst: jest
+        .fn()
+        .mockResolvedValue({
+          id: "sale",
+          stage: "DRIED",
+          batch: { stocks: [] },
+        }),
+    },
     driver: { findFirst: jest.fn().mockResolvedValue({ id: "driver" }) },
     customerDelivery: {
       findUnique: jest.fn().mockResolvedValue(old),
@@ -244,6 +254,8 @@ test("delivery appends a snapshot with optimistic version checks and leaves sale
         .mockResolvedValue({ ...old, version: 2, status: "IN_TRANSIT" }),
     },
     customerDeliveryEvent: { create: jest.fn().mockResolvedValue({}) },
+    user: { findMany: jest.fn().mockResolvedValue([]) },
+    auditLog: { create: jest.fn().mockResolvedValue({}) },
   };
   const service = new CustomerDeliveryService({
     $transaction: async (fn: any) => fn(tx),

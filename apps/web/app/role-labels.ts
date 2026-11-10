@@ -1,4 +1,5 @@
 const roleNames: Record<string, string> = {
+  OPERATIONS_MANAGER: "Приёмка и производство",
   COLLECTOR: "Сборщик",
   DRIVER: "Водитель",
   LAB_TECHNICIAN: "Лаборант",
@@ -26,6 +27,8 @@ export function roleLabel(role: { code: string; name?: string }) {
 }
 export function roleDescription(code: string) {
   const descriptions: Record<string, string> = {
+    OPERATIONS_MANAGER:
+      "Приёмка на мойку, лаборатория, мойка, завод, готовая продукция, упаковка, продажи и доставка.",
     COLLECTOR: "Создание отправок, машин и водителей, контроль своих рейсов.",
     DRIVER: "Собственные назначенные рейсы и передача геолокации.",
     LAB_TECHNICIAN:
@@ -42,7 +45,7 @@ export function roleDescription(code: string) {
       "Управление пользователями и справочниками, просмотр данных и журнала действий.",
     CONTRACTOR_REP: "Работа с перевозками и просмотр остатков.",
     RECEIVER: "Приёмка перевозок и просмотр остатков.",
-    WASH_OPERATOR: "Работа с операциями переработки и просмотр остатков.",
+    WASH_OPERATOR: "Мойка, отправка на завод и продажа мытого материала.",
     PRODUCTION_OPERATOR: "Работа с операциями переработки и просмотр остатков.",
     DISPATCHER: "Организация перевозок и просмотр остатков.",
     EXTRACTION_OPERATOR: "Работа с партиями добычи и просмотр остатков.",

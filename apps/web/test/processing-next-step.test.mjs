@@ -167,3 +167,37 @@ test("sales sees the allowed washed-sale branch and must wait for packing of fin
   };
   assert.equal(processingNextStep(packed, ["processing.sell"]).available, true);
 });
+
+test("washing offers dispatch or washed sales without giving factory work", () => {
+  const item = {
+    batch: { stocks: [{ quantity: 4 }], bigBag: { stage: "WASHED" } },
+  };
+  const next = processingNextStep(
+    item,
+    ["processing.wash", "processing.dispatch", "processing.sell.washed"],
+    ["WASH_OPERATOR"],
+  );
+  assert.equal(next.title, "Отправить на завод или продать с мойки");
+  assert.equal(next.available, true);
+  const atFactory = processingNextStep(
+    {
+      batch: {
+        ...item.batch,
+        bigBag: { stage: "WASHED", factoryStartedAt: "now" },
+      },
+    },
+    ["processing.wash", "processing.dispatch", "processing.sell.washed"],
+    ["WASH_OPERATOR"],
+  );
+  assert.equal(atFactory.available, false);
+});
+
+test("a combined worker keeps the receiving step even with an old packer assignment", () => {
+  const next = processingNextStep(
+    { batch: { stocks: [{ quantity: 2 }], bigBag: { stage: "DRIED" } } },
+    ["processing.finished", "processing.pack"],
+    ["OPERATIONS_MANAGER", "PACKER"],
+  );
+  assert.equal(next.title, "Склад готовой продукции");
+  assert.equal(next.available, true);
+});

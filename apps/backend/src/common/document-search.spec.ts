@@ -6,3 +6,7 @@ test("visible Russian numbers find the original immutable stored documents", () 
   expect(documentSearch("ООО Склад")).toBe("ООО Склад");
   expect(documentSearch("LOT-000012")).toBe("LOT-000012");
 });
+
+test("delivery labels use the organization's short sequence in search", () => {
+  expect(documentSearch("Доставка №12")).toBe("DEL-000012");
+});
