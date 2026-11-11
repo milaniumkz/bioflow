@@ -38,19 +38,18 @@ function phoneCredentials(request) {
 function variants(phone) {
   return [phone, phone.slice(1), "8" + phone.slice(2)];
 }
-async function configureAccounts(prisma, request, ownerEmail) {
+async function configureAccounts(prisma, request, ownerLogin) {
   const entries = phoneCredentials(request);
-  if (!ownerEmail) throw Error("Configured owner is required");
+  if (!ownerLogin) throw Error("Configured owner is required");
   const hashes = await Promise.all(entries.map((e) => argon2.hash(e.password)));
   return prisma.$transaction(
     async (tx) => {
-      const owner = await tx.user.findUnique({ where: { email: ownerEmail } });
-      if (
-        !owner ||
-        owner.isBlocked ||
-        owner.organizationId === "collection-role-training-v1"
-      )
-        throw Error("Working owner unavailable");
+      const owner = await tx.user.findUnique({
+        where: ownerLogin.startsWith("+")
+          ? { phone: ownerLogin }
+          : { email: ownerLogin },
+      });
+      if (!owner || owner.isBlocked) throw Error("Working owner unavailable");
       const ownerRole = await tx.userRole.findFirst({
         where: { userId: owner.id, role: { code: "OWNER" } },
       });
@@ -80,7 +79,9 @@ async function configureAccounts(prisma, request, ownerEmail) {
       const provisions = await tx.auditLog.findMany({
         where: {
           organizationId: owner.organizationId,
-          action: "users.provision-work-roles",
+          action: {
+            in: ["users.provision-work-roles", "users.align-work-organization"],
+          },
         },
         select: { newValue: true },
       });
@@ -244,11 +245,7 @@ async function main() {
   const { PrismaClient } = backendRequire("@prisma/client"),
     prisma = new PrismaClient();
   try {
-    const result = await configureAccounts(
-      prisma,
-      request,
-      process.env.BOOTSTRAP_OWNER_EMAIL,
-    );
+    const result = await configureAccounts(prisma, request, request.ownerLogin);
     await verifyPhones(prisma, request, result, base);
     console.log(
       JSON.stringify({

@@ -38,9 +38,9 @@ function credentials(request) {
         .slice(0, 14) + "7a!",
   }));
 }
-async function createAccounts(prisma, request, ownerEmail) {
+async function createAccounts(prisma, request, ownerLogin) {
   validate(request);
-  if (!ownerEmail) throw Error("Configured owner is required");
+  if (!ownerLogin) throw Error("Configured owner is required");
   const entries = credentials(request);
   const hashes = await Promise.all(entries.map((e) => argon2.hash(e.password)));
   const fingerprint = createHash("sha256")
@@ -56,13 +56,14 @@ async function createAccounts(prisma, request, ownerEmail) {
   return prisma.$transaction(
     async (tx) => {
       const owner = await tx.user.findUnique({
-        where: { email: ownerEmail },
+        where: ownerLogin.startsWith("+")
+          ? { phone: ownerLogin }
+          : { email: ownerLogin },
         include: { userRoles: { include: { role: true } } },
       });
       if (
         !owner ||
         owner.isBlocked ||
-        owner.organizationId === "collection-role-training-v1" ||
         !owner.userRoles.some((r) => r.role.code === "OWNER")
       )
         throw Error("Working organization owner not found");
@@ -234,11 +235,7 @@ async function main() {
   const { PrismaClient } = backendRequire("@prisma/client"),
     prisma = new PrismaClient();
   try {
-    const result = await createAccounts(
-      prisma,
-      request,
-      process.env.BOOTSTRAP_OWNER_EMAIL,
-    );
+    const result = await createAccounts(prisma, request, request.ownerLogin);
     await verifyAccounts(prisma, request, result, base);
     console.log(
       JSON.stringify({
