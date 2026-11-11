@@ -45,7 +45,7 @@ class DriverLocationService : Service(), LocationListener {
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val stop = PendingIntent.getService(this, 1, Intent(this, DriverLocationService::class.java).setAction("STOP"), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, "driver") else Notification.Builder(this)
-        val notification = builder.setSmallIcon(android.R.drawable.ic_menu_mylocation)
+        val notification = builder.setSmallIcon(R.drawable.ic_stat_collection_driver)
             .setContentTitle("Collection Driver · " + prefs.getString("number", "Рейс"))
             .setContentText("Геолокация передаётся владельцу. Нажмите, чтобы открыть.")
             .setContentIntent(open).setOngoing(true)

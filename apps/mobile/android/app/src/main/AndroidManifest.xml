@@ -10,7 +10,9 @@
     <application android:allowBackup="false" android:usesCleartextTraffic="${allowCleartext}"
         android:label="${appLabel}"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="${appIcon}"
+        android:roundIcon="${appIcon}">
+        <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="${notificationIcon}"/>
         <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.files" android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/collection_file_paths"/>
         </provider>

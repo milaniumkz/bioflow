@@ -19,6 +19,10 @@ on:
       asset_tag:
         description: "Collection APK release tag"
         required: false
+      mobile_only:
+        description: "Update only signed Collection APKs; preserve deployed web and database"
+        type: boolean
+        default: false
       server_config_age:
         description: "Optional AGE envelope encrypted to the pinned server host key"
         required: false
@@ -155,6 +159,7 @@ jobs:
             const {data} = await github.rest.actions.listWorkflowRuns({owner:context.repo.owner,repo:context.repo.repo,workflow_id:'ci.yml',head_sha:sha,per_page:30});
             if (!data.workflow_runs.some(run=>run.conclusion==='success')) core.setFailed('Collection commit must pass CI before deployment.');
       - name: Upload isolated source release
+        if: inputs.mobile_only != true
         run: |
           set -euo pipefail
           command -v sshpass >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y sshpass)
@@ -171,7 +176,7 @@ jobs:
           bioflow_scp "$RUNNER_TEMP/collection-source.tgz" "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/incoming/$sha.tgz"
           bioflow_ssh "tar -xzf /opt/collection-live/incoming/$sha.tgz -C /opt/collection-live/releases/$sha"
       - name: Install encrypted Firebase configuration
-        if: inputs.server_config_age != ''
+        if: inputs.server_config_age != '' && inputs.mobile_only != true
         env:
           SERVER_CONFIG_AGE: ${{ inputs.server_config_age }}
         run: |
@@ -196,6 +201,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          command -v sshpass >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y sshpass)
           mkdir -p "$RUNNER_TEMP/collection-mobile"
           source infrastructure/ci-ssh.sh
           for name in google-services.json collection-release.jks mobile-signing.json; do
@@ -232,11 +238,15 @@ jobs:
           gh release upload "$ASSET_TAG" --repo "$GITHUB_REPOSITORY" collection-apks.part-* SHA256SUMS --clobber
           cd "$GITHUB_WORKSPACE"
           source infrastructure/ci-ssh.sh
-          bioflow_scp "$RUNNER_TEMP/collection-apks/Collection.apk" "$RUNNER_TEMP/collection-apks/Collection-Driver.apk" "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/shared/downloads/"
+          sha=$(git rev-parse HEAD)
+          bioflow_ssh "mkdir -p /opt/collection-live/incoming/mobile-$sha"
+          bioflow_scp "$RUNNER_TEMP/collection-apks/Collection.apk" "$RUNNER_TEMP/collection-apks/Collection-Driver.apk" "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/incoming/mobile-$sha/"
+          bioflow_ssh "chmod 0644 /opt/collection-live/incoming/mobile-$sha/*.apk && mv -f /opt/collection-live/incoming/mobile-$sha/Collection.apk /opt/collection-live/shared/downloads/Collection.apk && mv -f /opt/collection-live/incoming/mobile-$sha/Collection-Driver.apk /opt/collection-live/shared/downloads/Collection-Driver.apk"
       - name: Remove temporary signing credentials
         if: always()
         run: rm -rf "$RUNNER_TEMP/collection-mobile" apps/mobile/android/key.properties
       - name: Deploy separate Collection database and application
+        if: inputs.mobile_only != true
         run: |
           set -euo pipefail
           sha=$(git rev-parse HEAD)

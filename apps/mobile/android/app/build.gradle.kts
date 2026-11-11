@@ -26,6 +26,8 @@ android {
 
     defaultConfig {
         applicationId = if (driverBuild) "kz.milanium.collection_driver" else if (collectionBuild) "kz.milanium.collection" else "kz.milanium.bioflow_mobile"
+        manifestPlaceholders["notificationIcon"] = if (driverBuild) "@drawable/ic_stat_collection_driver" else "@drawable/ic_stat_collection"
+        manifestPlaceholders["appIcon"] = if (driverBuild) "@mipmap/ic_collection_driver" else if (collectionBuild) "@mipmap/ic_collection" else "@mipmap/ic_launcher"
         manifestPlaceholders["appLabel"] = if (driverBuild) "Collection Driver" else if (collectionBuild) "Collection" else "BIOFLOW"
         manifestPlaceholders["allowCleartext"] = "false"
         // You can update the following values to match your application needs.
