@@ -1,7 +1,7 @@
 // Read-only live verification. Never log credentials, balances or personal data.
 const fs = require('node:fs');
 const { createSign } = require('node:crypto');
-const { PrismaClient, Prisma } = require('@prisma/client');
+const { PrismaClient, Prisma } = require(require.resolve('@prisma/client', { paths: ['/app/apps/backend', process.cwd()] }));
 const db = new PrismaClient();
 (async () => {
   if (process.env.COLLECTION_ENABLED !== 'true' || new URL(process.env.DATABASE_URL).pathname !== '/collection_live') throw Error('Refusing another database');
