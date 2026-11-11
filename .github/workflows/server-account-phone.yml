@@ -24,6 +24,7 @@ on:
             provision-work-roles,
             configure-work-logins,
             inspect-work-organization,
+            align-work-organization,
           ]
       phone_ciphertext:
         description: "Base64 RSA-OAEP-SHA256 encrypted account request; never enter plaintext credentials"
@@ -166,5 +167,21 @@ jobs:
           cd /opt/bioflow-test/current
           compose=(docker compose -p bioflow-test --env-file /opt/bioflow-test/shared/server.env -f docker-compose.test-server.yml)
           "${compose[@]}" exec -T -e COLLECTION_WORK_ORG_INSPECT_JSON="$payload" backend node - < "$private/inspect-work-organization.cjs"
+          unset payload
+          REMOTE
+
+      - name: Align only unused new work accounts to the explicitly requested old owner
+        if: inputs.operation == 'align-work-organization'
+        run: |
+          source infrastructure/ci-ssh.sh
+          [[ "$PHONE_CIPHERTEXT" =~ ^[A-Za-z0-9+/]{512}$ ]] || exit 2
+          bioflow_scp infrastructure/inspect-work-organization.cjs "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/bioflow-test/shared/private-account-ops/inspect-work-organization.cjs"
+          bioflow_ssh bash -s -- "$PHONE_CIPHERTEXT" <<'REMOTE'
+          set -euo pipefail
+          private=/opt/bioflow-test/shared/private-account-ops
+          payload=$(printf '%s' "$1" | base64 -d | openssl pkeyutl -decrypt -inkey "$private/phone-key.pem" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256)
+          cd /opt/bioflow-test/current
+          compose=(docker compose -p bioflow-test --env-file /opt/bioflow-test/shared/server.env -f docker-compose.test-server.yml)
+          "${compose[@]}" exec -T -e COLLECTION_WORK_ORG_ALIGN_JSON="$payload" backend node - < "$private/inspect-work-organization.cjs"
           unset payload
           REMOTE
