@@ -11,6 +11,10 @@ media=Path(os.environ.get('COLLECTION_TUTORIAL_MEDIA','work/native-tutorial-medi
 fixture=json.loads(Path('work/tutorial-fixture.json').read_text())
 catalog={i['id']:i for i in json.loads(Path('apps/web/app/collection/tutorial-catalog.json').read_text())}
 timings=json.loads(Path('infrastructure/tutorials/voice-duration-data.json').read_text())
+selected=set(filter(None,os.environ.get('TUTORIAL_CAPTURE_LESSONS','').split(',')))
+if selected:
+ for key in timings:
+  if key not in selected:timings[key]=[.1]*len(timings[key])
 if not urllib.parse.urlparse(fixture['api']).hostname in ['127.0.0.1','localhost']:raise RuntimeError('Refusing live API')
 def adb(*args):return subprocess.check_output([ADB,*args],stderr=subprocess.STDOUT,timeout=20)
 if adb('shell','getprop','ro.kernel.qemu').strip()!=b'1':raise RuntimeError('Disposable emulator required')
@@ -54,7 +58,7 @@ def cdp(expr):
  target=next(t for t in targets if t.get('type')=='page' and '/collection/' in t.get('url',''))
  ws=websocket.create_connection(target['webSocketDebuggerUrl'],suppress_origin=True,timeout=20)
  try:
-  ws.send(json.dumps({'id':1,'method':'Runtime.evaluate','params':{'expression':expr,'returnByValue':True}}))
+  ws.send(json.dumps({'id':1,'method':'Runtime.evaluate','params':{'expression':expr,'returnByValue':True,'userGesture':True}}))
   while True:
    r=json.loads(ws.recv())
    if r.get('id')==1:return r.get('result',{}).get('result',{}).get('value')
@@ -63,13 +67,11 @@ def web_tap(text=None,video=False):
  for _ in range(25):
   try:
    selector="document.querySelector('video')" if video else "[...document.querySelectorAll('button,[role=button]')].find(e=>e.textContent.trim()==="+json.dumps(text)+")"
-   rect=cdp("(()=>{const e="+selector+";if(!e)return null;e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,w:innerWidth};})()")
-   if not rect:time.sleep(.5);continue
-   tree=ui();wv=next(n for n in tree.iter('node') if n.get('class')=='android.webkit.WebView')
-   import re
-   box=list(map(int,re.findall(r'\d+',wv.get('bounds'))));scale=(box[2]-box[0])/rect['w']
-   adb('shell','input','tap',str(round(box[0]+rect['x']*scale)),str(round(box[1]+rect['y']*scale)));return
-  except Exception:time.sleep(.6)
+   action="e.play().catch(()=>{});" if video else "e.click();"
+   clicked=cdp("(()=>{const e="+selector+";if(!e)return false;e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();const dot=document.createElement('div');Object.assign(dot.style,{position:'fixed',left:(r.x+r.width/2-22)+'px',top:(r.y+r.height/2-22)+'px',width:'44px',height:'44px',border:'4px solid #ffb632',borderRadius:'50%',background:'#ffb63244',pointerEvents:'none',zIndex:2147483647});document.body.append(dot);dot.animate([{opacity:1,transform:'scale(.6)'},{opacity:0,transform:'scale(1.5)'}],{duration:900,fill:'forwards'});setTimeout(()=>dot.remove(),1000);"+action+"return true;})()")
+   if clicked:return
+  except Exception:pass
+  time.sleep(.6)
  raise RuntimeError('Web control not ready')
 def choose_photo():
  for _ in range(20):

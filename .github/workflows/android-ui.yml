@@ -2,6 +2,10 @@ name: android-ui
 on:
   workflow_dispatch:
     inputs:
+      tutorial_lessons:
+        description: "Optional comma-separated Driver lesson IDs to film at full narration timing"
+        type: string
+        default: ""
       tutorial_driver:
         description: "Record each Driver instruction on a disposable emulator with synthetic data"
         type: boolean
@@ -267,6 +271,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TUTORIAL_CAPTURE_TAG: ${{ steps.captures.outputs.tag }}
+          TUTORIAL_CAPTURE_LESSONS: ${{ inputs.tutorial_lessons }}
         with:
           api-level: 34
           target: google_apis
