@@ -199,7 +199,7 @@ jobs:
           import json,sys
           from pathlib import Path
           root=Path(sys.argv[1]);data=json.loads((root/'mobile-signing.json').read_text())
-          values={**data,'storeFile':str(root/'collection-release.jks')}
+          values={**data,'keyAlias':data['alias'],'storeFile':str(root/'collection-release.jks')}
           Path('apps/mobile/android/key.properties').write_text('\n'.join(k+'='+values[k] for k in ['storeFile','storePassword','keyPassword','keyAlias'])+'\n')
           PYCODE
       - name: Build and publish signed Collection APKs
