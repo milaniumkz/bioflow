@@ -1,0 +1,81 @@
+# Isolated Collection live contour; never use the legacy database or volumes.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: collection_live
+      POSTGRES_USER: collection
+      POSTGRES_PASSWORD: ${COLLECTION_DB_PASSWORD:?}
+    volumes: [collection_postgres:/var/lib/postgresql/data]
+    networks: [private]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U collection -d collection_live]
+      interval: 5s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes: [collection_redis:/data]
+    networks: [private]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      retries: 30
+  backend:
+    image: collection-live-backend:${COLLECTION_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://collection:${COLLECTION_DB_PASSWORD}@postgres:5432/collection_live
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: ${COLLECTION_JWT_ACCESS_SECRET:?}
+      JWT_REFRESH_SECRET: ${COLLECTION_JWT_REFRESH_SECRET:?}
+      QR_SIGNING_SECRET: ${COLLECTION_QR_SIGNING_SECRET:?}
+      WEB_ORIGIN: https://${COLLECTION_DOMAIN:-release.109.235.118.171.sslip.io}
+      COLLECTION_ENABLED: "true"
+      COLLECTION_DATABASE_NAME: collection_live
+      COLLECTION_ORGANIZATION_ID: collection-live
+      FCM_SERVICE_ACCOUNT_FILE: /run/collection-secrets/firebase-service-account.json
+    volumes:
+      - ${COLLECTION_SHARED_DIR:?}/secrets/firebase-service-account.json:/run/collection-secrets/firebase-service-account.json:ro
+      - ${COLLECTION_SHARED_DIR:?}/secrets/opening-balances.json:/run/collection-secrets/opening-balances.json:ro
+    networks:
+      private: {}
+      edge: {aliases: [collection-live-api]}
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:4000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+  web:
+    image: collection-live-web:${COLLECTION_IMAGE_TAG:-local}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args: {NEXT_PUBLIC_API_URL: /api/v1}
+    restart: unless-stopped
+    networks:
+      edge: {aliases: [collection-live-web]}
+  gateway:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    networks:
+      edge: {aliases: [collection-live-gateway]}
+    volumes:
+      - ./infrastructure/nginx/collection.conf:/etc/nginx/nginx.conf:ro
+      - ${COLLECTION_SHARED_DIR}/downloads:/downloads:ro
+    depends_on: [backend, web]
+networks:
+  private: {}
+  edge: {}
+volumes:
+  collection_postgres: {name: collection-live-postgres-data}
+  collection_redis: {name: collection-live-redis-data}

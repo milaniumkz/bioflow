@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'client.dart';
@@ -9,15 +10,21 @@ const firebaseSender = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID');
 const firebaseProject = String.fromEnvironment('FIREBASE_PROJECT_ID');
 StreamSubscription<String>? _tokenSubscription;
 StreamSubscription<RemoteMessage>? _messageSubscription;
+StreamSubscription<RemoteMessage>? _openSubscription;
 void disposePush() {
   _tokenSubscription?.cancel();
   _messageSubscription?.cancel();
+  _openSubscription?.cancel();
   _tokenSubscription = null;
   _messageSubscription = null;
+  _openSubscription = null;
 }
 
 Future<void> configurePush(BioflowClient api,
-    {void Function(String)? onMessage, void Function(String)? onError}) async {
+    {void Function(String)? onMessage,
+    void Function(String)? onError,
+    void Function(Map<String, dynamic>)? onOpen,
+    void Function(String, Map<String, dynamic>)? onNotification}) async {
   disposePush();
   final identity = api.owner;
   if ([firebaseApiKey, firebaseAppId, firebaseSender, firebaseProject]
@@ -36,7 +43,7 @@ Future<void> configurePush(BioflowClient api,
   final messaging = FirebaseMessaging.instance;
   final permission = await messaging.requestPermission();
   if (permission.authorizationStatus == AuthorizationStatus.denied) {
-    throw StateError('Разрешите уведомления в настройках Android.');
+    throw StateError('Разрешите уведомления в настройках телефона.');
   }
   Future<void> register(String token) async {
     if (api.owner != identity || identity.isEmpty) return;
@@ -44,7 +51,7 @@ Future<void> configurePush(BioflowClient api,
         '/auth/devices',
         {
           'deviceId': await api.storage.read(key: 'deviceId'),
-          'platform': 'android',
+          'platform': Platform.isIOS ? 'ios' : 'android',
           'pushToken': token,
         },
         queue: false);
@@ -61,10 +68,24 @@ Future<void> configurePush(BioflowClient api,
       onError?.call('Не удалось обновить push-токен. Проверьте связь.');
     });
   });
+  void open(RemoteMessage message) {
+    if (api.owner != identity ||
+        (message.data['recipientId'] != null &&
+            message.data['recipientId'] != identity)) {
+      return;
+    }
+    onOpen?.call(message.data);
+  }
+
+  _openSubscription = FirebaseMessaging.onMessageOpenedApp.listen(open);
+  final initial = await messaging.getInitialMessage();
+  if (initial != null) open(initial);
   _messageSubscription = FirebaseMessaging.onMessage.listen((message) {
     if (api.owner != identity) return;
-    onMessage?.call([message.notification?.title, message.notification?.body]
+    final text = [message.notification?.title, message.notification?.body]
         .whereType<String>()
-        .join('\n'));
+        .join('\n');
+    onMessage?.call(text);
+    onNotification?.call(text, message.data);
   });
 }

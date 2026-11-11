@@ -36,7 +36,7 @@ class DriverUploadJob : JobService() {
                             }
                         }
                         if (ids.isEmpty()) { drained = true; break }
-                        val code = DriverLocationService.post(api + "/driver-tracking/points", token, JSONObject().put("points", points).toString())
+                        val code = DriverLocationService.post(api + "/points", token, JSONObject().put("points", points).toString())
                         if (code in 200..299) {
                             DriverLocationService.database(this).use { it.delete("queue", "id IN (${ids.joinToString(",")})", null) }
                         } else {
@@ -46,8 +46,8 @@ class DriverUploadJob : JobService() {
                             break
                         }
                     }
-                    if (drained) {
-                        val code = DriverLocationService.post(api + "/driver-tracking/stop", token, "{}")
+                    if (drained && DriverEventOutbox.flush(this, api, token)) {
+                        val code = DriverLocationService.post(api + "/stop", token, "{}")
                         if (code in 200..299 || code == 401) stopsDatabase(this).use { it.delete("pending_stops", "token = ?", arrayOf(token)) }
                         else retry = true
                     } else retry = true

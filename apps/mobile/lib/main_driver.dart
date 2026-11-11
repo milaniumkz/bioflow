@@ -33,7 +33,9 @@ class DriverHome extends StatefulWidget {
 class _DriverHomeState extends State<DriverHome> with WidgetsBindingObserver {
   static const bridge = MethodChannel('collection/driver-tracking');
   static const api = String.fromEnvironment('API_URL',
-      defaultValue: 'https://bio.app.kz/api/v1');
+      defaultValue: 'https://release.109.235.118.171.sslip.io/api/v1');
+  static const prefix = String.fromEnvironment('DRIVER_API_PREFIX',
+      defaultValue: '/collection-driver');
   final dio = Dio(BaseOptions(
       baseUrl: api,
       connectTimeout: const Duration(seconds: 15),
@@ -146,8 +148,8 @@ class _DriverHomeState extends State<DriverHome> with WidgetsBindingObserver {
           await storage.write(
               key: 'driverClaimDraft', value: jsonEncode(draft));
         }
-        final response = await dio
-            .post<Map<String, dynamic>>('/driver-tracking/claim', data: draft);
+        final response =
+            await dio.post<Map<String, dynamic>>('$prefix/claim', data: draft);
         pendingClaim = response.data!;
         await storage.write(
             key: 'driverPendingSession', value: jsonEncode(pendingClaim));
@@ -155,7 +157,9 @@ class _DriverHomeState extends State<DriverHome> with WidgetsBindingObserver {
       final claim = pendingClaim!;
       await bridge.invokeMethod('start', {
         'token': claim['token'],
-        'api': api,
+        'api': '$api$prefix',
+        'destination': claim['warehouse'] ?? '',
+        'stage': claim['status'] ?? 'CREATED',
         'number': claim['waybillNumber'],
         'expires':
             DateTime.parse(claim['expiresAt'] as String).millisecondsSinceEpoch,
@@ -180,6 +184,23 @@ class _DriverHomeState extends State<DriverHome> with WidgetsBindingObserver {
         setState(() => error = e is PlatformException
             ? e.message ?? 'Не удалось запустить рейс'
             : e.toString().replaceFirst('Bad state: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> stage(String type) async {
+    setState(() {
+      busy = true;
+      error = '';
+    });
+    try {
+      await bridge.invokeMethod('event', {'type': type});
+      await refresh();
+    } on PlatformException catch (e) {
+      if (mounted) {
+        setState(() => error = e.message ?? 'Не удалось сохранить этап рейса');
       }
     } finally {
       if (mounted) setState(() => busy = false);
@@ -214,6 +235,7 @@ class _DriverHomeState extends State<DriverHome> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final active = status['active'] == true;
+    final currentStage = status['stage'] as String? ?? 'CREATED';
     final sent = (status['sent'] as num?)?.toInt() ?? 0;
     final serviceError = status['error'] as String? ?? '';
     return Scaffold(
@@ -235,7 +257,12 @@ class _DriverHomeState extends State<DriverHome> with WidgetsBindingObserver {
                           size: 76,
                           color: const Color(0xff147d64)),
                       const SizedBox(height: 24),
-                      Text(active ? 'Вы на маршруте' : 'Готовы к рейсу?',
+                      Text(
+                          active
+                              ? 'Вы на маршруте'
+                              : currentStage == 'ARRIVED'
+                                  ? 'Вы прибыли'
+                                  : 'Готовы к рейсу?',
                           textAlign: TextAlign.center,
                           style: Theme.of(context)
                               .textTheme
@@ -275,6 +302,37 @@ class _DriverHomeState extends State<DriverHome> with WidgetsBindingObserver {
                                     ],
                                   ]))),
                       const SizedBox(height: 24),
+                      if ((status['destination'] as String? ?? '').isNotEmpty)
+                        Padding(
+                            padding: const EdgeInsets.only(bottom: 20),
+                            child: Text('Куда: ${status['destination']}',
+                                textAlign: TextAlign.center)),
+                      if (active && !busy) ...[
+                        FilledButton.icon(
+                          onPressed: () => stage(currentStage == 'CREATED'
+                              ? 'LOADED'
+                              : currentStage == 'LOADED'
+                                  ? 'DEPARTED'
+                                  : 'ARRIVED'),
+                          icon: Icon(currentStage == 'CREATED'
+                              ? Icons.inventory_2_outlined
+                              : currentStage == 'LOADED'
+                                  ? Icons.local_shipping_outlined
+                                  : Icons.flag_outlined),
+                          label: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Text(currentStage == 'CREATED'
+                                  ? 'Загрузился'
+                                  : currentStage == 'LOADED'
+                                      ? 'Выехал'
+                                      : 'Прибыл')),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                            'Этапы сохраняются и без интернета. После подключения они отправятся вместе с координатами.',
+                            textAlign: TextAlign.center),
+                        const SizedBox(height: 16),
+                      ],
                       if (busy)
                         const Center(child: CircularProgressIndicator())
                       else if (active)

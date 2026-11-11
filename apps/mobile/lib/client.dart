@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -119,7 +120,7 @@ class BioflowClient {
     final r = await dio.post('/auth/login', data: {
       if (email.contains('@')) 'email': email.trim() else 'phone': email.trim(),
       'password': password,
-      'platform': 'android',
+      'platform': Platform.isIOS ? 'ios' : 'android',
       'deviceId': device
     });
     if (!await _tokens(r.data, epoch)) throw StateError('Сессия изменилась');

@@ -98,10 +98,16 @@ export class AuthService {
   }
 
   async logoutAll(userId: string) {
-    await this.prisma.refreshToken.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
+    await this.prisma.$transaction([
+      this.prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+      this.prisma.device.updateMany({
+        where: { userId },
+        data: { pushToken: null },
+      }),
+    ]);
     return { ok: true };
   }
 
@@ -376,30 +382,40 @@ export class AuthService {
     pushToken?: string,
   ) {
     if (!deviceId && !platform && !pushToken) return undefined;
-    if (deviceId) {
-      const device = await this.prisma.device.findFirst({
-        where: { id: deviceId, userId },
-      });
-      if (device) {
-        await this.prisma.device.update({
-          where: { id: deviceId },
-          data: {
-            platform: platform ?? device.platform,
-            pushToken: pushToken ?? device.pushToken,
-            lastSeenAt: new Date(),
-          },
+    return this.prisma.$transaction(async (tx) => {
+      if (pushToken) {
+        // One installation token belongs to one current account/device record.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${"push:" + pushToken}, 0))`;
+        await tx.device.updateMany({
+          where: { pushToken },
+          data: { pushToken: null },
         });
-        return deviceId;
       }
-    }
-    const created = await this.prisma.device.create({
-      data: {
-        userId,
-        platform: platform ?? "web",
-        pushToken,
-        lastSeenAt: new Date(),
-      },
+      if (deviceId) {
+        const device = await tx.device.findFirst({
+          where: { id: deviceId, userId },
+        });
+        if (device) {
+          await tx.device.update({
+            where: { id: deviceId },
+            data: {
+              platform: platform ?? device.platform,
+              pushToken: pushToken ?? device.pushToken,
+              lastSeenAt: new Date(),
+            },
+          });
+          return deviceId;
+        }
+      }
+      const created = await tx.device.create({
+        data: {
+          userId,
+          platform: platform ?? "web",
+          pushToken,
+          lastSeenAt: new Date(),
+        },
+      });
+      return created.id;
     });
-    return created.id;
   }
 }

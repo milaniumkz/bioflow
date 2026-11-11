@@ -1,1 +1,0 @@
-ALTER TABLE "Waybill" ALTER COLUMN "vehicleId" DROP NOT NULL;

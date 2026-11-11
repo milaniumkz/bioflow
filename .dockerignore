@@ -20,3 +20,15 @@ certificates
 apps/mobile/build
 apps/mobile/.dart_tool
 apps/mobile/android/.gradle
+
+work/
+
+**/google-services*.json
+
+**/GoogleService-Info*.plist
+
+**/*firebase-adminsdk*.json
+
+**/firebase-service-account*.json
+
+**/opening-balances*.json

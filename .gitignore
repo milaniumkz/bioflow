@@ -33,3 +33,15 @@ __pycache__/
 *.pyc
 
 apps/mobile/artifacts/
+
+/work/
+
+**/google-services*.json
+
+**/GoogleService-Info*.plist
+
+**/*firebase-adminsdk*.json
+
+**/firebase-service-account*.json
+
+**/opening-balances*.json

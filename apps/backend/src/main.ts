@@ -6,7 +6,10 @@ import { HttpErrorFilter } from "./common/http-exception.filter";
 import { assertProductionSecurityConfig, corsOriginConfig } from "./common/security-config";
 import { setupOpenApi } from "./openapi";
 
+import { assertCollectionDatabase } from "./collection/collection.service";
+
 async function bootstrap() {
+  if (process.env.COLLECTION_ENABLED === "true") assertCollectionDatabase();
   assertProductionSecurityConfig();
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix("api/v1");

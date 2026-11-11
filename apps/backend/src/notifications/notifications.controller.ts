@@ -73,7 +73,25 @@ export class NotificationsController {
       }),
       this.prisma.notification.count({ where }),
     ]);
-    return { data, total, page: query.page, pageSize: query.pageSize };
+    const links =
+      process.env.COLLECTION_ENABLED === "true"
+        ? await this.prisma.collectionNoticeLink.findMany({
+            where: { notificationId: { in: data.map((notice) => notice.id) } },
+          })
+        : [];
+    const byId = new Map(links.map((link) => [link.notificationId, link]));
+    return {
+      data:
+        process.env.COLLECTION_ENABLED === "true"
+          ? data.map((notice) => ({
+              ...notice,
+              action: byId.get(notice.id) ?? null,
+            }))
+          : data,
+      total,
+      page: query.page,
+      pageSize: query.pageSize,
+    };
   }
 
   @Permissions("notifications.read")

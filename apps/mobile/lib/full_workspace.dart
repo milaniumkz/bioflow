@@ -13,9 +13,16 @@ Future<void> printMobileQr(String image) =>
     mobileFiles.invokeMethod<void>('printQr', {'image': image});
 
 class FullWorkspace extends StatefulWidget {
-  const FullWorkspace({super.key, required this.client, required this.section});
+  const FullWorkspace(
+      {super.key,
+      required this.client,
+      required this.section,
+      this.path = '/',
+      this.initialNotification});
   final BioflowClient client;
   final String section;
+  final String path;
+  final Map<String, dynamic>? initialNotification;
   @override
   FullWorkspaceState createState() => FullWorkspaceState();
 }
@@ -30,6 +37,7 @@ class FullWorkspaceState extends State<FullWorkspace> {
   Timer? readiness;
   int pageGeneration = 0;
   bool queuedReady = false;
+  Map<String, dynamic>? pendingNotice;
 
   bool trusted(String? value) {
     final uri = Uri.tryParse(value ?? '');
@@ -38,7 +46,7 @@ class FullWorkspaceState extends State<FullWorkspace> {
         uri.host == webUri.host &&
         uri.port == webUri.port &&
         uri.userInfo.isEmpty &&
-        uri.path == '/' &&
+        uri.path == widget.path &&
         uri.queryParameters['mobile'] == '1';
   }
 
@@ -46,15 +54,18 @@ class FullWorkspaceState extends State<FullWorkspace> {
   void initState() {
     super.initState();
     identity = widget.client.owner;
+    pendingNotice = widget.initialNotification;
     const configured = String.fromEnvironment('WEB_URL');
     final origin = configured.isEmpty
         ? Uri.parse(widget.client.dio.options.baseUrl).origin
         : configured;
-    webUri =
-        Uri.parse(origin).replace(path: '/', query: 'mobile=1', fragment: '');
+    webUri = Uri.parse(origin)
+        .replace(path: widget.path, query: 'mobile=1', fragment: '');
     controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF061225))
+      ..setBackgroundColor(widget.path == '/collection'
+          ? const Color(0xFFF4F6F2)
+          : const Color(0xFF061225))
       ..addJavaScriptChannel('BioflowMobile', onMessageReceived: receive)
       ..setNavigationDelegate(NavigationDelegate(
         onNavigationRequest: (r) => trusted(r.url)
@@ -167,10 +178,15 @@ class FullWorkspaceState extends State<FullWorkspace> {
         await revokeChild();
         return;
       }
-      final payload = jsonEncode(
-          {...Map<String, dynamic>.from(tokens), 'section': widget.section});
+      final notice = pendingNotice;
+      final payload = jsonEncode({
+        ...Map<String, dynamic>.from(tokens),
+        'section': widget.section,
+        if (notice != null) 'notification': notice
+      });
       await controller.runJavaScript(
           'window.dispatchEvent(new CustomEvent("bioflow:mobile-login", {detail: $payload}));');
+      if (identical(pendingNotice, notice)) pendingNotice = null;
     } catch (_) {
       if (mounted) {
         setState(() => error =
@@ -186,6 +202,18 @@ class FullWorkspaceState extends State<FullWorkspace> {
         unawaited(authenticate());
       }
     }
+  }
+
+  Future<void> openNotification(Map<String, dynamic> data) async {
+    if (!mounted || leaving || widget.client.owner != identity) return;
+    if (!authenticated) {
+      pendingNotice = data;
+      return;
+    }
+    if (!trusted(await controller.currentUrl())) return;
+    final payload = jsonEncode(data);
+    await controller.runJavaScript(
+        'window.dispatchEvent(new CustomEvent("collection:open", {detail: $payload}));');
   }
 
   Future<void> revokeChild() async {
@@ -234,12 +262,21 @@ class FullWorkspaceState extends State<FullWorkspace> {
               error = null;
             });
           }
+          final queuedNotice = pendingNotice;
+          if (queuedNotice != null) {
+            pendingNotice = null;
+            unawaited(openNotification(queuedNotice));
+          }
         case 'signedOut':
           await finish(true);
         case 'sessionEnded':
           await finish(false);
         case 'close':
           await finish(false);
+        case 'shareQr':
+          if (!authenticated) return;
+          await mobileFiles.invokeMethod('shareQr',
+              {'image': data['image'], 'filename': data['filename']});
         case 'saveFile':
           if (!authenticated) return;
           final saved = await mobileFiles.invokeMethod<bool>('saveFile', {
@@ -347,7 +384,9 @@ class FullWorkspaceState extends State<FullWorkspace> {
             if (!authenticated || error != null)
               Positioned.fill(
                   child: ColoredBox(
-                      color: const Color(0xFF061225),
+                      color: widget.path == '/collection'
+                          ? const Color(0xFFF4F6F2)
+                          : const Color(0xFF061225),
                       child: Center(
                           child: Padding(
                               padding: const EdgeInsets.all(24),

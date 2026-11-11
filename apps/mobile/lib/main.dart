@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -184,8 +183,6 @@ class Workspace extends StatefulWidget {
 class _WorkspaceState extends State<Workspace> {
   int tab = 0, page = 1, loadVersion = 0;
   String search = '';
-  String? pushWarning;
-  Timer? notificationTimer;
   bool busy = false;
   String? error;
   List<dynamic> rows = [];
@@ -205,22 +202,7 @@ class _WorkspaceState extends State<Workspace> {
   @override
   void initState() {
     super.initState();
-    configurePush(api, onMessage: (message) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
-      if (tab == 4) load();
-    }, onError: (message) {
-      if (mounted) setState(() => pushWarning = message);
-    }).catchError((Object e) {
-      if (mounted) {
-        setState(
-            () => pushWarning = e.toString().replaceFirst('Bad state: ', ''));
-      }
-    });
-    notificationTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (mounted && tab == 4 && !busy) load();
-    });
+    configurePush(api).catchError((_) {});
     api.refreshProfile().then((_) {
       if (mounted) {
         setState(() {});
@@ -228,13 +210,6 @@ class _WorkspaceState extends State<Workspace> {
       }
     }).catchError((_) {});
     load();
-  }
-
-  @override
-  void dispose() {
-    notificationTimer?.cancel();
-    disposePush();
-    super.dispose();
   }
 
   Future<void> load() async {
@@ -593,11 +568,6 @@ class _WorkspaceState extends State<Workspace> {
                     ])
           ]),
       body: Column(children: [
-        if (pushWarning != null)
-          Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(pushWarning!,
-                  style: const TextStyle(color: Colors.amber))),
         Padding(
             padding: const EdgeInsets.all(12),
             child: TextField(
@@ -708,6 +678,8 @@ const batchFields = [
 ];
 const tripFields = [
   Field('batchId', 'Партия добычи', reference: 'ledger/batches'),
+  Field('vehicleId', 'Транспорт', reference: 'vehicles'),
+  Field('driverId', 'Водитель', reference: 'drivers', required: false),
   Field('destinationWarehouseId', 'Склад назначения', reference: 'warehouses'),
   Field('quantity', 'Количество, т', numeric: true),
   Field('documentDate', 'Дата и время документа')

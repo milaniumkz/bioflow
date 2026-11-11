@@ -38,10 +38,27 @@ class DriverTrackingBridge(private val activity: Activity, messenger: BinaryMess
                         check(!prefs.getBoolean("active", false)) { "Сначала остановите текущий рейс" }
                         prefs.edit().putString("token", token).putString("api", api)
                             .putString("number", call.argument<String>("number"))
+                            .putString("destination", call.argument<String>("destination"))
+                            .putString("lastToken", token)
                             .putLong("expires", call.argument<Number>("expires")!!.toLong())
                             .putBoolean("active", true).putString("error", "").putLong("sent", 0).putInt("sequence", 0).commit()
+                        DriverEventOutbox.begin(activity, token, call.argument<String>("stage") ?: "CREATED")
                         val intent = Intent(activity, DriverLocationService::class.java)
                         if (Build.VERSION.SDK_INT >= 26) activity.startForegroundService(intent) else activity.startService(intent)
+                        result.success(true)
+                    }
+                    "event" -> {
+                        val p=activity.getSharedPreferences("driver",Context.MODE_PRIVATE)
+                        check(p.getBoolean("active",false)) { "Сначала начните рейс" }
+                        val token=p.getString("token","")!!
+                        val type=call.argument<String>("type") ?: error("Нет этапа")
+                        DriverEventOutbox.enqueue(activity,token,type)
+                        if(type == "ARRIVED") {
+                            val api=p.getString("api","")!!
+                            p.edit().putBoolean("active",false).remove("token").commit()
+                            activity.stopService(Intent(activity,DriverLocationService::class.java))
+                            DriverUploadJob.enqueueStop(activity,api,token)
+                        }
                         result.success(true)
                     }
                     "stop" -> {
@@ -69,7 +86,7 @@ class DriverTrackingBridge(private val activity: Activity, messenger: BinaryMess
                     }
                     "status" -> {
                         val p = activity.getSharedPreferences("driver", Context.MODE_PRIVATE)
-                        result.success(mapOf("active" to p.getBoolean("active", false), "number" to p.getString("number", ""), "sent" to p.getLong("sent", 0), "error" to p.getString("error", ""), "expires" to p.getLong("expires", 0), "queued" to DriverLocationService.queueCount(activity)))
+                        result.success(mapOf("active" to p.getBoolean("active", false), "number" to p.getString("number", ""), "sent" to p.getLong("sent", 0), "error" to p.getString("error", ""), "expires" to p.getLong("expires", 0), "queued" to (DriverLocationService.queueCount(activity) + DriverEventOutbox.count(activity)), "stage" to DriverEventOutbox.stage(activity, p.getString("lastToken", "")!!), "destination" to p.getString("destination", "")))
                     }
                     else -> result.notImplemented()
                 }

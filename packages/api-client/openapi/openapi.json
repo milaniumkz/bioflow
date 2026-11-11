@@ -15,51 +15,9 @@
         ]
       }
     },
-    "/api/v1/driver-tracking/claim": {
-      "post": {
-        "operationId": "DriverTrackingController_claim",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "DriverTracking"
-        ]
-      }
-    },
-    "/api/v1/driver-tracking/points": {
-      "post": {
-        "operationId": "DriverTrackingController_points",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "DriverTracking"
-        ]
-      }
-    },
-    "/api/v1/driver-tracking/stop": {
-      "post": {
-        "operationId": "DriverTrackingController_stop",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "DriverTracking"
-        ]
-      }
-    },
-    "/api/v1/driver-tracking/waybills/{id}": {
+    "/api/v1/collection/state": {
       "get": {
-        "operationId": "DriverTrackingController_position",
+        "operationId": "CollectionController_state",
         "parameters": [],
         "responses": {
           "200": {
@@ -67,7 +25,189 @@
           }
         },
         "tags": [
-          "DriverTracking"
+          "Collection"
+        ]
+      }
+    },
+    "/api/v1/collection/trips/{id}/qr": {
+      "get": {
+        "operationId": "CollectionController_qr",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Collection"
+        ]
+      }
+    },
+    "/api/v1/collection/gp-trips": {
+      "post": {
+        "operationId": "CollectionController_gpTrip",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Collection"
+        ]
+      }
+    },
+    "/api/v1/collection/trips": {
+      "post": {
+        "operationId": "CollectionController_trip",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Collection"
+        ]
+      }
+    },
+    "/api/v1/collection/trips/{id}/confirm": {
+      "post": {
+        "operationId": "CollectionController_confirmTrip",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Collection"
+        ]
+      }
+    },
+    "/api/v1/collection/wash": {
+      "post": {
+        "operationId": "CollectionController_wash",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Collection"
+        ]
+      }
+    },
+    "/api/v1/collection/shipments": {
+      "post": {
+        "operationId": "CollectionController_shipment",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Collection"
+        ]
+      }
+    },
+    "/api/v1/collection/shipments/{id}/confirm": {
+      "post": {
+        "operationId": "CollectionController_confirmShipment",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Collection"
+        ]
+      }
+    },
+    "/api/v1/collection/production": {
+      "post": {
+        "operationId": "CollectionController_production",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Collection"
+        ]
+      }
+    },
+    "/api/v1/collection/factories": {
+      "post": {
+        "operationId": "CollectionController_factory",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Collection"
+        ]
+      }
+    },
+    "/api/v1/collection-driver/claim": {
+      "post": {
+        "operationId": "CollectionDriverController_claim",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionDriver"
+        ]
+      }
+    },
+    "/api/v1/collection-driver/points": {
+      "post": {
+        "operationId": "CollectionDriverController_points",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionDriver"
+        ]
+      }
+    },
+    "/api/v1/collection-driver/events": {
+      "post": {
+        "operationId": "CollectionDriverController_event",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionDriver"
+        ]
+      }
+    },
+    "/api/v1/collection-driver/stop": {
+      "post": {
+        "operationId": "CollectionDriverController_stop",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionDriver"
         ]
       }
     },

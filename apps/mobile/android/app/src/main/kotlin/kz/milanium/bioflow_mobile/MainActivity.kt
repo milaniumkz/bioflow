@@ -67,6 +67,19 @@ class MainActivity : FlutterActivity() {
                             pending = result
                             startActivityForResult(intent, saveRequest)
                         }
+                        "shareQr" -> {
+                            val data = call.argument<String>("image") ?: throw IllegalArgumentException()
+                            require(data.startsWith("data:image/png;base64,") && data.length < 4 * 1024 * 1024)
+                            val bytes = Base64.decode(data.substringAfter(','), Base64.DEFAULT)
+                            val directory = java.io.File(cacheDir, "shared-qr").apply { mkdirs() }
+                            val name = (call.argument<String>("filename") ?: "Collection-QR.png").replace(Regex("[^A-Za-z0-9._-]"), "_").take(120)
+                            val file = java.io.File(directory, name)
+                            file.writeBytes(bytes)
+                            val uri = androidx.core.content.FileProvider.getUriForFile(this, packageName + ".files", file)
+                            val intent = Intent(Intent.ACTION_SEND).apply { type = "image/png"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                            startActivity(Intent.createChooser(intent, "Отправить QR"))
+                            result.success(true)
+                        }
                         "printQr" -> {
                             val data = call.argument<String>("image") ?: throw IllegalArgumentException()
                             require(data.startsWith("data:image/png;base64,") && data.length < 4 * 1024 * 1024)

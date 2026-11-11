@@ -1,4 +1,7 @@
 const roleNames = {
+  'COLLECTOR': 'Сборщик',
+  'WAREHOUSE_MANAGER': 'Ответственный склада',
+  'FACTORY_MANAGER': 'Ответственный завода',
   'OWNER': 'Владелец',
   'ADMIN': 'Администратор',
   'CONTRACTOR_REP': 'Представитель подрядчика',
@@ -20,6 +23,7 @@ String roleSummary(Map<String, dynamic>? profile) {
 }
 
 const roleSections = {
+  'collection': 'Collection',
   'dashboard': 'Обзор',
   'ledger': 'Партии и операции',
   'waybills': 'Поставки',
@@ -50,6 +54,15 @@ const roleSections = {
 // Match Web navigation; the API independently enforces action/object access.
 bool canOpenSection(String id, Map<String, dynamic>? profile) {
   if (profile == null) return false;
+  if (id == 'collection') {
+    return (profile['roles'] as List? ?? []).any((role) => [
+          'OWNER',
+          'ADMIN',
+          'COLLECTOR',
+          'WAREHOUSE_MANAGER',
+          'FACTORY_MANAGER'
+        ].contains(role));
+  }
   final permissions = profile['permissions'] as List? ?? [];
   bool can(String p) => permissions.contains(p);
   final all = profile['accessAllObjects'] == true;

@@ -11,6 +11,17 @@ on:
         description: "Commit SHA or branch to deploy"
         required: false
         default: "main"
+      contour:
+        description: "Deployment target; Collection uses separate database and volumes"
+        type: choice
+        options: [legacy, collection]
+        default: legacy
+      asset_tag:
+        description: "Collection APK release tag"
+        required: false
+      server_config_age:
+        description: "Optional AGE envelope encrypted to the pinned server host key"
+        required: false
 
 permissions:
   contents: read
@@ -22,7 +33,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && vars.PROD_DEPLOY_ENABLED == 'true')
+    if: (github.event_name == 'workflow_dispatch' && inputs.contour != 'collection') || (github.event.workflow_run.conclusion == 'success' && vars.PROD_DEPLOY_ENABLED == 'true')
     runs-on: ubuntu-latest
     environment: production
     env:
@@ -117,3 +128,79 @@ jobs:
       - name: Verify health
         run: |
           curl --fail --retry 12 --retry-delay 5 "$PROD_APP_URL/api/v1/health"
+
+  collection:
+    if: github.event_name == 'workflow_dispatch' && inputs.contour == 'collection'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST || '109.235.118.171' }}
+      PROD_SSH_PORT: ${{ secrets.PROD_SSH_PORT || '22' }}
+      PROD_SSH_USER: ${{ secrets.PROD_SSH_USER || 'root' }}
+      PROD_SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+      SSHPASS: ${{ secrets.PROD_SSH_PASSWORD }}
+      PROD_SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - name: Require CI for this exact Collection commit
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], {encoding:'utf8'}).trim();
+            const {data} = await github.rest.actions.listWorkflowRuns({owner:context.repo.owner,repo:context.repo.repo,workflow_id:'ci.yml',head_sha:sha,per_page:30});
+            if (!data.workflow_runs.some(run=>run.conclusion==='success')) core.setFailed('Collection commit must pass CI before deployment.');
+      - name: Prepare isolated release and APK downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET_TAG: ${{ inputs.asset_tag }}
+        run: |
+          set -euo pipefail
+          [[ "$ASSET_TAG" =~ ^collection-live-[A-Za-z0-9._-]+$ ]]
+          sudo apt-get update -qq && sudo apt-get install -y sshpass
+          mkdir -p "$RUNNER_TEMP/collection-apks"
+          gh release download "$ASSET_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'collection-apks.part-*' --pattern SHA256SUMS --dir "$RUNNER_TEMP/collection-apks"
+          cat "$RUNNER_TEMP/collection-apks"/collection-apks.part-* > "$RUNNER_TEMP/collection-apks.tar.gz"
+          python3 - "$RUNNER_TEMP/collection-apks.tar.gz" "$RUNNER_TEMP/collection-apks" <<'PYCODE'
+          import sys,tarfile
+          with tarfile.open(sys.argv[1]) as tar:
+              members=tar.getmembers()
+              assert {m.name for m in members} == {'Collection.apk','Collection-Driver.apk'}
+              assert all(m.isfile() for m in members)
+              tar.extractall(sys.argv[2],members=members,filter='data')
+          PYCODE
+          (cd "$RUNNER_TEMP/collection-apks" && sha256sum -c SHA256SUMS)
+          test -s "$RUNNER_TEMP/collection-apks/Collection.apk"
+          test -s "$RUNNER_TEMP/collection-apks/Collection-Driver.apk"
+          sha=$(git rev-parse HEAD)
+          git archive --format=tar.gz -o "$RUNNER_TEMP/collection-source.tgz" HEAD
+          source infrastructure/ci-ssh.sh
+          bioflow_ssh "mkdir -p /opt/collection-live/releases/$sha /opt/collection-live/shared/downloads /opt/collection-live/incoming"
+          bioflow_scp "$RUNNER_TEMP/collection-source.tgz" "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/incoming/$sha.tgz"
+          bioflow_scp "$RUNNER_TEMP/collection-apks/Collection.apk" "$RUNNER_TEMP/collection-apks/Collection-Driver.apk" "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/shared/downloads/"
+          bioflow_ssh "tar -xzf /opt/collection-live/incoming/$sha.tgz -C /opt/collection-live/releases/$sha"
+      - name: Install encrypted Firebase configuration
+        if: inputs.server_config_age != ''
+        env:
+          SERVER_CONFIG_AGE: ${{ inputs.server_config_age }}
+        run: |
+          set -euo pipefail
+          umask 077
+          envelope="$RUNNER_TEMP/collection-config.age"
+          trap 'rm -f "$envelope"' EXIT
+          printf '%s' "$SERVER_CONFIG_AGE" > "$envelope"
+          sha=$(git rev-parse HEAD)
+          source infrastructure/ci-ssh.sh
+          bioflow_ssh "bash /opt/collection-live/releases/$sha/infrastructure/install-collection-config.sh" < "$envelope"
+      - name: Deploy separate Collection database and application
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse HEAD)
+          source infrastructure/ci-ssh.sh
+          bioflow_ssh "bash /opt/collection-live/releases/$sha/infrastructure/deploy-collection.sh /opt/collection-live/releases/$sha"
+      - name: Verify new public link and old contour
+        run: |
+          curl --fail --retry 8 --retry-delay 5 https://release.109.235.118.171.sslip.io/api/v1/health
+          curl --fail --retry 8 --retry-delay 5 https://release.109.235.118.171.sslip.io/collection -o /dev/null
+          curl --fail --retry 8 --retry-delay 5 http://109.235.118.171/api/v1/health

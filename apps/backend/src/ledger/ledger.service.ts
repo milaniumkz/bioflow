@@ -475,18 +475,15 @@ export class LedgerService {
           "Перевозка должна относиться к партии добычи",
         );
       await this.warehouse(tx, dto.destinationWarehouseId, user);
-      const vehicle = dto.vehicleId
-        ? await tx.vehicle.findFirst({
-            where: {
-              id: dto.vehicleId,
-              organizationId: user.organizationId,
-              status: "ACTIVE",
-              archivedAt: null,
-            },
-          })
-        : null;
-      if (dto.vehicleId && !vehicle)
-        throw new BadRequestException("Транспорт недоступен");
+      const vehicle = await tx.vehicle.findFirst({
+        where: {
+          id: dto.vehicleId,
+          organizationId: user.organizationId,
+          status: "ACTIVE",
+          archivedAt: null,
+        },
+      });
+      if (!vehicle) throw new BadRequestException("Транспорт недоступен");
       if (
         dto.driverId &&
         !(await tx.driver.findFirst({
@@ -507,7 +504,7 @@ export class LedgerService {
           counterpartyId: batch.counterpartyId,
           extractionSiteId: batch.extractionSiteId,
           materialTypeId: batch.materialTypeId,
-          vehicleId: vehicle?.id,
+          vehicleId: vehicle.id,
           driverId: dto.driverId,
           destinationWarehouseId: dto.destinationWarehouseId,
           declaredWeight: quantity,
@@ -547,7 +544,7 @@ export class LedgerService {
       const trip = await this.trip(tx, id, user);
       if (trip.status !== "CREATED")
         throw new ConflictException("Перевозка уже погружена или закрыта");
-      if (trip.vehicle?.capacity && quantity.gt(trip.vehicle.capacity)) {
+      if (trip.vehicle.capacity && quantity.gt(trip.vehicle.capacity)) {
         const setting = await tx.systemSetting.findUnique({
           where: {
             organizationId_key: {

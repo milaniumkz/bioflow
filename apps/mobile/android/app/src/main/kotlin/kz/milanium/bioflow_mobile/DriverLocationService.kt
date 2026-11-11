@@ -93,10 +93,11 @@ class DriverLocationService : Service(), LocationListener {
                     while (cursor.moveToNext()) { ids.add(cursor.getLong(0)); points.put(JSONObject(cursor.getString(1))) }
                 }
             }
-            if (ids.isEmpty()) return
-            val code = post(sessionApi + "/driver-tracking/points", sessionToken, JSONObject().put("points", points).toString())
+            if (ids.isEmpty()) { DriverEventOutbox.flush(this, sessionApi, sessionToken); return }
+            val code = post(sessionApi + "/points", sessionToken, JSONObject().put("points", points).toString())
             if (code in 200..299) {
                 database(this).use { db -> db.delete("queue", "id IN (${ids.joinToString(",")})", null) }
+                DriverEventOutbox.flush(this, sessionApi, sessionToken)
                 prefs.edit().putLong("sent", System.currentTimeMillis()).putString("error", "").apply()
             } else if (code == 401 || code == 403) {
                 prefs.edit().putString("error", "Рейс завершён или доступ отозван").apply()

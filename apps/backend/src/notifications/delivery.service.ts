@@ -4,7 +4,6 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from "@nestjs/common";
-import { DriverTrackingService } from "../driver-tracking/driver-tracking.service";
 import { createSign } from "crypto";
 import { readFileSync } from "fs";
 import { PrismaService } from "../prisma/prisma.service";
@@ -20,10 +19,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
   private running = false;
   private access?: { token: string; until: number };
   private readonly logger = new Logger(DeliveryService.name);
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly tracking: DriverTrackingService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
   onModuleInit() {
     this.timer = setInterval(() => void this.tick(), 30_000);
     void this.tick();
@@ -36,7 +32,6 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     if (this.running) return;
     this.running = true;
     try {
-      await this.tracking.checkSignalGaps();
       await this.reminders();
       if (process.env.FCM_SERVICE_ACCOUNT_FILE) await this.deliver();
     } catch {
@@ -161,7 +156,14 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
       data: { status: "PENDING" },
     });
     const pending = await this.prisma.pushDelivery.findMany({
-      where: { status: "PENDING", attempts: { lt: 10 } },
+      // Retry transient outages indefinitely, with a one-minute delay after failure.
+      where: {
+        status: "PENDING",
+        OR: [
+          { attempts: 0 },
+          { updatedAt: { lt: new Date(Date.now() - 60_000) } },
+        ],
+      },
       orderBy: { createdAt: "asc" },
       take: 50,
     });
@@ -185,6 +187,12 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
         continue;
       }
       try {
+        const link =
+          process.env.COLLECTION_ENABLED === "true"
+            ? await this.prisma.collectionNoticeLink.findUnique({
+                where: { notificationId: notice.id },
+              })
+            : null;
         const response = await fetch(
           `https://fcm.googleapis.com/v1/projects/${encodeURIComponent(credentials.project_id)}/messages:send`,
           {
@@ -197,12 +205,24 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
               message: {
                 token: device.pushToken,
                 notification: { title: notice.title, body: notice.body },
-                data: { notificationId: notice.id, type: notice.type },
+                data: {
+                  notificationId: notice.id,
+                  recipientId: notice.userId ?? "",
+                  type: notice.type,
+                  ...(link
+                    ? {
+                        collectionSection: link.section,
+                        entityId: link.entityId,
+                        locationId: link.locationId ?? "",
+                      }
+                    : {}),
+                },
               },
             }),
             signal: AbortSignal.timeout(15_000),
           },
         );
+        if (response.status === 401) this.access = undefined;
         await this.prisma.pushDelivery.update({
           where: { id: delivery.id },
           data: response.ok

@@ -55,6 +55,22 @@ jobs:
             sleep 2
           done
           npm run test:acceptance -w @bioflow/backend
+      - name: Verify isolated Collection workflow on its own database
+        env:
+          DATABASE_URL: postgresql://bioflow:bioflow@localhost:5432/collection_ci_spec
+          COLLECTION_ENABLED: "true"
+          NODE_ENV: test
+        run: |
+          docker exec "${{ job.services.postgres.id }}" createdb -U bioflow collection_ci_spec
+          npm run prisma:deploy
+          PORT=4198 npm run start -w @bioflow/backend > /tmp/collection-api.log 2>&1 &
+          collection_pid=$!
+          trap 'kill "$collection_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:4198/api/v1/health; then break; fi
+            sleep 2
+          done
+          npm run test:collection -w @bioflow/backend
       - run: |
           npm audit --omit=dev --audit-level=high
           npm audit --audit-level=high

@@ -270,7 +270,7 @@ model Waybill {
   status WaybillStatus @default(DRAFT)
   counterpartyId String
   extractionSiteId String
-  vehicleId String?
+  vehicleId String
   driverId String?
   destinationWarehouseId String
   materialTypeId String
@@ -289,14 +289,13 @@ model Waybill {
   acceptedBy User? @relation("WaybillAcceptedBy", fields: [acceptedById], references: [id])
   counterparty Counterparty @relation(fields: [counterpartyId], references: [id])
   extractionSite ExtractionSite @relation(fields: [extractionSiteId], references: [id])
-  vehicle Vehicle? @relation(fields: [vehicleId], references: [id])
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
   driver Driver? @relation(fields: [driverId], references: [id])
   destinationWarehouse Warehouse @relation("DestinationWarehouse", fields: [destinationWarehouseId], references: [id])
   materialType MaterialType @relation(fields: [materialTypeId], references: [id])
   files WaybillFile[]
   events WaybillEvent[]
   inventoryMovements InventoryMovement[]
-  driverTracking DriverTrackingSession?
   acceptance Acceptance?
   @@index([organizationId, status])
 }
@@ -700,25 +699,66 @@ model PushDelivery {
   @@index([status, createdAt])
 }
 
-// A scanned waybill can be claimed once. Only hashes of driver credentials persist.
-model DriverTrackingSession {
-  lastAlertedSignalAt DateTime?
-  driverPhone String?
-  driverPlate String?
+// Collection live contour: deployed only against its own database.
+model CollectionLocation {
   id String @id @default(cuid())
-  waybillId String @unique
-  waybill Waybill @relation(fields: [waybillId], references: [id])
+  organizationId String
+  code String
+  name String
+  kind String
+  active Boolean @default(true)
+  members CollectionMembership[]
+  batches CollectionBatch[]
+  @@unique([organizationId, code])
+}
+model CollectionMembership {
+  id String @id @default(cuid())
+  userId String
+  locationId String
+  location CollectionLocation @relation(fields: [locationId], references: [id])
+  @@unique([userId, locationId])
+}
+model CollectionTrip {
+  kind String @default("RAW")
+  fromLocationId String?
+  recipientName String?
+  recipientAddress String?
+  id String @id @default(cuid())
+  organizationId String
+  number String @unique
+  createdById String
+  warehouseId String?
+  bagCount Int
+  weightKg Decimal @db.Decimal(18, 3)
+  qrTokenHash String @unique
+  status String @default("CREATED")
+  createdAt DateTime @default(now())
+  loadedAt DateTime?
+  departedAt DateTime?
+  arrivedAt DateTime?
+  confirmedAt DateTime?
+  confirmedById String?
+  driver CollectionDriverSession?
+  @@index([organizationId, warehouseId, status])
+}
+model CollectionDriverSession {
+  id String @id @default(cuid())
+  tripId String @unique
+  trip CollectionTrip @relation(fields: [tripId], references: [id])
   tokenHash String @unique
+  driverPlate String
+  driverPhone String
+  createdAt DateTime @default(now())
   expiresAt DateTime
   stoppedAt DateTime?
-  createdAt DateTime @default(now())
-  points DriverLocation[]
+  lastAlertedSignalAt DateTime?
+  points CollectionDriverPoint[]
+  events CollectionDriverEvent[]
 }
-
-model DriverLocation {
+model CollectionDriverPoint {
   id String @id @default(cuid())
   sessionId String
-  session DriverTrackingSession @relation(fields: [sessionId], references: [id])
+  session CollectionDriverSession @relation(fields: [sessionId], references: [id])
   sequence Int
   latitude Float
   longitude Float
@@ -727,4 +767,87 @@ model DriverLocation {
   receivedAt DateTime @default(now())
   @@unique([sessionId, sequence])
   @@index([sessionId, recordedAt])
+}
+model CollectionDriverEvent {
+  id String @id @default(cuid())
+  sessionId String
+  session CollectionDriverSession @relation(fields: [sessionId], references: [id])
+  requestId String
+  type String
+  recordedAt DateTime
+  @@unique([sessionId, requestId])
+}
+model CollectionBatch {
+  bags CollectionBag[]
+  status String @default("ACTIVE")
+  id String @id @default(cuid())
+  organizationId String
+  locationId String
+  location CollectionLocation @relation(fields: [locationId], references: [id])
+  state String
+  totalKg Decimal @db.Decimal(18, 3)
+  remainingKg Decimal @db.Decimal(18, 3)
+  bagCount Int?
+  bagWeights Json?
+  sourceType String
+  sourceId String
+  createdById String
+  createdAt DateTime @default(now())
+  @@unique([organizationId, sourceType, sourceId, state])
+  @@index([organizationId, locationId, state, createdAt])
+}
+model CollectionShipment {
+  id String @id @default(cuid())
+  organizationId String
+  number String @unique
+  fromLocationId String
+  toLocationId String
+  bagCount Int
+  weightKg Decimal @db.Decimal(18, 3)
+  averageBagKg Decimal @db.Decimal(18, 3)
+  status String @default("IN_TRANSIT")
+  createdById String
+  createdAt DateTime @default(now())
+  confirmedById String?
+  confirmedAt DateTime?
+  @@index([organizationId, toLocationId, status])
+}
+model CollectionAction {
+  id String @id @default(cuid())
+  organizationId String
+  locationId String
+  kind String
+  quantityKg Decimal @db.Decimal(18, 3)
+  details Json
+  createdById String
+  createdAt DateTime @default(now())
+  @@index([organizationId, locationId, createdAt])
+}
+model CollectionCommand {
+  id String @id @default(cuid())
+  organizationId String
+  key String
+  fingerprint String
+  response Json
+  createdAt DateTime @default(now())
+  @@unique([organizationId, key])
+}
+
+model CollectionBag {
+  id String @id @default(cuid())
+  batchId String
+  batch CollectionBatch @relation(fields: [batchId], references: [id])
+  index Int
+  weightKg Decimal @db.Decimal(18, 3)
+  status String @default("AVAILABLE")
+  tripId String?
+  @@unique([batchId, index])
+  @@index([tripId])
+}
+
+model CollectionNoticeLink {
+  notificationId String @id
+  section String
+  entityId String
+  locationId String?
 }
