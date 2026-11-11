@@ -148,7 +148,7 @@ jobs:
           for name in Collection Collection-Driver; do
             curl --fail --location --retry 3 "https://release.109.235.118.171.sslip.io/downloads/$name.apk" -o "$COLLECTION_APK_TEST_DIR/new/$name.apk"
           done
-          gh release download collection-live-logo-4d2105f --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --dir "$COLLECTION_APK_TEST_DIR/new"
+          gh release download collection-live-maps-51828f9 --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --dir "$COLLECTION_APK_TEST_DIR/new"
           (cd "$COLLECTION_APK_TEST_DIR/new" && sha256sum -c SHA256SUMS)
       - name: Enable disposable emulator acceleration
         run: |
