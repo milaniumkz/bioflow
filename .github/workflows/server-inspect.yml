@@ -17,7 +17,7 @@ jobs:
       SSH_ALLOW_FIRST_CONNECTION: "true"
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update -qq && sudo apt-get install -y sshpass
+      - run: command -v sshpass >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y sshpass)
       - name: Inspect server without changing its configuration
         run: |
           source infrastructure/ci-ssh.sh
@@ -31,6 +31,18 @@ jobs:
           command -v docker >/dev/null && docker ps --format '{{.Names}} {{.Status}} {{.Ports}}' || true
           ss -lnt
           getent hosts bio.app.kz || true
+          echo 'Resolver configuration:'
+          ls -l /etc/resolv.conf
+          cat /etc/resolv.conf
+          systemctl is-active systemd-resolved || true
+          resolvectl status || true
+          echo 'External resolution and connectivity:'
+          getent ahostsv4 archive.ubuntu.com || true
+          getent ahostsv4 registry-1.docker.io || true
+          curl --max-time 10 --silent --show-error --head https://1.1.1.1 || true
+          command -v age || true
+          command -v certbot || true
+          docker image ls --format '{{.Repository}}:{{.Tag}}' | head -n 20
           REMOTE
           echo 'First-connection host fingerprint; verify against the provider console before deployment:'
           ssh-keygen -lf "$ssh_dir/known_hosts"
