@@ -22,6 +22,7 @@ on:
             reset-owner-password,
             provision-test-roles,
             provision-work-roles,
+            configure-work-logins,
           ]
       phone_ciphertext:
         description: "Base64 RSA-OAEP-SHA256 encrypted account request; never enter plaintext credentials"
@@ -132,5 +133,21 @@ jobs:
           cd /opt/bioflow-test/current
           compose=(docker compose -p bioflow-test --env-file /opt/bioflow-test/shared/server.env -f docker-compose.test-server.yml)
           "${compose[@]}" exec -T -e COLLECTION_WORK_ACCOUNTS_JSON="$payload" -e COLLECTION_WORK_VERIFY_API=http://127.0.0.1:4000/api/v1 backend node - < "$private/provision-work-roles.cjs"
+          unset payload
+          REMOTE
+
+      - name: Set requested service phone logins and temporary password for the six new accounts
+        if: inputs.operation == 'configure-work-logins'
+        run: |
+          source infrastructure/ci-ssh.sh
+          [[ "$PHONE_CIPHERTEXT" =~ ^[A-Za-z0-9+/]{512}$ ]] || { echo 'Expected encrypted work-login update'; exit 2; }
+          bioflow_scp infrastructure/configure-work-role-logins.cjs "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/bioflow-test/shared/private-account-ops/configure-work-role-logins.cjs"
+          bioflow_ssh bash -s -- "$PHONE_CIPHERTEXT" <<'REMOTE'
+          set -euo pipefail
+          private=/opt/bioflow-test/shared/private-account-ops
+          payload=$(printf '%s' "$1" | base64 -d | openssl pkeyutl -decrypt -inkey "$private/phone-key.pem" -pkeyopt rsa_padding_mode:oaep -pkeyopt rsa_oaep_md:sha256)
+          cd /opt/bioflow-test/current
+          compose=(docker compose -p bioflow-test --env-file /opt/bioflow-test/shared/server.env -f docker-compose.test-server.yml)
+          "${compose[@]}" exec -T -e COLLECTION_WORK_LOGIN_UPDATE_JSON="$payload" -e COLLECTION_WORK_VERIFY_API=http://127.0.0.1:4000/api/v1 backend node - < "$private/configure-work-role-logins.cjs"
           unset payload
           REMOTE
