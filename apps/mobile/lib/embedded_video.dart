@@ -6,6 +6,10 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 void configureEmbeddedVideo(
     WebViewController controller, BuildContext context) {
   if (controller.platform is! AndroidWebViewController) return;
+  assert(() {
+    AndroidWebViewController.enableDebugging(true);
+    return true;
+  }());
   var showing = false;
   (controller.platform as AndroidWebViewController).setCustomWidgetCallbacks(
     onShowCustomWidget: (widget, callback) {

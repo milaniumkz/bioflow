@@ -54,7 +54,7 @@ export function TripMap({ id, token }: { id: string; token: string }) {
                 Фактические GPS-точки · обновление каждые 10 секунд
               </p>
             </div>
-            <span>{route.data?.length ?? 0} точек</span>
+            <span className="c-tag">{route.data?.length ?? 0} точек</span>
           </div>
           {route.isError ? (
             <p role="alert">
@@ -90,14 +90,19 @@ export function RouteCanvas({ points }: { points: Point[] }) {
   const layer = useRef<Leaflet.FeatureGroup | null>(null);
   const engine = useRef<typeof Leaflet | null>(null);
   const [ready, setReady] = useState(false);
+  const [viewMode, setViewMode] = useState<"all" | "last" | "free">("all");
   const [tilesError, setTilesError] = useState(false);
   const fitted = useRef(false);
   useEffect(() => {
     let cancelled = false;
+    let removeZoomListener: (() => void) | undefined;
     void import("leaflet").then((L) => {
       if (cancelled || !node.current) return;
       engine.current = L;
-      const instance = L.map(node.current, { scrollWheelZoom: false });
+      const instance = L.map(node.current, { scrollWheelZoom: false }).setView(
+        [points[0].latitude, points[0].longitude],
+        13,
+      );
       map.current = instance;
       const tiles = L.tileLayer(
         "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -108,12 +113,13 @@ export function RouteCanvas({ points }: { points: Point[] }) {
         },
       ).addTo(instance);
       tiles.on("tileerror", () => setTilesError(true));
-      tiles.on("load", () => setTilesError(false));
+      tiles.on("tileload", () => setTilesError(false));
       layer.current = L.featureGroup().addTo(instance);
       setReady(true);
     });
     return () => {
       cancelled = true;
+      removeZoomListener?.();
       map.current?.remove();
       map.current = null;
       layer.current = null;
@@ -184,15 +190,18 @@ export function RouteCanvas({ points }: { points: Point[] }) {
           new Date(last.recordedAt).toLocaleString("ru-RU"),
       )
       .addTo(group);
-    if (!fitted.current) {
+    if (!fitted.current || viewMode === "all") {
       map.current.fitBounds(group.getBounds(), {
         padding: [24, 24],
         maxZoom: 16,
       });
       fitted.current = true;
+    } else if (viewMode === "last") {
+      map.current.panTo(ll(last));
     }
-  }, [points, ready]);
+  }, [points, ready, viewMode]);
   const fit = () => {
+    setViewMode("all");
     if (map.current && layer.current?.getBounds().isValid())
       map.current.fitBounds(layer.current.getBounds(), {
         padding: [24, 24],
@@ -200,6 +209,7 @@ export function RouteCanvas({ points }: { points: Point[] }) {
       });
   };
   const latest = () => {
+    setViewMode("last");
     const p = points[points.length - 1];
     map.current?.setView([p.latitude, p.longitude], 16);
   };

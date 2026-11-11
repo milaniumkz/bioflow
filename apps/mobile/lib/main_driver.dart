@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:image_picker/image_picker.dart';
 
 void main() => runApp(const CollectionDriver());
 
@@ -59,7 +60,12 @@ class _DriverHomeState extends State<DriverHome> with WidgetsBindingObserver {
 
   Future<void> restore() async {
     try {
-      hasMap = await storage.read(key: 'driverMapSession') != null;
+      var mapToken = await storage.read(key: 'driverMapSession');
+      mapToken ??= await bridge.invokeMethod<String>('mapSession');
+      if (mapToken != null && mapToken.isNotEmpty) {
+        await storage.write(key: 'driverMapSession', value: mapToken);
+        hasMap = true;
+      }
       final saved = await storage.read(key: 'driverPendingSession');
       if (saved != null) {
         pendingClaim = jsonDecode(saved) as Map<String, dynamic>;
@@ -413,6 +419,45 @@ class _DriverScannerState extends State<DriverScanner> {
     super.dispose();
   }
 
+  Future<void> fromPhoto() async {
+    try {
+      await controller.stop();
+      final image = await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (image == null) {
+        await controller.start();
+        return;
+      }
+      final capture = await controller.analyzeImage(image.path);
+      String? token;
+      for (final barcode in capture?.barcodes ?? <Barcode>[]) {
+        final raw = barcode.rawValue?.trim();
+        if (raw != null && RegExp(r'^[A-Za-z0-9_-]{32,256}$').hasMatch(raw)) {
+          token = raw;
+          break;
+        }
+      }
+      if (!mounted) return;
+      if (token != null) {
+        done = true;
+        Navigator.pop(context, token);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'QR перевозки на фото не найден. Выберите чёткое изображение QR из Collection.')));
+        await controller.start();
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'Не удалось прочитать фото. Повторите или вставьте код QR.')));
+        try {
+          await controller.start();
+        } catch (_) {}
+      }
+    }
+  }
+
   Future<void> manual() async {
     final input = TextEditingController();
     String? validation;
@@ -491,6 +536,10 @@ class _DriverScannerState extends State<DriverScanner> {
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const Text('Наведите камеру на QR перевозки из Collection.',
                       textAlign: TextAlign.center),
+                  TextButton.icon(
+                      onPressed: fromPhoto,
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('Сканировать QR с фото')),
                   TextButton.icon(
                       onPressed: manual,
                       icon: const Icon(Icons.content_paste),

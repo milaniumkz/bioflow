@@ -151,14 +151,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
-      - name: Require CI for this exact Collection commit
-        if: inputs.mobile_only != true
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const sha = require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], {encoding:'utf8'}).trim();
-            const {data} = await github.rest.actions.listWorkflowRuns({owner:context.repo.owner,repo:context.repo.repo,workflow_id:'ci.yml',head_sha:sha,per_page:30});
-            if (!data.workflow_runs.some(run=>run.conclusion==='success')) core.setFailed('Collection commit must pass CI before deployment.');
       - name: Upload isolated source release
         if: inputs.mobile_only != true
         run: |
@@ -236,8 +228,7 @@ jobs:
           sha256sum Collection.apk Collection-Driver.apk > SHA256SUMS
           tar -czf collection-apks.tar.gz Collection.apk Collection-Driver.apk
           split -b 24M -d -a 3 collection-apks.tar.gz collection-apks.part-
-      - name: Require CI before publishing mobile-only updates
-        if: inputs.mobile_only == true
+      - name: Require CI before publishing Collection updates
         timeout-minutes: 15
         uses: actions/github-script@v7
         with:
@@ -261,10 +252,6 @@ jobs:
           gh release upload "$ASSET_TAG" --repo "$GITHUB_REPOSITORY" collection-apks.part-* SHA256SUMS --clobber
           cd "$GITHUB_WORKSPACE"
           source infrastructure/ci-ssh.sh
-          sha=$(git rev-parse HEAD)
-          bioflow_ssh "mkdir -p /opt/collection-live/incoming/mobile-$sha"
-          bioflow_scp "$RUNNER_TEMP/collection-apks/Collection.apk" "$RUNNER_TEMP/collection-apks/Collection-Driver.apk" "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/incoming/mobile-$sha/"
-          bioflow_ssh "chmod 0644 /opt/collection-live/incoming/mobile-$sha/*.apk && mv -f /opt/collection-live/incoming/mobile-$sha/Collection.apk /opt/collection-live/shared/downloads/Collection.apk && mv -f /opt/collection-live/incoming/mobile-$sha/Collection-Driver.apk /opt/collection-live/shared/downloads/Collection-Driver.apk"
       - name: Remove temporary signing credentials
         if: always()
         run: rm -rf "$RUNNER_TEMP/collection-mobile" apps/mobile/android/key.properties
@@ -275,6 +262,14 @@ jobs:
           sha=$(git rev-parse HEAD)
           source infrastructure/ci-ssh.sh
           bioflow_ssh "bash /opt/collection-live/releases/$sha/infrastructure/deploy-collection.sh /opt/collection-live/releases/$sha"
+      - name: Replace signed APK download files atomically
+        run: |
+          set -euo pipefail
+          source infrastructure/ci-ssh.sh
+          sha=$(git rev-parse HEAD)
+          bioflow_ssh "mkdir -p /opt/collection-live/incoming/mobile-$sha"
+          bioflow_scp "$RUNNER_TEMP/collection-apks/Collection.apk" "$RUNNER_TEMP/collection-apks/Collection-Driver.apk" "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/incoming/mobile-$sha/"
+          bioflow_ssh "chmod 0644 /opt/collection-live/incoming/mobile-$sha/*.apk && mv -f /opt/collection-live/incoming/mobile-$sha/Collection.apk /opt/collection-live/shared/downloads/Collection.apk && mv -f /opt/collection-live/incoming/mobile-$sha/Collection-Driver.apk /opt/collection-live/shared/downloads/Collection-Driver.apk"
       - name: Verify new public link and old contour
         run: |
           curl --fail --retry 8 --retry-delay 5 https://release.109.235.118.171.sslip.io/api/v1/health

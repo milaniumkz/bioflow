@@ -106,6 +106,7 @@ final class DriverTrackingController: NSObject, CLLocationManagerDelegate, URLSe
         result(true)
       case "stop": self.stop(); result(true)
       case "resume": self.resume(); result(true)
+      case "mapSession": result(self.current["token"] as? String)
       case "status":
         var status = self.current
         status.removeValue(forKey: "token"); status.removeValue(forKey: "api")

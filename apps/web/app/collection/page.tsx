@@ -74,6 +74,8 @@ export default function CollectionPage() {
   );
 }
 function Portal() {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
   const client = useQueryClient();
   const [token, setToken] = useState("");
   const [login, setLogin] = useState("");
@@ -377,6 +379,7 @@ function Portal() {
             Телефон или email
             <input
               autoComplete="username"
+              disabled={!hydrated}
               value={login}
               onChange={(event) => setLogin(event.target.value)}
               required
@@ -387,12 +390,13 @@ function Portal() {
             <input
               type="password"
               autoComplete="current-password"
+              disabled={!hydrated}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
             />
           </label>
-          <button disabled={busy}>
+          <button disabled={busy || !hydrated}>
             {busy ? "Входим…" : "Войти в Collection →"}
           </button>
           {error ? (

@@ -67,6 +67,12 @@ export function TutorialPanel({
               <h3>{v.title}</h3>
               <video
                 controls
+                controlsList="nodownload noremoteplayback"
+                onPlay={(event) => {
+                  document.querySelectorAll("video").forEach((video) => {
+                    if (video !== event.currentTarget) video.pause();
+                  });
+                }}
                 playsInline
                 preload="none"
                 poster={`/downloads/tutorials/${v.id}.jpg`}

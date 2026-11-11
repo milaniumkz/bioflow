@@ -84,6 +84,10 @@ class DriverTrackingBridge(private val activity: Activity, messenger: BinaryMess
                         }
                         result.success(true)
                     }
+                    "mapSession" -> {
+                        val p=activity.getSharedPreferences("driver",Context.MODE_PRIVATE)
+                        result.success(p.getString("lastToken",p.getString("token",null)))
+                    }
                     "status" -> {
                         val p = activity.getSharedPreferences("driver", Context.MODE_PRIVATE)
                         result.success(mapOf("active" to p.getBoolean("active", false), "number" to p.getString("number", ""), "sent" to p.getLong("sent", 0), "error" to p.getString("error", ""), "expires" to p.getLong("expires", 0), "queued" to (DriverLocationService.queueCount(activity) + DriverEventOutbox.count(activity)), "stage" to DriverEventOutbox.stage(activity, p.getString("lastToken", "")!!), "destination" to p.getString("destination", "")))
