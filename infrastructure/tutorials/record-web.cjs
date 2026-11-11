@@ -42,8 +42,8 @@ async function run(){
    }else if(slug==='route'){
     const roleTab=item.role==='owner'?'Перевозки':item.role==='collector'?'Мои отправки':'Доставка ГП';const id=item.role==='factory'?fixture.gp.id:fixture.routeTrip.id;
     await step(0,async()=>{await tab(roleTab);await page.locator('#c-item-'+id).scrollIntoViewIfNeeded();});
-    await step(1,async()=>{await tap(page.locator('#c-item-'+id).getByRole('button',{name:'Маршрут на карте',exact:true}));await page.locator('#c-item-'+id+' .leaflet-container').waitFor();});
-    await step(2,async()=>{const c=page.locator('#c-item-'+id);await tap(c.getByRole('button',{name:'Весь маршрут',exact:true}));await page.waitForTimeout(600);await tap(c.getByRole('button',{name:'Последняя позиция',exact:true}));});
+    await step(1,async()=>{await tap(page.locator('#c-item-'+id).getByRole('button',{name:'Маршрут на карте',exact:true}));await page.locator('#c-item-'+id+' .leaflet-container').waitFor();await page.locator('#c-item-'+id+' .leaflet-container').scrollIntoViewIfNeeded();});
+    await step(2,async()=>{const c=page.locator('#c-item-'+id);await tap(c.getByRole('button',{name:'Весь маршрут',exact:true}));await page.waitForTimeout(600);await tap(c.getByRole('button',{name:'Последняя позиция',exact:true}));await c.locator('.leaflet-container').scrollIntoViewIfNeeded();});
     if(item.steps.length>3)await step(3);
    }else if(slug==='notifications'){
     await step(0,()=>tab('Уведомления'));
