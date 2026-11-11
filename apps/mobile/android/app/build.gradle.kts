@@ -6,6 +6,8 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val driverBuild = System.getenv("COLLECTION_DRIVER_BUILD") == "true"
+
 val ownerKey = Properties().apply {
     val file = rootProject.file("key.properties")
     if (file.exists()) file.inputStream().use { load(it) }
@@ -22,7 +24,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "kz.milanium.bioflow_mobile"
+        applicationId = if (driverBuild) "kz.milanium.collection_driver" else "kz.milanium.bioflow_mobile"
+        manifestPlaceholders["appLabel"] = if (driverBuild) "Collection Driver" else "BIOFLOW"
         manifestPlaceholders["allowCleartext"] = "false"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.

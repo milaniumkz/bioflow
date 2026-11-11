@@ -1,4 +1,5 @@
 "use client";
+import { DriverPosition } from "./driver-position";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -581,8 +582,10 @@ export function Ledger({
                 </p>
               )}
             </div>
-            {select("vehicleId", "Транспорт", "vehicles")}
-            {select("driverId", "Водитель", "drivers", false)}
+            <p>
+              Водитель укажет госномер и телефон при сканировании QR в
+              Collection Driver.
+            </p>
             {select("destinationWarehouseId", "Склад назначения", "warehouses")}
             {field("quantity", "Объём, т", "number")}
             {field("documentDate", "Дата документа", "datetime-local")}
@@ -874,6 +877,10 @@ export function Ledger({
                 · {names[row.batch?.state] ?? row.batch?.state}
               </p>
             )}
+            {tab === "waybills" &&
+              profile.data?.roles?.some((role: string) =>
+                ["OWNER", "ADMIN"].includes(role),
+              ) && <DriverPosition waybillId={row.id} token={token} />}
             {tab === "waybills" &&
               row.receivedWeight != null &&
               Number(row.declaredWeight) > 0 && (

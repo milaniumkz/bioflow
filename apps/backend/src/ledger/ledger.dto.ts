@@ -28,7 +28,7 @@ export class BatchDto extends CommandDto {
 }
 export class TripDto extends CommandDto {
   @IsString() batchId!: string;
-  @IsString() vehicleId!: string;
+  @IsOptional() @IsString() vehicleId?: string;
   @IsOptional() @IsString() driverId?: string;
   @IsString() destinationWarehouseId!: string;
   @IsString() quantity!: string;

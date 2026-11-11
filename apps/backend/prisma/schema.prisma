@@ -270,7 +270,7 @@ model Waybill {
   status WaybillStatus @default(DRAFT)
   counterpartyId String
   extractionSiteId String
-  vehicleId String
+  vehicleId String?
   driverId String?
   destinationWarehouseId String
   materialTypeId String
@@ -289,13 +289,14 @@ model Waybill {
   acceptedBy User? @relation("WaybillAcceptedBy", fields: [acceptedById], references: [id])
   counterparty Counterparty @relation(fields: [counterpartyId], references: [id])
   extractionSite ExtractionSite @relation(fields: [extractionSiteId], references: [id])
-  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id])
   driver Driver? @relation(fields: [driverId], references: [id])
   destinationWarehouse Warehouse @relation("DestinationWarehouse", fields: [destinationWarehouseId], references: [id])
   materialType MaterialType @relation(fields: [materialTypeId], references: [id])
   files WaybillFile[]
   events WaybillEvent[]
   inventoryMovements InventoryMovement[]
+  driverTracking DriverTrackingSession?
   acceptance Acceptance?
   @@index([organizationId, status])
 }
@@ -697,4 +698,33 @@ model PushDelivery {
   updatedAt DateTime @default(now()) @updatedAt
   @@unique([notificationId, deviceId])
   @@index([status, createdAt])
+}
+
+// A scanned waybill can be claimed once. Only hashes of driver credentials persist.
+model DriverTrackingSession {
+  lastAlertedSignalAt DateTime?
+  driverPhone String?
+  driverPlate String?
+  id String @id @default(cuid())
+  waybillId String @unique
+  waybill Waybill @relation(fields: [waybillId], references: [id])
+  tokenHash String @unique
+  expiresAt DateTime
+  stoppedAt DateTime?
+  createdAt DateTime @default(now())
+  points DriverLocation[]
+}
+
+model DriverLocation {
+  id String @id @default(cuid())
+  sessionId String
+  session DriverTrackingSession @relation(fields: [sessionId], references: [id])
+  sequence Int
+  latitude Float
+  longitude Float
+  accuracy Float
+  recordedAt DateTime
+  receivedAt DateTime @default(now())
+  @@unique([sessionId, sequence])
+  @@index([sessionId, recordedAt])
 }

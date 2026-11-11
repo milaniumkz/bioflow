@@ -568,6 +568,7 @@ function DataSection({ token, section }: { token: string; section: string }) {
   const { data, isLoading, error } = useQuery({
     queryKey: [section, search, status, sortBy, sortDir, token],
     queryFn: () => request<any>(path, token),
+    refetchInterval: section === "notifications" ? 15000 : false,
   });
   const rows = Array.isArray(data) ? data : (data?.rows ?? data?.data ?? []);
   const columns =
@@ -1196,6 +1197,15 @@ function ShipmentForm({ token }: { token: string }) {
 }
 
 function NotificationsSection({ token, rows }: { token: string; rows: any[] }) {
+  const delivery = useQuery({
+    queryKey: ["notification-delivery", token],
+    queryFn: () =>
+      request<{ pushProviderConfigured: boolean; registeredDevices: number }>(
+        "/notifications/delivery-status",
+        token,
+      ),
+    staleTime: 30000,
+  });
   const client = useQueryClient();
   const [message, setMessage] = useState("");
   const markRead = useMutation({
@@ -1209,6 +1219,18 @@ function NotificationsSection({ token, rows }: { token: string; rows: any[] }) {
   return (
     <section className="tableWrap">
       <h2>Уведомления</h2>
+      {delivery.data && !delivery.data.pushProviderConfigured ? (
+        <p role="status">
+          Push на телефон не настроен на сервере. Уведомления здесь обновляются
+          автоматически.
+        </p>
+      ) : null}
+      {delivery.data?.pushProviderConfigured &&
+      !delivery.data.registeredDevices ? (
+        <p role="status">
+          Для push откройте приложение и разрешите уведомления на телефоне.
+        </p>
+      ) : null}
       <div className="tableScroll">
         <table>
           <thead>
@@ -2704,6 +2726,13 @@ function App() {
     navigation.index++;
     window.history.pushState({ bioflowIndex: navigation.index }, "", `#${id}`);
   };
+  const inbox = useQuery({
+    queryKey: ["notifications", "inbox", token],
+    queryFn: () =>
+      request<{ unread: number }>("/notifications/unread-count", token),
+    enabled: !!token && permissions.includes("notifications.read"),
+    refetchInterval: 15000,
+  });
   const title = sections.find(([id]) => id === section)?.[1] ?? "Обзор";
   useEffect(() => {
     if (!isMobileWorkspace()) return;
@@ -2758,6 +2787,9 @@ function App() {
               >
                 <Icon size={18} />
                 {label}
+                {id === "notifications" && inbox.data?.unread
+                  ? ` (${inbox.data.unread})`
+                  : ""}
               </button>
             ))}
         </nav>

@@ -30,4 +30,24 @@ describe("NotificationsController", () => {
       }),
     );
   });
+  it("counts only the current scoped user's unread notifications", async () => {
+    const count = jest.fn().mockResolvedValue(3);
+    const controller = new NotificationsController({
+      notification: { count },
+    } as any);
+    await expect(
+      controller.unread({
+        id: "collector",
+        organizationId: "org",
+        permissions: [],
+      }),
+    ).resolves.toEqual({ unread: 3 });
+    expect(count).toHaveBeenCalledWith({
+      where: {
+        organizationId: "org",
+        readAt: null,
+        OR: [{ userId: "collector" }],
+      },
+    });
+  });
 });

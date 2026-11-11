@@ -15,6 +15,62 @@
         ]
       }
     },
+    "/api/v1/driver-tracking/claim": {
+      "post": {
+        "operationId": "DriverTrackingController_claim",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "DriverTracking"
+        ]
+      }
+    },
+    "/api/v1/driver-tracking/points": {
+      "post": {
+        "operationId": "DriverTrackingController_points",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "DriverTracking"
+        ]
+      }
+    },
+    "/api/v1/driver-tracking/stop": {
+      "post": {
+        "operationId": "DriverTrackingController_stop",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "DriverTracking"
+        ]
+      }
+    },
+    "/api/v1/driver-tracking/waybills/{id}": {
+      "get": {
+        "operationId": "DriverTrackingController_position",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "DriverTracking"
+        ]
+      }
+    },
     "/api/v1/ledger/files/{type}/{id}": {
       "get": {
         "operationId": "LedgerController_files",
@@ -1360,6 +1416,44 @@
         ],
         "tags": [
           "reports"
+        ]
+      }
+    },
+    "/api/v1/notifications/delivery-status": {
+      "get": {
+        "operationId": "NotificationsController_deliveryStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/v1/notifications/unread-count": {
+      "get": {
+        "operationId": "NotificationsController_unread",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "tags": [
+          "notifications"
         ]
       }
     },

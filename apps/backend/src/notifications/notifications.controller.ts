@@ -1,3 +1,4 @@
+import { readFileSync } from "fs";
 import { Controller, Get, Param, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 import {
@@ -13,6 +14,43 @@ import { PrismaService } from "../prisma/prisma.service";
 @Controller("notifications")
 export class NotificationsController {
   constructor(private readonly prisma: PrismaService) {}
+
+  @Permissions("notifications.read")
+  @Get("delivery-status")
+  async deliveryStatus(@CurrentUserDecorator() user: CurrentUser) {
+    let pushProviderConfigured = false;
+    try {
+      const account = JSON.parse(
+        readFileSync(process.env.FCM_SERVICE_ACCOUNT_FILE ?? "", "utf8"),
+      );
+      pushProviderConfigured = !!(
+        account.project_id &&
+        account.client_email &&
+        account.private_key
+      );
+    } catch {
+      /* Missing configuration is exposed as status, without credential details. */
+    }
+    const registeredDevices = await this.prisma.device.count({
+      where: { userId: user.id, pushToken: { not: null } },
+    });
+    return { pushProviderConfigured, registeredDevices };
+  }
+
+  @Permissions("notifications.read")
+  @Get("unread-count")
+  async unread(@CurrentUserDecorator() user: CurrentUser) {
+    const unread = await this.prisma.notification.count({
+      where: {
+        organizationId: user.organizationId,
+        readAt: null,
+        OR: user.accessAllObjects
+          ? [{ userId: user.id }, { userId: null }]
+          : [{ userId: user.id }],
+      },
+    });
+    return { unread };
+  }
 
   @Permissions("notifications.read")
   @Get()

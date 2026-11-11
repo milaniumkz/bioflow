@@ -4,6 +4,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from "@nestjs/common";
+import { DriverTrackingService } from "../driver-tracking/driver-tracking.service";
 import { createSign } from "crypto";
 import { readFileSync } from "fs";
 import { PrismaService } from "../prisma/prisma.service";
@@ -19,9 +20,13 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
   private running = false;
   private access?: { token: string; until: number };
   private readonly logger = new Logger(DeliveryService.name);
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tracking: DriverTrackingService,
+  ) {}
   onModuleInit() {
-    this.timer = setInterval(() => void this.tick(), 60_000);
+    this.timer = setInterval(() => void this.tick(), 30_000);
+    void this.tick();
     this.timer.unref();
   }
   onModuleDestroy() {
@@ -31,6 +36,7 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     if (this.running) return;
     this.running = true;
     try {
+      await this.tracking.checkSignalGaps();
       await this.reminders();
       if (process.env.FCM_SERVICE_ACCOUNT_FILE) await this.deliver();
     } catch {
