@@ -48,7 +48,7 @@ async function run(){
    }else if(slug==='notifications'){
     await step(0,()=>tab('Уведомления'));
     await step(1,async()=>{const button=target?page.locator('.c-card').filter({hasText:target.number}).getByRole('button',{name:/Открыть/}).first():page.getByRole('button',{name:/Открыть/}).first();await tap(button);});
-    await step(2,async()=>{if(target&&item.role==='warehouse'){await tap(page.locator('#c-item-'+target.id).getByRole('button',{name:'Подтвердить приход',exact:true}));}else await page.waitForTimeout(500);});
+    await step(2,async()=>{if(target&&['warehouse','factory'].includes(item.role)){await tap(page.locator('#c-item-'+target.id).getByRole('button',{name:'Подтвердить приход',exact:true}));}else await page.waitForTimeout(500);});
    }else if(item.role==='owner'&&slug==='people'){
     await step(0,()=>tab('Люди'));await step(1,()=>page.locator('.c-card').last().scrollIntoViewIfNeeded());await step(2,()=>tab('Перевозки'));
    }else if(item.role==='owner'&&slug==='factory'){
@@ -76,7 +76,7 @@ async function run(){
    }else if(item.role==='factory'&&slug==='dispatch'){
     await step(0,async()=>{await tab('Доставка ГП');await select('С завода',fixture.factoryId);await fill('Получатель','Учебный получатель');await fill('Адрес доставки','Пример адреса доставки');});await step(1,()=>tap(page.getByRole('checkbox').first()));await step(2,()=>tap(page.getByRole('button',{name:'Создать доставку ГП и QR',exact:true})));await step(3,()=>page.locator('dialog').waitFor({state:'visible'}));
    }else if(item.role==='factory'&&slug==='stock'){
-    await step(0,()=>tab('Остатки'));await step(1,()=>tab('Производство'));await step(2,()=>page.locator('fieldset').first().scrollIntoViewIfNeeded());
+    await step(0,()=>tab('Остатки'));await step(1,()=>tab('Производство'));await step(2,()=>page.getByRole('heading',{name:'Выпущенные партии',exact:true}).scrollIntoViewIfNeeded());
    }else throw Error('Unrecorded lesson '+item.id);
    if(errors.length)throw Error(errors.join('\n'));
    const video=await page.video().path();await context.close();
