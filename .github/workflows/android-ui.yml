@@ -218,7 +218,7 @@ jobs:
           nohup node node_modules/next/dist/bin/next start apps/web -p 3039 > "$RUNNER_TEMP/tutorial-web.log" 2>&1 &
           nohup node infrastructure/tutorials/web-proxy.cjs > "$RUNNER_TEMP/tutorial-web-proxy.log" 2>&1 &
           python3 -m venv "$RUNNER_TEMP/tutorial-env"
-          "$RUNNER_TEMP/tutorial-env/bin/pip" install --quiet websocket-client Pillow
+          "$RUNNER_TEMP/tutorial-env/bin/pip" install --quiet websocket-client Pillow uiautomator2
           for attempt in {1..40}; do curl -fsS http://127.0.0.1:3039/collection/driver-map -o /dev/null && break; sleep 1; done
       - uses: actions/setup-java@v4
         with:
@@ -236,9 +236,20 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-bioflow-android-ui-gradle-${{ hashFiles('apps/mobile/pubspec.lock', 'apps/mobile/android/gradle/wrapper/gradle-wrapper.properties', 'apps/mobile/android/**/*.gradle.kts') }}
           restore-keys: ${{ runner.os }}-bioflow-android-ui-gradle-
+      - uses: actions/cache/restore@v4
+        id: tutorial-apk-cache
+        with:
+          path: apps/mobile/build/app/outputs/flutter-apk/app-debug.apk
+          key: ${{ runner.os }}-driver-tutorial-apk-${{ hashFiles('apps/mobile/lib/**', 'apps/mobile/integration_test/driver_tutorial_test.dart', 'apps/mobile/android/**', 'apps/mobile/pubspec.lock') }}
       - name: Compile disposable Driver tutorial binary
+        if: steps.tutorial-apk-cache.outputs.cache-hit != 'true'
         working-directory: apps/mobile
-        run: COLLECTION_DRIVER_BUILD=true flutter build apk --debug --target=integration_test/driver_tutorial_test.dart --dart-define=API_URL=http://10.0.2.2:4199/api/v1 --dart-define=WEB_URL=http://10.0.2.2:3040
+        run: COLLECTION_DRIVER_BUILD=true flutter build apk --debug --target-platform=android-x64 --target=integration_test/driver_tutorial_test.dart --dart-define=API_URL=http://10.0.2.2:4199/api/v1 --dart-define=WEB_URL=http://10.0.2.2:3040
+      - uses: actions/cache/save@v4
+        if: steps.tutorial-apk-cache.outputs.cache-hit != 'true'
+        with:
+          path: apps/mobile/build/app/outputs/flutter-apk/app-debug.apk
+          key: ${{ steps.tutorial-apk-cache.outputs.cache-primary-key }}
       - name: Enable disposable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

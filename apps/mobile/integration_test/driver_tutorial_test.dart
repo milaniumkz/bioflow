@@ -103,14 +103,11 @@ void main() {
     Future<void> pause(double seconds) async {
       await tester.runAsync(() => Future<void>.delayed(
           Duration(milliseconds: (seconds * 1000).round())));
-      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-        await tester.pump();
-      }
+      // fullyLive renders frames; manual pumps can wait forever under native dialogs.
     }
 
     Future<void> waitFor(Finder finder, {int timeout = 45}) async {
       for (var i = 0; i < timeout * 5; i++) {
-        await tester.pump();
         if (finder.evaluate().isNotEmpty) return;
         await pause(.2);
       }
@@ -122,7 +119,6 @@ void main() {
       await waitFor(f);
       await tester.ensureVisible(f.last);
       await tester.tap(f.last);
-      await tester.pump();
       await pause(.5);
     }
 
@@ -141,6 +137,8 @@ void main() {
       await pause(1.2);
       final measured = <double>[];
       for (var i = 0; i < actions.length; i++) {
+        // ignore: avoid_print
+        print('Tutorial step $id $i begin');
         final clock = Stopwatch()..start();
         await actions[i]();
         final minimum = (durations[id][i] as num).toDouble() + .8;

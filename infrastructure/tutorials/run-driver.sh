@@ -26,7 +26,8 @@ for attempt in {1..40}; do curl -fsS http://127.0.0.1:4200/ -o /dev/null && brea
 progress(){
   while true; do
     { tail -n 65 "$RUNNER_TEMP/driver-tutorial-test.log" 2>/dev/null || true; tail -n 20 "$RUNNER_TEMP/tutorial-native-control.log" 2>/dev/null || true; } > work/native-tutorial-raw/progress.txt
-    gh release upload "$TUTORIAL_CAPTURE_TAG" work/native-tutorial-raw/progress.txt --clobber >/dev/null 2>&1 || true
+    timeout 8 adb exec-out screencap -p > work/native-tutorial-raw/current-screen.png 2>/dev/null || true
+    gh release upload "$TUTORIAL_CAPTURE_TAG" work/native-tutorial-raw/progress.txt work/native-tutorial-raw/current-screen.png --clobber >/dev/null 2>&1 || true
     sleep 25
   done
 }

@@ -2,6 +2,7 @@
 import base64,http.server,io,json,os,subprocess,time,threading,urllib.request,urllib.error,xml.etree.ElementTree as ET
 from pathlib import Path
 import websocket
+import uiautomator2 as u2
 from PIL import Image
 ADB=os.environ.get('ANDROID_HOME',os.environ.get('ANDROID_SDK_ROOT',''))+'/platform-tools/adb'
 PKG='kz.milanium.collection_driver'
@@ -11,8 +12,10 @@ fixture=json.loads(Path('work/tutorial-fixture.json').read_text())
 catalog={i['id']:i for i in json.loads(Path('apps/web/app/collection/tutorial-catalog.json').read_text())}
 timings=json.loads(Path('infrastructure/tutorials/voice-duration-data.json').read_text())
 if not urllib.parse.urlparse(fixture['api']).hostname in ['127.0.0.1','localhost']:raise RuntimeError('Refusing live API')
-def adb(*args):return subprocess.check_output([ADB,*args],stderr=subprocess.STDOUT)
+def adb(*args):return subprocess.check_output([ADB,*args],stderr=subprocess.STDOUT,timeout=20)
 if adb('shell','getprop','ro.kernel.qemu').strip()!=b'1':raise RuntimeError('Disposable emulator required')
+device=u2.connect()
+device.jsonrpc.setConfigurator({'waitForIdleTimeout':0,'waitForSelectorTimeout':0})
 record=None;current=None;offline=False
 api=fixture['api']
 def request(path,body=None,token=None):
@@ -28,7 +31,7 @@ def push_photo(trip):
  photo=root/'qr.png';photo.write_bytes(base64.b64decode(trip['qrImage'].split(',')[1]));adb('shell','mkdir','-p','/sdcard/Pictures')
  adb('push',str(photo),'/sdcard/Pictures/collection-qr.png');adb('shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d','file:///sdcard/Pictures/collection-qr.png')
 def ui():
- adb('shell','uiautomator','dump','/sdcard/tutorial-ui.xml');return ET.fromstring(adb('shell','cat','/sdcard/tutorial-ui.xml'))
+ return ET.fromstring(device.dump_hierarchy(compressed=True))
 def tap_node(n):
  import re
  nums=list(map(int,re.findall(r'\d+',n.get('bounds',''))))
