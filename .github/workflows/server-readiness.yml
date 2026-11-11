@@ -6,9 +6,12 @@ on:
         description: "Readiness operation (restores only disposable backup copies)"
         type: choice
         required: true
-        options: [inspect, verify-backup, enable-https, finish-collection]
+        options: [inspect, verify-backup, enable-https, finish-collection, create-collection-test-owner]
       collection_ref:
         description: "Existing Collection release commit, required only for finish-collection"
+        required: false
+      account_envelope:
+        description: "AGE encrypted test-owner request; never enter plaintext phone or credentials"
         required: false
 permissions:
   contents: read
@@ -49,7 +52,7 @@ jobs:
           df -h /opt/bioflow-test
           REMOTE
       - name: Run reviewed server preparation or restore verification
-        if: inputs.operation != 'inspect' && inputs.operation != 'finish-collection'
+        if: inputs.operation != 'inspect' && inputs.operation != 'finish-collection' && inputs.operation != 'create-collection-test-owner'
         run: |
           source infrastructure/ci-ssh.sh
           [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
@@ -86,3 +89,20 @@ jobs:
           bioflow_ssh "bash /opt/collection-live/tools/deploy-collection.sh /opt/collection-live/releases/$COLLECTION_REF"
           curl --fail --retry 6 --retry-all-errors --retry-delay 2 https://release.109.235.118.171.sslip.io/api/v1/health
           curl --fail http://109.235.118.171/api/v1/health
+      - name: Create explicitly requested Collection test owner from encrypted stdin
+        if: inputs.operation == 'create-collection-test-owner'
+        env:
+          ACCOUNT_ENVELOPE: ${{ inputs.account_envelope }}
+        run: |
+          set -euo pipefail
+          test -n "$ACCOUNT_ENVELOPE"
+          source infrastructure/ci-ssh.sh
+          bioflow_ssh "test -x /opt/collection-live/tools/age && docker inspect collection-live-backend-1 >/dev/null"
+          bioflow_scp infrastructure/create-collection-test-owner.cjs "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/tools/create-collection-test-owner.cjs"
+          bioflow_ssh "docker cp /opt/collection-live/tools/create-collection-test-owner.cjs collection-live-backend-1:/tmp/create-collection-test-owner.cjs"
+          printf '%s' "$ACCOUNT_ENVELOPE" | bioflow_ssh "bash -o pipefail -c '/opt/collection-live/tools/age --decrypt --identity /etc/ssh/ssh_host_ed25519_key | docker exec -i collection-live-backend-1 node /tmp/create-collection-test-owner.cjs'"
+      - name: Remove temporary account helper from the application container
+        if: always() && inputs.operation == 'create-collection-test-owner'
+        run: |
+          source infrastructure/ci-ssh.sh
+          bioflow_ssh "docker exec collection-live-backend-1 rm -f /tmp/create-collection-test-owner.cjs"
