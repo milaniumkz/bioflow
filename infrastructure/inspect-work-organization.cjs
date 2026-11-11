@@ -153,7 +153,40 @@ async function inspect(prisma, oldLogin, bootstrapEmail, suffix = "") {
       await tx.$executeRaw`SET TRANSACTION READ ONLY`;
       const c = await context(tx, oldLogin, bootstrapEmail, suffix),
         a = await activity(tx, c);
+      const seededMaterial = await tx.materialType.findUnique({
+        where: { name: "Учебное сырьё Collection" },
+      });
+      const warehouses = await tx.warehouse.findMany({
+        where: { organizationId: c.targetId, archivedAt: null },
+      });
+      const stocks = await tx.batchStock.findMany({
+        where: {
+          warehouseId: { in: warehouses.map((w) => w.id) },
+          quantity: { gt: 0 },
+        },
+        include: { batch: true },
+      });
       return {
+        seededWarehouseRestrictionsPresent:
+          !!seededMaterial &&
+          warehouses.some(
+            (w) =>
+              [
+                "Учебная мойка",
+                "Учебный завод",
+                "Учебный склад готовой продукции",
+              ].includes(w.name) &&
+              w.allowedMaterialTypeIds.length === 1 &&
+              w.allowedMaterialTypeIds[0] === seededMaterial.id,
+          ),
+        existingStockConflictsWithWarehouseRestrictions: stocks.some((s) => {
+          const w = warehouses.find((w) => w.id === s.warehouseId);
+          return (
+            s.batch.materialTypeId &&
+            w.allowedMaterialTypeIds.length > 0 &&
+            !w.allowedMaterialTypeIds.includes(s.batch.materialTypeId)
+          );
+        }),
         oldOwnerFound: true,
         newAccountsFound: 6,
         newAccountsOneOrganization: true,
