@@ -107,6 +107,7 @@ class Control(http.server.BaseHTTPRequestHandler):
     if current not in catalog or catalog[current]['role']!='driver':raise RuntimeError('Unknown lesson')
     record=subprocess.Popen([ADB,'shell','screenrecord','--bit-rate','2000000','--size','540x1200','/sdcard/tutorial.mp4'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);time.sleep(.8);result={}
    elif path=='/stop':
+    time.sleep(3);body['durations'][-1]+=3
     adb('shell','pkill','-2','screenrecord');record.wait(timeout=15);adb('pull','/sdcard/tutorial.mp4',str(root/(current+'.mp4')))
     native=catalog[current];segments=[{'seconds':seconds,'audio':f'work/tutorial-voices/{current}--{i:02}.mp3','text':native['steps'][i]} for i,seconds in enumerate(body['durations'])]
     (root/(current+'.json')).write_text(json.dumps({**native,'video':str(root/(current+'.mp4')),'startOffset':0,'segments':segments},ensure_ascii=False,indent=2))
@@ -123,8 +124,12 @@ class Control(http.server.BaseHTTPRequestHandler):
    elif path=='/web-tap':web_tap(body.get('text'),body.get('video',False));result={}
    elif path=='/save-video':save_video();result={}
    elif path=='/prepare-help':
-    import shutil
-    shutil.copyfile(root/'driver--start.mp4',media/'driver--start.mp4');Image.open(io.BytesIO(adb('exec-out','screencap','-p'))).convert('RGB').save(media/'driver--start.jpg');result={}
+    # Preview the already-approved narrated lesson, not an unfinished raw retake.
+    for ext in ['mp4','jpg']:
+     name='driver--start.'+ext
+     with urllib.request.urlopen('https://release.109.235.118.171.sslip.io/downloads/tutorials/'+name,timeout=30) as response:
+      (media/name).write_bytes(response.read())
+    result={}
    else:raise RuntimeError('Unknown operation')
    self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(json.dumps(result).encode())
   except Exception as e:
