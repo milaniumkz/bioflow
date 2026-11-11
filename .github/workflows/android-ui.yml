@@ -274,6 +274,7 @@ jobs:
           TUTORIAL_CAPTURE_LESSONS: ${{ inputs.tutorial_lessons }}
         with:
           api-level: 34
+          ram-size: 4096
           target: google_apis
           arch: x86_64
           profile: pixel_6

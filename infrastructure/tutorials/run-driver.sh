@@ -13,6 +13,14 @@ for attempt in {1..90}; do
   sleep 1
 done
 adb shell input keyevent 82
+sleep 3
+if [[ -n "${TUTORIAL_CAPTURE_LESSONS:-}" ]]; then
+  # Partial retakes do not film initial permissions; keep those already-recorded scenes.
+  adb install -r apps/mobile/build/app/outputs/flutter-apk/app-debug.apk
+  for permission in ACCESS_COARSE_LOCATION ACCESS_FINE_LOCATION POST_NOTIFICATIONS CAMERA; do
+    adb shell pm grant kz.milanium.collection_driver "android.permission.$permission"
+  done
+fi
 adb shell settings put system show_touches 1
 adb shell settings put global window_animation_scale 0.5
 adb shell settings put global transition_animation_scale 0.5

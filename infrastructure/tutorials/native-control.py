@@ -35,7 +35,14 @@ def push_photo(trip):
  photo=root/'qr.png';photo.write_bytes(base64.b64decode(trip['qrImage'].split(',')[1]));adb('shell','mkdir','-p','/sdcard/Pictures')
  adb('push',str(photo),'/sdcard/Pictures/collection-qr.png');adb('shell','am','broadcast','-a','android.intent.action.MEDIA_SCANNER_SCAN_FILE','-d','file:///sdcard/Pictures/collection-qr.png')
 def ui():
- return ET.fromstring(device.dump_hierarchy(compressed=True))
+ tree=ET.fromstring(device.dump_hierarchy(compressed=True))
+ nodes=list(tree.iter('node'))
+ system_anr=any('Интерфейс системы' in n.get('text','') or 'System UI' in n.get('text','') for n in nodes)
+ if system_anr:
+  wait=next((n for n in nodes if n.get('resource-id','').endswith('aerr_wait') or n.get('text','') in ['Подождать','Wait']),None)
+  if wait is not None:
+   tap_node(wait);time.sleep(2);return ET.fromstring(device.dump_hierarchy(compressed=True))
+ return tree
 def tap_node(n):
  import re
  nums=list(map(int,re.findall(r'\d+',n.get('bounds',''))))
