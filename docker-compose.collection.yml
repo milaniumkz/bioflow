@@ -39,11 +39,13 @@ services:
       WEB_ORIGIN: https://${COLLECTION_DOMAIN:-release.109.235.118.171.sslip.io}
       COLLECTION_ENABLED: "true"
       COLLECTION_DATABASE_NAME: collection_live
+      COLLECTION_TUTORIAL_DIR: /var/collection-tutorials
       COLLECTION_ORGANIZATION_ID: collection-live
       FCM_SERVICE_ACCOUNT_FILE: /run/collection-secrets/firebase-service-account.json
     volumes:
       - ${COLLECTION_SHARED_DIR:?}/secrets/firebase-service-account.json:/run/collection-secrets/firebase-service-account.json:ro
       - ${COLLECTION_SHARED_DIR:?}/secrets/opening-balances.json:/run/collection-secrets/opening-balances.json:ro
+      - ${COLLECTION_SHARED_DIR:?}/downloads/tutorials:/var/collection-tutorials
     networks:
       private: {}
       edge: {aliases: [collection-live-api]}

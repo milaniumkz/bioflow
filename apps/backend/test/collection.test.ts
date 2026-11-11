@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { JwtService } from "@nestjs/jwt";
 import * as argon2 from "argon2";
@@ -247,6 +247,73 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
     ...credentials,
     clientToken: key() + key(),
   });
+  const videoData = Buffer.from(
+    "collection tutorial upload integration sample",
+  );
+  const videoHash = createHash("sha256").update(videoData).digest("hex");
+  const videoName = `owner--spec-${run}.mp4`;
+  const uploadId = key();
+  const chunk = async (
+    token: string,
+    index: number,
+    data: Buffer,
+    name = videoName,
+  ) => {
+    const form = new FormData();
+    for (const [k, v] of Object.entries({
+      filename: name,
+      uploadId,
+      index: String(index),
+      count: "2",
+      sha256: videoHash,
+    }))
+      form.append(k, v);
+    form.append("chunk", new Blob([data]), "chunk");
+    return fetch(api + "/collection/tutorials/chunks", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + token },
+      body: form,
+    });
+  };
+  assert.equal(
+    (await chunk(collector.token, 0, videoData.subarray(0, 10))).status,
+    403,
+  );
+  const half = await chunk(owner.token, 0, videoData.subarray(0, 10));
+  assert.equal(half.status, 201);
+  assert.equal((await half.json()).complete, false);
+  const final = await chunk(owner.token, 1, videoData.subarray(10));
+  assert.equal(final.status, 201);
+  assert.equal((await final.json()).complete, true);
+  assert.equal(
+    (await (await chunk(owner.token, 1, videoData.subarray(10))).json())
+      .complete,
+    true,
+  );
+  const ownVideos = await request(
+    "/collection/tutorials",
+    200,
+    undefined,
+    owner.token,
+  );
+  assert.ok(ownVideos.videos.some((v) => v.filename === videoName));
+  const collectorVideos = await request(
+    "/collection/tutorials",
+    200,
+    undefined,
+    collector.token,
+  );
+  assert.ok(
+    collectorVideos.videos.every((v) => v.filename.startsWith("collector--")),
+  );
+  const driverVideos = await request("/collection-driver/tutorials", 200);
+  assert.ok(
+    driverVideos.videos.every((v) => v.filename.startsWith("driver--")),
+  );
+  assert.equal(
+    (await chunk(owner.token, 0, videoData, "../unsafe.mp4")).status,
+    400,
+  );
   const event = async (token: string, type: string, requestId = key()) =>
     request(
       "/collection-driver/events",
@@ -290,6 +357,79 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
     await db.collectionDriverPoint.count({ where: { sessionId: driver.id } }),
     1,
   );
+  for (const token of [owner.token, collector.token, warehouse.token]) {
+    const track = await request(
+      `/collection/trips/${trip.id}/route`,
+      200,
+      undefined,
+      token,
+    );
+    assert.equal(track.points.length, 1);
+    assert.equal(track.points[0].latitude, point.latitude);
+    assert.equal(track.points[0].tokenHash, undefined);
+  }
+  await request(
+    `/collection/trips/${trip.id}/route`,
+    403,
+    undefined,
+    secondCollector.token,
+  );
+  await request(
+    `/collection/trips/${trip.id}/route`,
+    403,
+    undefined,
+    otherWarehouse.token,
+  );
+  await request(
+    `/collection/trips/${trip.id}/route`,
+    404,
+    undefined,
+    outsider.token,
+  );
+  await request(
+    `/collection/trips/${trip.id}/route?cursor=unknown`,
+    400,
+    undefined,
+    owner.token,
+  );
+  await request("/collection-driver/route", 401);
+  assert.equal(
+    (await request("/collection-driver/route", 200, undefined, claim.token))
+      .points.length,
+    1,
+  );
+  const many = Array.from({ length: 2001 }, (_, i) => ({
+    sessionId: driver.id,
+    sequence: 10000 + i,
+    latitude: 43.23 + i / 100000,
+    longitude: 76.88,
+    accuracy: 8,
+    recordedAt: new Date(Date.now() - 30000 + i),
+  }));
+  await db.collectionDriverPoint.createMany({ data: many });
+  const firstPage = await request(
+    `/collection/trips/${trip.id}/route`,
+    200,
+    undefined,
+    owner.token,
+  );
+  assert.equal(firstPage.points.length, 2000);
+  assert.ok(firstPage.nextCursor);
+  const lastPage = await request(
+    `/collection/trips/${trip.id}/route?cursor=${firstPage.nextCursor}`,
+    200,
+    undefined,
+    owner.token,
+  );
+  assert.equal(lastPage.points.length, 2);
+  assert.equal(lastPage.nextCursor, null);
+  assert.equal(
+    new Set([...firstPage.points, ...lastPage.points].map((p) => p.id)).size,
+    2002,
+  );
+  await db.collectionDriverPoint.deleteMany({
+    where: { sessionId: driver.id, sequence: { gte: 10000 } },
+  });
   await request("/collection-driver/points", 401, { points: [point] });
   await request(
     `/collection/trips/${trip.id}/confirm`,

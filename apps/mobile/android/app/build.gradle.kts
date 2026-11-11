@@ -45,6 +45,9 @@ android {
     signingConfigs {
         if (ownerKey.isNotEmpty()) {
             create("ownerRelease") {
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
                 keyAlias = ownerKey.getProperty("keyAlias")
                 keyPassword = ownerKey.getProperty("keyPassword")
                 storeFile = file(ownerKey.getProperty("storeFile"))

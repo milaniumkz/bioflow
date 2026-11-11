@@ -1,3 +1,4 @@
+import { readDriverRoute } from "./collection-route";
 import {
   BadRequestException,
   ConflictException,
@@ -138,6 +139,10 @@ export class CollectionDriverService implements OnModuleInit, OnModuleDestroy {
     )
       throw new UnauthorizedException("Сессия рейса завершена");
     return session;
+  }
+  async route(header: string, cursor?: string) {
+    const session = await this.session(header, true);
+    return readDriverRoute(this.collection.db, session.id, cursor);
   }
   async points(header: string, dto: DriverPointsDto) {
     const session = await this.session(header, true);

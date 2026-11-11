@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'driver_web_page.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -43,6 +44,7 @@ class _DriverHomeState extends State<DriverHome> with WidgetsBindingObserver {
   Map<String, dynamic> status = {};
   Timer? timer;
   bool busy = false;
+  bool hasMap = false;
   String error = '';
   Map<String, dynamic>? pendingClaim;
   final storage = const FlutterSecureStorage();
@@ -57,6 +59,7 @@ class _DriverHomeState extends State<DriverHome> with WidgetsBindingObserver {
 
   Future<void> restore() async {
     try {
+      hasMap = await storage.read(key: 'driverMapSession') != null;
       final saved = await storage.read(key: 'driverPendingSession');
       if (saved != null) {
         pendingClaim = jsonDecode(saved) as Map<String, dynamic>;
@@ -164,6 +167,9 @@ class _DriverHomeState extends State<DriverHome> with WidgetsBindingObserver {
         'expires':
             DateTime.parse(claim['expiresAt'] as String).millisecondsSinceEpoch,
       });
+      await storage.write(
+          key: 'driverMapSession', value: claim['token'] as String);
+      hasMap = true;
       pendingClaim = null;
       await storage.delete(key: 'driverPendingSession');
       await storage.delete(key: 'driverClaimDraft');
@@ -349,6 +355,32 @@ class _DriverHomeState extends State<DriverHome> with WidgetsBindingObserver {
                                 child: Text(pendingClaim == null
                                     ? 'Сканировать QR и начать'
                                     : 'Повторить запуск рейса'))),
+                      const SizedBox(height: 16),
+                      if (hasMap)
+                        OutlinedButton.icon(
+                            icon: const Icon(Icons.map_outlined),
+                            label: const Text('Маршрут на карте'),
+                            onPressed: () async {
+                              final token =
+                                  await storage.read(key: 'driverMapSession');
+                              if (!context.mounted || token == null) return;
+                              await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) => DriverWebPage(
+                                          path: '/collection/driver-map',
+                                          title: 'Мой маршрут',
+                                          sessionToken: token)));
+                            }),
+                      TextButton.icon(
+                          icon: const Icon(Icons.play_circle_outline),
+                          label: const Text('Видеоинструкции'),
+                          onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const DriverWebPage(
+                                      path: '/collection/help/driver',
+                                      title: 'Инструкции водителю')))),
                       if (error.isNotEmpty || serviceError.isNotEmpty)
                         Padding(
                             padding: const EdgeInsets.only(top: 20),
@@ -381,6 +413,55 @@ class _DriverScannerState extends State<DriverScanner> {
     super.dispose();
   }
 
+  Future<void> manual() async {
+    final input = TextEditingController();
+    String? validation;
+    await controller.stop();
+    if (!mounted) {
+      input.dispose();
+      return;
+    }
+    final code = await showDialog<String>(
+        context: context,
+        builder: (context) => StatefulBuilder(
+            builder: (context, update) => AlertDialog(
+                    title: const Text('Код QR перевозки'),
+                    content: TextField(
+                        key: const Key('manualQrCode'),
+                        controller: input,
+                        autocorrect: false,
+                        maxLines: 3,
+                        decoration: InputDecoration(
+                            labelText: 'Код из QR',
+                            helperText: 'Скопируйте код из отправки Collection',
+                            errorText: validation)),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Отмена')),
+                      FilledButton(
+                          onPressed: () {
+                            final value = input.text.trim();
+                            if (!RegExp(r'^[A-Za-z0-9_-]{32,256}$')
+                                .hasMatch(value)) {
+                              update(() => validation =
+                                  'Вставьте код QR перевозки целиком');
+                              return;
+                            }
+                            Navigator.pop(context, value);
+                          },
+                          child: const Text('Продолжить'))
+                    ])));
+    Future<void>.delayed(const Duration(seconds: 1), input.dispose);
+    if (!mounted) return;
+    if (code != null) {
+      done = true;
+      Navigator.pop(context, code);
+    } else {
+      await controller.start();
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('QR перевозки')),
@@ -404,12 +485,17 @@ class _DriverScannerState extends State<DriverScanner> {
             }
           },
         ),
-        bottomNavigationBar: const SafeArea(
+        bottomNavigationBar: SafeArea(
             child: Padding(
-                padding: EdgeInsets.all(20),
-                child: Text(
-                    'Наведите камеру на QR перевозки из Collection. QR партии для запуска рейса не подходит.',
-                    textAlign: TextAlign.center))),
+                padding: const EdgeInsets.all(16),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Text('Наведите камеру на QR перевозки из Collection.',
+                      textAlign: TextAlign.center),
+                  TextButton.icon(
+                      onPressed: manual,
+                      icon: const Icon(Icons.content_paste),
+                      label: const Text('Вставить код QR вручную'))
+                ]))),
       );
 }
 

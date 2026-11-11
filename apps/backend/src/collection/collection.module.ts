@@ -1,3 +1,5 @@
+import { FileInterceptor } from "@nestjs/platform-express";
+import { CollectionTutorialsService } from "./collection-tutorials.service";
 import {
   Body,
   Controller,
@@ -5,6 +7,9 @@ import {
   Headers,
   Module,
   Param,
+  Query,
+  UploadedFile,
+  UseInterceptors,
   Post,
 } from "@nestjs/common";
 import {
@@ -27,12 +32,48 @@ import {
 } from "./collection.dto";
 @Controller("collection")
 class CollectionController {
-  constructor(private readonly service: CollectionService) {}
+  constructor(
+    private readonly service: CollectionService,
+    private readonly tutorials: CollectionTutorialsService,
+  ) {}
+  @Get("tutorials") videos(@User() user: CurrentUser) {
+    return this.tutorials.list(user);
+  }
+  @Post("tutorials/chunks")
+  @UseInterceptors(
+    FileInterceptor("chunk", {
+      limits: { fileSize: 1024 * 1024, files: 1, fields: 5 },
+    }),
+  )
+  upload(
+    @User() user: CurrentUser,
+    @Body() body: Record<string, string>,
+    @UploadedFile() file?: { buffer: Buffer },
+  ) {
+    return this.tutorials.upload(
+      user,
+      {
+        filename: body.filename,
+        uploadId: body.uploadId,
+        index: Number(body.index),
+        count: Number(body.count),
+        sha256: body.sha256,
+      },
+      file?.buffer ?? Buffer.alloc(0),
+    );
+  }
   @Get("state") state(@User() user: CurrentUser) {
     return this.service.state(user);
   }
   @Get("trips/:id/qr") qr(@Param("id") id: string, @User() user: CurrentUser) {
     return this.service.qr(id, user);
+  }
+  @Get("trips/:id/route") route(
+    @Param("id") id: string,
+    @User() user: CurrentUser,
+    @Query("cursor") cursor?: string,
+  ) {
+    return this.service.route(id, user, cursor);
   }
   @Post("gp-trips") gpTrip(
     @Body() dto: CollectionGpTripDto,
@@ -87,9 +128,21 @@ class CollectionController {
 }
 @Controller("collection-driver")
 class CollectionDriverController {
-  constructor(private readonly service: CollectionDriverService) {}
+  constructor(
+    private readonly service: CollectionDriverService,
+    private readonly tutorials: CollectionTutorialsService,
+  ) {}
+  @Public() @Get("tutorials") videos() {
+    return this.tutorials.list();
+  }
   @Public() @Post("claim") claim(@Body() dto: ClaimDriverDto) {
     return this.service.claim(dto);
+  }
+  @Public() @Get("route") route(
+    @Headers("authorization") token: string,
+    @Query("cursor") cursor?: string,
+  ) {
+    return this.service.route(token, cursor);
   }
   @Public() @Post("points") points(
     @Headers("authorization") token: string,
@@ -109,7 +162,11 @@ class CollectionDriverController {
 }
 @Module({
   controllers: [CollectionController, CollectionDriverController],
-  providers: [CollectionService, CollectionDriverService],
+  providers: [
+    CollectionService,
+    CollectionDriverService,
+    CollectionTutorialsService,
+  ],
   exports: [CollectionService, CollectionDriverService],
 })
 export class CollectionModule {}

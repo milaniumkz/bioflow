@@ -1,3 +1,4 @@
+import 'embedded_video.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -148,6 +149,7 @@ class FullWorkspaceState extends State<FullWorkspace> {
             [];
       });
     }
+    configureEmbeddedVideo(controller, context);
     controller.loadRequest(webUri);
   }
 

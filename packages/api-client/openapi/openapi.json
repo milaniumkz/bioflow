@@ -15,6 +15,34 @@
         ]
       }
     },
+    "/api/v1/collection/tutorials": {
+      "get": {
+        "operationId": "CollectionController_videos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Collection"
+        ]
+      }
+    },
+    "/api/v1/collection/tutorials/chunks": {
+      "post": {
+        "operationId": "CollectionController_upload",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Collection"
+        ]
+      }
+    },
     "/api/v1/collection/state": {
       "get": {
         "operationId": "CollectionController_state",
@@ -32,6 +60,20 @@
     "/api/v1/collection/trips/{id}/qr": {
       "get": {
         "operationId": "CollectionController_qr",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Collection"
+        ]
+      }
+    },
+    "/api/v1/collection/trips/{id}/route": {
+      "get": {
+        "operationId": "CollectionController_route",
         "parameters": [],
         "responses": {
           "200": {
@@ -155,12 +197,40 @@
         ]
       }
     },
+    "/api/v1/collection-driver/tutorials": {
+      "get": {
+        "operationId": "CollectionDriverController_videos",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionDriver"
+        ]
+      }
+    },
     "/api/v1/collection-driver/claim": {
       "post": {
         "operationId": "CollectionDriverController_claim",
         "parameters": [],
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionDriver"
+        ]
+      }
+    },
+    "/api/v1/collection-driver/route": {
+      "get": {
+        "operationId": "CollectionDriverController_route",
+        "parameters": [],
+        "responses": {
+          "200": {
             "description": ""
           }
         },

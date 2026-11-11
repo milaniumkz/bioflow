@@ -12,6 +12,8 @@ legacy=${LEGACY_NGINX_CONTAINER:-bioflow-test-nginx-1}
 docker inspect "$legacy" >/dev/null
 mkdir -p "$shared/secrets" "$shared/downloads" "$shared/backups" "$shared/certbot-work" "$shared/certbot-logs"
 chmod 700 "$shared/secrets" "$shared/backups"
+mkdir -p "$shared/downloads/tutorials"
+chmod 755 "$shared/downloads/tutorials"
 test -s "$shared/secrets/firebase-service-account.json" || { echo 'Firebase service account must be installed through the encrypted configuration step' >&2; exit 1; }
 if [ ! -f "$shared/.env.collection" ]; then
   python3 - "$shared/.env.collection" "$shared" "$domain" <<'PY'

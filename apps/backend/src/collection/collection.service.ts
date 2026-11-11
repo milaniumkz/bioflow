@@ -18,6 +18,7 @@ import {
   CollectionTripDto,
   CollectionWashDto,
 } from "./collection.dto";
+import { readDriverRoute } from "./collection-route";
 type Tx = Prisma.TransactionClient;
 const hash = (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -748,6 +749,29 @@ export class CollectionService {
         return factory;
       },
     );
+  }
+  async route(id: string, user: CurrentUser, cursor?: string) {
+    this.require(user, ["COLLECTOR", "WAREHOUSE_MANAGER", "FACTORY_MANAGER"]);
+    const trip = await this.db.collectionTrip.findFirst({
+      where: { id, organizationId: user.organizationId },
+      include: { driver: { select: { id: true } } },
+    });
+    if (!trip) throw new NotFoundException("Рейс не найден");
+    if (
+      !this.owner(user) &&
+      !(user.roles?.includes("COLLECTOR") && trip.createdById === user.id)
+    ) {
+      const scope = [trip.warehouseId, trip.fromLocationId].filter(
+        (x): x is string => !!x,
+      );
+      const member = await this.db.collectionMembership.findFirst({
+        where: { userId: user.id, locationId: { in: scope } },
+      });
+      if (!member)
+        throw new ForbiddenException("Нет доступа к маршруту этого рейса");
+    }
+    if (!trip.driver) return { points: [], total: 0, nextCursor: null };
+    return readDriverRoute(this.db, trip.driver.id, cursor);
   }
   async state(user: CurrentUser) {
     this.require(user, ["COLLECTOR", "WAREHOUSE_MANAGER", "FACTORY_MANAGER"]);

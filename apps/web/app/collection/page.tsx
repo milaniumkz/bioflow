@@ -17,6 +17,8 @@ import { webRequest, setSession, clearSession } from "../session";
 import { createCommandId } from "../command-id.mjs";
 import { mobileNotify, printQr, saveBlob } from "../mobile-bridge";
 import "./collection.css";
+import { TripMap } from "./trip-map";
+import { TutorialPanel } from "./tutorial-panel";
 type Row = Record<string, any>;
 const labels: Record<string, string> = {
   RAW: "Немытое",
@@ -295,6 +297,7 @@ function Portal() {
         ]
       : []),
     ["notifications", "Уведомления"],
+    ["help", "Видеоинструкции"],
   ];
   const targetTab =
     tab === "inbound" && (owner || collector)
@@ -703,6 +706,7 @@ function Portal() {
               </div>
             </div>
             <TripList
+              token={token}
               trips={trips}
               names={names}
               usernames={usernames}
@@ -714,6 +718,7 @@ function Portal() {
         ) : null}
         {selected === "inbound" ? (
           <TripList
+            token={token}
             trips={trips.filter((trip) => trip.kind === "RAW")}
             names={names}
             usernames={usernames}
@@ -844,6 +849,7 @@ function Portal() {
               }
             />
             <TripList
+              token={token}
               trips={trips.filter((trip) => trip.kind === "GP")}
               names={names}
               usernames={usernames}
@@ -891,6 +897,7 @@ function Portal() {
             <section className="c-section">
               <h2>Водители и доставки</h2>
               <TripList
+                token={token}
                 trips={trips.filter((trip) => trip.driver)}
                 names={names}
                 usernames={usernames}
@@ -931,6 +938,9 @@ function Portal() {
             </p>
             <BatchList batches={batches} names={names} />
           </>
+        ) : null}
+        {selected === "help" ? (
+          <TutorialPanel token={token} roles={roles} />
         ) : null}
         {selected === "notifications" ? (
           <>
@@ -1054,6 +1064,19 @@ function Portal() {
                 }}
               >
                 Сохранить PNG
+              </button>
+              <button
+                className="secondary"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(qr.qrToken);
+                    setMessage("Код QR скопирован");
+                  } catch {
+                    setError("Не удалось скопировать код QR");
+                  }
+                }}
+              >
+                Скопировать код QR
               </button>
               <button className="secondary" onClick={() => printQr(qr.qrImage)}>
                 Распечатать
@@ -1536,6 +1559,7 @@ function GpForm({
   );
 }
 function TripList({
+  token,
   trips,
   names,
   usernames,
@@ -1544,6 +1568,7 @@ function TripList({
   onQr,
   onConfirm,
 }: {
+  token: string;
   trips: Row[];
   names: Row;
   usernames: Row;
@@ -1618,13 +1643,6 @@ function TripList({
                       {date(trip.driver.point.recordedAt)} · ±
                       {Math.round(trip.driver.point.accuracy)} м
                     </span>
-                    <a
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      href={`https://www.openstreetmap.org/?mlat=${trip.driver.point.latitude}&mlon=${trip.driver.point.longitude}#map=16/${trip.driver.point.latitude}/${trip.driver.point.longitude}`}
-                    >
-                      Позиция на карте ↗
-                    </a>
                     {!trip.driver.stoppedAt &&
                     Date.now() -
                       new Date(trip.driver.point.recordedAt).getTime() >
@@ -1639,6 +1657,7 @@ function TripList({
             ) : (
               <p className="c-muted">Водитель ещё не отсканировал QR</p>
             )}
+            {trip.driver ? <TripMap id={trip.id} token={token} /> : null}
             <div className="c-actions">
               {canQr?.(trip) && onQr ? (
                 <button className="secondary" onClick={() => onQr(trip.id)}>
