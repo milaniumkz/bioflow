@@ -31,6 +31,8 @@ fi
 "${compose[@]}" up -d --wait --wait-timeout 180 postgres redis
 "${compose[@]}" run --rm --no-deps backend sh -c 'npm run prisma:deploy -w @bioflow/backend && npm run bootstrap:collection -w @bioflow/backend && cd apps/backend && npx tsx prisma/opening-collection.ts'
 "${compose[@]}" up -d --wait --wait-timeout 240 backend web gateway
+# Refresh cached upstream addresses when an application container was replaced.
+"${compose[@]}" exec -T gateway nginx -s reload
 edge=collection-live_edge
 docker network inspect "$edge" >/dev/null
 docker network connect "$edge" "$legacy" 2>/dev/null || docker inspect -f '{{json .NetworkSettings.Networks}}' "$legacy" | python3 -c 'import json,sys; assert "collection-live_edge" in json.load(sys.stdin)'
@@ -51,8 +53,8 @@ certbot certonly --non-interactive --agree-tos --register-unsafely-without-email
 python3 "$release/infrastructure/collection-proxy.py" "$config" "$domain" tls
 docker exec "$legacy" nginx -t
 docker exec "$legacy" nginx -s reload
-curl --fail --silent --show-error --resolve "$domain:443:127.0.0.1" "https://$domain/api/v1/health"
-curl --fail --silent --show-error --resolve "$domain:443:127.0.0.1" "https://$domain/collection" >/dev/null
+curl --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 2 --resolve "$domain:443:127.0.0.1" "https://$domain/api/v1/health"
+curl --fail --silent --show-error --retry 6 --retry-all-errors --retry-delay 2 --resolve "$domain:443:127.0.0.1" "https://$domain/collection" >/dev/null
 ln -sfn "$release" "$root/current"
 printf '%s\n' "$COLLECTION_IMAGE_TAG" > "$release/DEPLOYED_COMMIT"
 # Renewal has its own timer and reloads only the public proxy after renewal.

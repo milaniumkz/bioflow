@@ -6,9 +6,13 @@ on:
         description: "Readiness operation (restores only disposable backup copies)"
         type: choice
         required: true
-        options: [inspect, verify-backup, enable-https]
+        options: [inspect, verify-backup, enable-https, finish-collection]
+      collection_ref:
+        description: "Existing Collection release commit, required only for finish-collection"
+        required: false
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: production-ops
   cancel-in-progress: false
@@ -45,7 +49,7 @@ jobs:
           df -h /opt/bioflow-test
           REMOTE
       - name: Run reviewed server preparation or restore verification
-        if: inputs.operation != 'inspect'
+        if: inputs.operation != 'inspect' && inputs.operation != 'finish-collection'
         run: |
           source infrastructure/ci-ssh.sh
           [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
@@ -58,3 +62,27 @@ jobs:
             enable-https) bioflow_ssh bash "$target/enable-test-https.sh" ;;
             *) exit 2 ;;
           esac
+      - name: Require CI for the existing Collection application release
+        if: inputs.operation == 'finish-collection'
+        uses: actions/github-script@v7
+        env:
+          COLLECTION_REF: ${{ inputs.collection_ref }}
+        with:
+          script: |
+            const sha=process.env.COLLECTION_REF;
+            if (!/^[0-9a-f]{40}$/.test(sha)) return core.setFailed('Exact existing Collection commit required');
+            const {data}=await github.rest.actions.listWorkflowRuns({owner:context.repo.owner,repo:context.repo.repo,workflow_id:'ci.yml',head_sha:sha,per_page:30});
+            if (!data.workflow_runs.some(run=>run.conclusion==='success')) core.setFailed('Existing application must have passed CI');
+      - name: Finish isolated Collection routing without rebuilding mobile apps
+        if: inputs.operation == 'finish-collection'
+        env:
+          COLLECTION_REF: ${{ inputs.collection_ref }}
+        run: |
+          set -euo pipefail
+          [[ "$COLLECTION_REF" =~ ^[0-9a-f]{40}$ ]]
+          source infrastructure/ci-ssh.sh
+          bioflow_ssh "test -f /opt/collection-live/releases/$COLLECTION_REF/docker-compose.collection.yml && mkdir -p /opt/collection-live/tools"
+          bioflow_scp infrastructure/deploy-collection.sh "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/tools/deploy-collection.sh"
+          bioflow_ssh "bash /opt/collection-live/tools/deploy-collection.sh /opt/collection-live/releases/$COLLECTION_REF"
+          curl --fail --retry 6 --retry-all-errors --retry-delay 2 https://release.109.235.118.171.sslip.io/api/v1/health
+          curl --fail http://109.235.118.171/api/v1/health
