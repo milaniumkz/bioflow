@@ -59,7 +59,7 @@ jobs:
             if curl --fail --silent http://localhost:4100/api/v1/health; then break; fi
             sleep 2
           done
-          WORK_ACCOUNTS_INTEGRATION=1 WORK_ACCOUNTS_VERIFY_API=http://localhost:4100/api/v1 node --test --test-concurrency=1 infrastructure/provision-work-roles.test.cjs infrastructure/align-work-organization.test.cjs
+          WORK_ACCOUNTS_INTEGRATION=1 WORK_ACCOUNTS_VERIFY_API=http://localhost:4100/api/v1 node --test --test-concurrency=1 infrastructure/provision-work-roles.test.cjs infrastructure/align-work-organization.test.cjs infrastructure/repair-seeded-warehouse-materials.test.cjs
           npm run test:acceptance -w @bioflow/backend
           COLLECTION_INTEGRATION=1 npm run test:collection -w @bioflow/backend
       - run: |
@@ -142,7 +142,7 @@ jobs:
       - run: npm run prisma:generate
       - run: npm run lint
       - run: npm test
-      - run: node --test --test-concurrency=1 infrastructure/provision-work-roles.test.cjs infrastructure/align-work-organization.test.cjs
+      - run: node --test --test-concurrency=1 infrastructure/provision-work-roles.test.cjs infrastructure/align-work-organization.test.cjs infrastructure/repair-seeded-warehouse-materials.test.cjs
       - run: npm test -w @bioflow/backend -- --detectOpenHandles --runInBand
       - name: Generate OpenAPI without a real database connection
         run: DATABASE_URL='postgresql://bioflow:bioflow@127.0.0.1:9/bioflow?schema=public' npm run openapi:generate

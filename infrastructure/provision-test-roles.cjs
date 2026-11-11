@@ -65,7 +65,7 @@ async function main() {
         update: {},
         create: { organizationId, name: "Учебное место сбора" },
       });
-      const material = await tx.materialType.upsert({
+      await tx.materialType.upsert({
         where: { name: "Учебное сырьё Collection" },
         update: {},
         create: { name: "Учебное сырьё Collection" },
@@ -89,7 +89,7 @@ async function main() {
               organizationId,
               name,
               warehouseType,
-              allowedMaterialTypeIds: [material.id],
+              allowedMaterialTypeIds: [],
             },
           }),
         );
