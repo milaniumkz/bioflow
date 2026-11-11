@@ -115,6 +115,10 @@ class Control(http.server.BaseHTTPRequestHandler):
    else:raise RuntimeError('Unknown operation')
    self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(json.dumps(result).encode())
   except Exception as e:
+   print('Control failure',self.path,str(e),flush=True)
+   try:
+    (root/'failure.png').write_bytes(adb('exec-out','screencap','-p'));(root/'failure.xml').write_bytes(adb('shell','cat','/sdcard/tutorial-ui.xml'))
+   except Exception:pass
    self.send_response(500);self.end_headers();self.wfile.write(str(e).encode())
 class Proxy(http.server.BaseHTTPRequestHandler):
  def log_message(self,*args):pass

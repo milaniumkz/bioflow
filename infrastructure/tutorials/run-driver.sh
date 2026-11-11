@@ -5,12 +5,14 @@ set -euo pipefail
 adb root
 adb wait-for-device
 adb shell setprop persist.sys.locale ru-RU
+adb shell setprop sys.boot_completed 0
 adb shell stop
 adb shell start
-for attempt in {1..40}; do
-  if adb shell service check activity 2>/dev/null | grep -q 'found'; then break; fi
+for attempt in {1..90}; do
+  if [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]] && adb shell settings get system system_locales >/dev/null 2>&1; then break; fi
   sleep 1
 done
+adb shell input keyevent 82
 adb shell settings put system show_touches 1
 adb shell settings put global window_animation_scale 0.5
 adb shell settings put global transition_animation_scale 0.5
