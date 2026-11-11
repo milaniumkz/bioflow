@@ -130,6 +130,9 @@ jobs:
           curl --fail --retry 12 --retry-delay 5 "$PROD_APP_URL/api/v1/health"
 
   collection:
+    permissions:
+      contents: write
+      actions: read
     if: github.event_name == 'workflow_dispatch' && inputs.contour == 'collection'
     runs-on: ubuntu-latest
     environment: production
@@ -151,34 +154,15 @@ jobs:
             const sha = require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], {encoding:'utf8'}).trim();
             const {data} = await github.rest.actions.listWorkflowRuns({owner:context.repo.owner,repo:context.repo.repo,workflow_id:'ci.yml',head_sha:sha,per_page:30});
             if (!data.workflow_runs.some(run=>run.conclusion==='success')) core.setFailed('Collection commit must pass CI before deployment.');
-      - name: Prepare isolated release and APK downloads
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ASSET_TAG: ${{ inputs.asset_tag }}
+      - name: Upload isolated source release
         run: |
           set -euo pipefail
-          [[ "$ASSET_TAG" =~ ^collection-live-[A-Za-z0-9._-]+$ ]]
           sudo apt-get update -qq && sudo apt-get install -y sshpass
-          mkdir -p "$RUNNER_TEMP/collection-apks"
-          gh release download "$ASSET_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'collection-apks.part-*' --pattern SHA256SUMS --dir "$RUNNER_TEMP/collection-apks"
-          cat "$RUNNER_TEMP/collection-apks"/collection-apks.part-* > "$RUNNER_TEMP/collection-apks.tar.gz"
-          python3 - "$RUNNER_TEMP/collection-apks.tar.gz" "$RUNNER_TEMP/collection-apks" <<'PYCODE'
-          import sys,tarfile
-          with tarfile.open(sys.argv[1]) as tar:
-              members=tar.getmembers()
-              assert {m.name for m in members} == {'Collection.apk','Collection-Driver.apk'}
-              assert all(m.isfile() for m in members)
-              tar.extractall(sys.argv[2],members=members,filter='data')
-          PYCODE
-          (cd "$RUNNER_TEMP/collection-apks" && sha256sum -c SHA256SUMS)
-          test -s "$RUNNER_TEMP/collection-apks/Collection.apk"
-          test -s "$RUNNER_TEMP/collection-apks/Collection-Driver.apk"
           sha=$(git rev-parse HEAD)
           git archive --format=tar.gz -o "$RUNNER_TEMP/collection-source.tgz" HEAD
           source infrastructure/ci-ssh.sh
           bioflow_ssh "mkdir -p /opt/collection-live/releases/$sha /opt/collection-live/shared/downloads /opt/collection-live/incoming"
           bioflow_scp "$RUNNER_TEMP/collection-source.tgz" "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/incoming/$sha.tgz"
-          bioflow_scp "$RUNNER_TEMP/collection-apks/Collection.apk" "$RUNNER_TEMP/collection-apks/Collection-Driver.apk" "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/shared/downloads/"
           bioflow_ssh "tar -xzf /opt/collection-live/incoming/$sha.tgz -C /opt/collection-live/releases/$sha"
       - name: Install encrypted Firebase configuration
         if: inputs.server_config_age != ''
@@ -193,6 +177,59 @@ jobs:
           sha=$(git rev-parse HEAD)
           source infrastructure/ci-ssh.sh
           bioflow_ssh "bash /opt/collection-live/releases/$sha/infrastructure/install-collection-config.sh" < "$envelope"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.6
+          channel: stable
+          cache: true
+      - name: Prepare private Android signing and Firebase configuration
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/collection-mobile"
+          source infrastructure/ci-ssh.sh
+          for name in google-services.json collection-release.jks mobile-signing.json; do
+            bioflow_ssh "cat /opt/collection-live/shared/secrets/$name" > "$RUNNER_TEMP/collection-mobile/$name"
+          done
+          python3 - "$RUNNER_TEMP/collection-mobile" <<'PYCODE'
+          import json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1]);data=json.loads((root/'mobile-signing.json').read_text())
+          values={**data,'storeFile':str(root/'collection-release.jks')}
+          Path('apps/mobile/android/key.properties').write_text('\n'.join(k+'='+values[k] for k in ['storeFile','storePassword','keyPassword','keyAlias'])+'\n')
+          PYCODE
+      - name: Build and publish signed Collection APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET_TAG: ${{ inputs.asset_tag }}
+        run: |
+          set -euo pipefail
+          [[ "$ASSET_TAG" =~ ^collection-live-[A-Za-z0-9._-]+$ ]]
+          mkdir -p "$RUNNER_TEMP/collection-apks"
+          cd apps/mobile
+          flutter pub get
+          for role in collection driver; do
+            python3 scripts/firebase-config.py --role "$role" --platform android --firebase-file "$RUNNER_TEMP/collection-mobile/google-services.json" --api-url https://release.109.235.118.171.sslip.io/api/v1 --web-url https://release.109.235.118.171.sslip.io --output "$RUNNER_TEMP/collection-mobile/$role.json"
+            COLLECTION_ROLE_BUILD=$([[ "$role" == collection ]] && echo true || echo false) COLLECTION_DRIVER_BUILD=$([[ "$role" == driver ]] && echo true || echo false) flutter build apk --release --target "lib/main_$role.dart" --dart-define-from-file="$RUNNER_TEMP/collection-mobile/$role.json"
+            name=Collection.apk
+            [[ "$role" != driver ]] || name=Collection-Driver.apk
+            cp build/app/outputs/flutter-apk/app-release.apk "$RUNNER_TEMP/collection-apks/$name"
+          done
+          cd "$RUNNER_TEMP/collection-apks"
+          sha256sum Collection.apk Collection-Driver.apk > SHA256SUMS
+          tar -czf collection-apks.tar.gz Collection.apk Collection-Driver.apk
+          split -b 24M -d -a 3 collection-apks.tar.gz collection-apks.part-
+          gh release upload "$ASSET_TAG" --repo "$GITHUB_REPOSITORY" collection-apks.part-* SHA256SUMS --clobber
+          cd "$GITHUB_WORKSPACE"
+          source infrastructure/ci-ssh.sh
+          bioflow_scp "$RUNNER_TEMP/collection-apks/Collection.apk" "$RUNNER_TEMP/collection-apks/Collection-Driver.apk" "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/shared/downloads/"
+      - name: Remove temporary signing credentials
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/collection-mobile" apps/mobile/android/key.properties
       - name: Deploy separate Collection database and application
         run: |
           set -euo pipefail
