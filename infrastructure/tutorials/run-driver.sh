@@ -22,5 +22,16 @@ control_pid=$!
 cleanup(){ kill "$control_pid" 2>/dev/null || true; adb reverse --remove tcp:4200 >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 for attempt in {1..40}; do curl -fsS http://127.0.0.1:4200/ -o /dev/null && break; sleep 1; done
+# Publish bounded synthetic progress so stalled UI operations can be diagnosed.
+progress(){
+  while true; do
+    { tail -n 65 "$RUNNER_TEMP/driver-tutorial-test.log" 2>/dev/null || true; tail -n 20 "$RUNNER_TEMP/tutorial-native-control.log" 2>/dev/null || true; } > work/native-tutorial-raw/progress.txt
+    gh release upload "$TUTORIAL_CAPTURE_TAG" work/native-tutorial-raw/progress.txt --clobber >/dev/null 2>&1 || true
+    sleep 25
+  done
+}
+progress &
+progress_pid=$!
+trap 'kill "$progress_pid" 2>/dev/null || true; cleanup' EXIT
 cd apps/mobile
-COLLECTION_DRIVER_BUILD=true flutter drive --driver=test_driver/integration_test.dart --target=integration_test/driver_tutorial_test.dart --dart-define=API_URL=http://10.0.2.2:4199/api/v1 --dart-define=WEB_URL=http://10.0.2.2:3040
+COLLECTION_DRIVER_BUILD=true flutter drive --driver=test_driver/integration_test.dart --target=integration_test/driver_tutorial_test.dart --use-application-binary=build/app/outputs/flutter-apk/app-debug.apk --dart-define=API_URL=http://10.0.2.2:4199/api/v1 --dart-define=WEB_URL=http://10.0.2.2:3040 2>&1 | tee "$RUNNER_TEMP/driver-tutorial-test.log"

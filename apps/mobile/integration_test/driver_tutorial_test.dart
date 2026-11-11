@@ -78,7 +78,9 @@ void main() {
               Uri.parse('http://127.0.0.1:4200$path'));
           if (body != null) {
             req.headers.contentType = ContentType.json;
-            req.write(jsonEncode(body));
+            final encoded = utf8.encode(jsonEncode(body));
+            req.contentLength = encoded.length;
+            req.add(encoded);
           }
           final r = await req.close();
           final text = await utf8.decoder.bind(r).join();
@@ -90,6 +92,9 @@ void main() {
           client.close(force: true);
         }
       });
+      if (answer == null) {
+        throw StateError('Tutorial controller returned no result: $path');
+      }
       return answer;
     }
 
@@ -98,7 +103,9 @@ void main() {
     Future<void> pause(double seconds) async {
       await tester.runAsync(() => Future<void>.delayed(
           Duration(milliseconds: (seconds * 1000).round())));
-      await tester.pump();
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        await tester.pump();
+      }
     }
 
     Future<void> waitFor(Finder finder, {int timeout = 45}) async {

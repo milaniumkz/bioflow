@@ -229,6 +229,16 @@ jobs:
           flutter-version: 3.47.6
           channel: stable
           cache: true
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-bioflow-android-ui-gradle-${{ hashFiles('apps/mobile/pubspec.lock', 'apps/mobile/android/gradle/wrapper/gradle-wrapper.properties', 'apps/mobile/android/**/*.gradle.kts') }}
+          restore-keys: ${{ runner.os }}-bioflow-android-ui-gradle-
+      - name: Compile disposable Driver tutorial binary
+        working-directory: apps/mobile
+        run: COLLECTION_DRIVER_BUILD=true flutter build apk --debug --target=integration_test/driver_tutorial_test.dart --dart-define=API_URL=http://10.0.2.2:4199/api/v1 --dart-define=WEB_URL=http://10.0.2.2:3040
       - name: Enable disposable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -270,6 +280,7 @@ jobs:
           name: Driver-tutorial-capture-debug
           path: |
             work/native-tutorial-raw
+            ${{ runner.temp }}/driver-tutorial-test.log
             ${{ runner.temp }}/tutorial-native-control.log
             ${{ runner.temp }}/tutorial-api.log
             ${{ runner.temp }}/tutorial-web.log

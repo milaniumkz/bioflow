@@ -89,6 +89,7 @@ class Control(http.server.BaseHTTPRequestHandler):
   global record,current,offline
   try:
    body=json.loads(self.rfile.read(int(self.headers.get('Content-Length',0))) or '{}');path=self.path
+   print('Control operation',path,body.get('id',''),flush=True)
    if path=='/start':
     current=body['id']
     if current not in catalog or catalog[current]['role']!='driver':raise RuntimeError('Unknown lesson')
