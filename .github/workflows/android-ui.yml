@@ -2,6 +2,10 @@ name: android-ui
 on:
   workflow_dispatch:
     inputs:
+      tutorial_driver:
+        description: "Record each Driver instruction on a disposable emulator with synthetic data"
+        type: boolean
+        default: false
       apk_install_only:
         description: "Install and upgrade the published Collection APKs on disposable emulators"
         type: boolean
@@ -18,7 +22,7 @@ permissions:
   contents: read
 jobs:
   emulator:
-    if: inputs.apk_install_only != true
+    if: inputs.apk_install_only != true && inputs.tutorial_driver != true
     runs-on: ubuntu-latest
     timeout-minutes: 45
     services:
@@ -167,3 +171,107 @@ jobs:
           path: work/install-apks/evidence
           if-no-files-found: ignore
           retention-days: 7
+  driver-tutorials:
+    if: github.event_name == 'workflow_dispatch' && inputs.tutorial_driver == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: collection_tutorial_spec
+          POSTGRES_USER: collection
+          POSTGRES_PASSWORD: tutorial-only
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U collection -d collection_tutorial_spec" --health-interval 5s --health-retries 20
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://collection:tutorial-only@127.0.0.1:5432/collection_tutorial_spec
+      COLLECTION_ENABLED: "true"
+      COLLECTION_DATABASE_NAME: collection_tutorial_spec
+      COLLECTION_TUTORIAL_DIR: ${{ github.workspace }}/work/native-tutorial-media
+      COLLECTION_TUTORIAL_MEDIA: ${{ github.workspace }}/work/native-tutorial-media
+      WEB_ORIGIN: http://10.0.2.2:3040,http://127.0.0.1:3040
+      JWT_ACCESS_SECRET: tutorial-access-only
+      JWT_REFRESH_SECRET: tutorial-refresh-only
+      COLLECTION_TUTORIAL_PROXY_PORT: "3040"
+      COLLECTION_TUTORIAL_WEB_PORT: "3039"
+      COLLECTION_TUTORIAL_PROXY_API_PORT: "4199"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci && npm run prisma:generate && npm run prisma:deploy && npm run build -w @bioflow/backend
+      - name: Prepare isolated backend and synthetic tutorial scenes
+        run: |
+          mkdir -p work/native-tutorial-media work/native-tutorial-raw
+          nohup env PORT=4198 node apps/backend/dist/main.js > "$RUNNER_TEMP/tutorial-api.log" 2>&1 &
+          for attempt in {1..40}; do curl -fsS http://127.0.0.1:4198/api/v1/health -o /dev/null && break; sleep 1; done
+          npx tsx infrastructure/tutorials/fixture.ts
+      - run: NEXT_PUBLIC_API_URL=http://10.0.2.2:4199/api/v1 npm run build -w @bioflow/web
+      - name: Start embedded route and tutorial pages
+        run: |
+          nohup node node_modules/next/dist/bin/next start apps/web -p 3039 > "$RUNNER_TEMP/tutorial-web.log" 2>&1 &
+          nohup node infrastructure/tutorials/web-proxy.cjs > "$RUNNER_TEMP/tutorial-web-proxy.log" 2>&1 &
+          python3 -m venv "$RUNNER_TEMP/tutorial-env"
+          "$RUNNER_TEMP/tutorial-env/bin/pip" install --quiet websocket-client Pillow
+          for attempt in {1..40}; do curl -fsS http://127.0.0.1:3039/collection/driver-map -o /dev/null && break; sleep 1; done
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.6
+          channel: stable
+          cache: true
+      - name: Enable disposable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Prepare synthetic video capture release
+        id: captures
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=collection-live-tutorial-captures-$(git rev-parse --short HEAD)
+          gh release create "$tag" --target "$GITHUB_SHA" --title "Synthetic Driver tutorial video captures" --prerelease --notes "Disposable emulator, tutorial_spec data only. Final narrated MP4 files are published separately."
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - uses: reactivecircus/android-emulator-runner@v2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TUTORIAL_CAPTURE_TAG: ${{ steps.captures.outputs.tag }}
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash infrastructure/tutorials/run-driver.sh
+      - name: Publish synthetic native video captures for narration and editing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=collection-live-tutorial-captures-$(git rev-parse --short HEAD)
+          tar -czf "$RUNNER_TEMP/driver-tutorials.tar.gz" -C work native-tutorial-raw
+          split -b 20M -d -a 3 "$RUNNER_TEMP/driver-tutorials.tar.gz" "$RUNNER_TEMP/driver-tutorials.part-"
+          gh release view "$tag" >/dev/null
+          gh release upload "$tag" "$RUNNER_TEMP"/driver-tutorials.part-*
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Driver-tutorial-capture-debug
+          path: |
+            work/native-tutorial-raw
+            ${{ runner.temp }}/tutorial-native-control.log
+            ${{ runner.temp }}/tutorial-api.log
+            ${{ runner.temp }}/tutorial-web.log
+          if-no-files-found: ignore
+          retention-days: 3

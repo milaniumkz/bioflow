@@ -1,0 +1,178 @@
+{
+  "owner--login": [
+    6.432,
+    4.368,
+    7.44
+  ],
+  "collector--login": [
+    6.432,
+    4.368,
+    7.44
+  ],
+  "warehouse--login": [
+    6.432,
+    4.368,
+    7.44
+  ],
+  "factory--login": [
+    6.432,
+    4.368,
+    7.44
+  ],
+  "owner--overview": [
+    4.728,
+    8.376,
+    6.504
+  ],
+  "owner--route": [
+    4.944,
+    8.328,
+    9.384,
+    9.456
+  ],
+  "owner--notifications": [
+    8.928,
+    8.616,
+    7.752
+  ],
+  "owner--people": [
+    7.296,
+    4.896,
+    5.712
+  ],
+  "owner--factory": [
+    3.72,
+    4.44,
+    7.272
+  ],
+  "collector--create": [
+    5.064,
+    5.52,
+    5.16,
+    7.656
+  ],
+  "collector--save": [
+    4.464,
+    6.096,
+    8.952
+  ],
+  "collector--print": [
+    6.528,
+    3.216,
+    9.072
+  ],
+  "collector--route": [
+    7.776,
+    5.304,
+    6.576
+  ],
+  "collector--notifications": [
+    6.936,
+    4.584,
+    11.544
+  ],
+  "warehouse--receipt": [
+    8.664,
+    4.632,
+    8.52
+  ],
+  "warehouse--wash": [
+    5.016,
+    6.552,
+    8.352
+  ],
+  "warehouse--shipment": [
+    7.368,
+    8.904,
+    3.912,
+    8.088
+  ],
+  "warehouse--stock": [
+    7.704,
+    8.568,
+    4.392
+  ],
+  "warehouse--notifications": [
+    5.832,
+    7.608,
+    8.544
+  ],
+  "factory--receipt": [
+    6.648,
+    4.68,
+    7.728
+  ],
+  "factory--production": [
+    4.608,
+    6.48,
+    7.416,
+    9.672
+  ],
+  "factory--dispatch": [
+    8.04,
+    8.04,
+    4.584,
+    9.144
+  ],
+  "factory--route": [
+    5.064,
+    6.984,
+    10.296
+  ],
+  "factory--stock": [
+    7.8,
+    5.52,
+    8.544
+  ],
+  "factory--notifications": [
+    6.816,
+    7.08,
+    8.064
+  ],
+  "driver--start": [
+    6.024,
+    9.432,
+    8.616,
+    5.928
+  ],
+  "driver--loaded": [
+    5.112,
+    5.304,
+    5.808
+  ],
+  "driver--depart": [
+    3.456,
+    9.744,
+    9.744
+  ],
+  "driver--arrive": [
+    5.976,
+    7.656,
+    9.84
+  ],
+  "driver--offline": [
+    6.456,
+    9.336,
+    8.76
+  ],
+  "driver--route": [
+    4.824,
+    8.688,
+    8.4
+  ],
+  "driver--stop": [
+    9.48,
+    5.4,
+    9.648
+  ],
+  "driver--help": [
+    4.92,
+    7.248,
+    7.488
+  ],
+  "driver--photo": [
+    11.184,
+    9.528,
+    5.832
+  ]
+}
