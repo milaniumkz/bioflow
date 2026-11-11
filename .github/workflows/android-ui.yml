@@ -122,7 +122,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        api: [29, 35]
+        api: [29, 34, 35]
     env:
       COLLECTION_APK_TEST_DIR: ${{ github.workspace }}/work/install-apks
     steps:

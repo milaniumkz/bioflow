@@ -11,7 +11,7 @@ for name in Collection Collection-Driver; do
   [[ "$name" != Collection-Driver ]] || package=kz.milanium.collection_driver
   echo "Fresh install: $name"
   adb install "$COLLECTION_APK_TEST_DIR/new/$name.apk"
-  adb shell dumpsys package "$package" | rg 'versionCode=|versionName='
+  adb shell dumpsys package "$package" | sed -n '/versionCode=/p; /versionName=/p'
   # Only emulator-owned test installations are removed to test the old upgrade.
   adb uninstall "$package"
   echo "Install previous release, then upgrade: $name"
@@ -25,7 +25,7 @@ for name in Collection Collection-Driver; do
   adb shell uiautomator dump /sdcard/collection-install-ui.xml >/dev/null
   adb pull /sdcard/collection-install-ui.xml "$evidence/$name.xml" >/dev/null
   adb logcat -d -b crash > "$evidence/$name-crash.log"
-  if rg -q "Process: $package," "$evidence/$name-crash.log"; then cat "$evidence/$name-crash.log"; exit 1; fi
+  if grep -Fq "Process: $package," "$evidence/$name-crash.log"; then cat "$evidence/$name-crash.log"; exit 1; fi
   adb shell am force-stop "$package"
   echo "Installation, upgrade and launch succeeded: $name"
 done
