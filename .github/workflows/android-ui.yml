@@ -212,7 +212,7 @@ jobs:
           nohup env PORT=4198 node apps/backend/dist/main.js > "$RUNNER_TEMP/tutorial-api.log" 2>&1 &
           for attempt in {1..40}; do curl -fsS http://127.0.0.1:4198/api/v1/health -o /dev/null && break; sleep 1; done
           npx tsx infrastructure/tutorials/fixture.ts
-      - run: NEXT_PUBLIC_API_URL=http://10.0.2.2:4199/api/v1 npm run build -w @bioflow/web
+      - run: npm run build -w @bioflow/shared-types && npm run build -w @bioflow/api-client && NEXT_PUBLIC_API_URL=http://10.0.2.2:4199/api/v1 npm run build -w @bioflow/web
       - name: Start embedded route and tutorial pages
         run: |
           nohup node node_modules/next/dist/bin/next start apps/web -p 3039 > "$RUNNER_TEMP/tutorial-web.log" 2>&1 &
