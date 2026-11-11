@@ -157,11 +157,17 @@ jobs:
       - name: Upload isolated source release
         run: |
           set -euo pipefail
-          sudo apt-get update -qq && sudo apt-get install -y sshpass
+          command -v sshpass >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y sshpass)
+          curl --fail --location --retry 3 https://github.com/FiloSottile/age/releases/download/v1.2.1/age-v1.2.1-linux-amd64.tar.gz -o "$RUNNER_TEMP/age.tar.gz"
+          echo "7df45a6cc87d4da11cc03a539a7470c15b1041ab2b396af088fe9990f7c79d50  $RUNNER_TEMP/age.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/collection-tools"
+          tar -xzf "$RUNNER_TEMP/age.tar.gz" -C "$RUNNER_TEMP/collection-tools" age/age
           sha=$(git rev-parse HEAD)
           git archive --format=tar.gz -o "$RUNNER_TEMP/collection-source.tgz" HEAD
           source infrastructure/ci-ssh.sh
           bioflow_ssh "mkdir -p /opt/collection-live/releases/$sha /opt/collection-live/shared/downloads /opt/collection-live/incoming"
+          bioflow_scp "$RUNNER_TEMP/collection-tools/age/age" "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/incoming/age"
+          bioflow_ssh "mkdir -p /opt/collection-live/tools && install -m 0755 /opt/collection-live/incoming/age /opt/collection-live/tools/age"
           bioflow_scp "$RUNNER_TEMP/collection-source.tgz" "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/incoming/$sha.tgz"
           bioflow_ssh "tar -xzf /opt/collection-live/incoming/$sha.tgz -C /opt/collection-live/releases/$sha"
       - name: Install encrypted Firebase configuration
@@ -176,7 +182,7 @@ jobs:
           printf '%s' "$SERVER_CONFIG_AGE" > "$envelope"
           sha=$(git rev-parse HEAD)
           source infrastructure/ci-ssh.sh
-          bioflow_ssh "bash /opt/collection-live/releases/$sha/infrastructure/install-collection-config.sh" < "$envelope"
+          bioflow_ssh "PATH=/opt/collection-live/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin bash /opt/collection-live/releases/$sha/infrastructure/install-collection-config.sh" < "$envelope"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
