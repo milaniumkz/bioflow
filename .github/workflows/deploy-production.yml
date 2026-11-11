@@ -23,6 +23,10 @@ on:
         description: "Update only signed Collection APKs; preserve deployed web and database"
         type: boolean
         default: false
+      web_only:
+        description: "Update Collection web/backend and preserve the published APKs"
+        type: boolean
+        default: false
       server_config_age:
         description: "Optional AGE envelope encrypted to the pinned server host key"
         required: false
@@ -182,15 +186,18 @@ jobs:
           source infrastructure/ci-ssh.sh
           bioflow_ssh "PATH=/opt/collection-live/tools:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin bash /opt/collection-live/releases/$sha/infrastructure/install-collection-config.sh" < "$envelope"
       - uses: actions/setup-java@v4
+        if: inputs.web_only != true
         with:
           distribution: temurin
           java-version: 21
       - uses: subosito/flutter-action@v2
+        if: inputs.web_only != true
         with:
           flutter-version: 3.47.6
           channel: stable
           cache: true
       - name: Prepare private Android signing and Firebase configuration
+        if: inputs.web_only != true
         run: |
           set -euo pipefail
           umask 077
@@ -208,6 +215,7 @@ jobs:
           Path('apps/mobile/android/key.properties').write_text('\n'.join(k+'='+values[k] for k in ['storeFile','storePassword','keyPassword','keyAlias'])+'\n')
           PYCODE
       - name: Build signed Collection APKs
+        if: inputs.web_only != true
         env:
           GH_TOKEN: ${{ github.token }}
           ASSET_TAG: ${{ inputs.asset_tag }}
@@ -242,6 +250,7 @@ jobs:
             }
             core.setFailed('CI must finish successfully before publishing APK updates');
       - name: Publish signed APKs and replace download files atomically
+        if: inputs.web_only != true
         env:
           GH_TOKEN: ${{ github.token }}
           ASSET_TAG: ${{ inputs.asset_tag }}
@@ -263,6 +272,7 @@ jobs:
           source infrastructure/ci-ssh.sh
           bioflow_ssh "bash /opt/collection-live/releases/$sha/infrastructure/deploy-collection.sh /opt/collection-live/releases/$sha"
       - name: Replace signed APK download files atomically
+        if: inputs.web_only != true
         run: |
           set -euo pipefail
           source infrastructure/ci-ssh.sh

@@ -7,7 +7,7 @@ export default function DriverHelp() {
   const [client] = useState(() => new QueryClient());
   return (
     <QueryClientProvider client={client}>
-      <main className="collection-driver-route">
+      <main className="collection-app collection-driver-route">
         <p className="eyebrow">COLLECTION DRIVER</p>
         <h1>Помощь водителю</h1>
         <TutorialPanel roles={["DRIVER"]} />

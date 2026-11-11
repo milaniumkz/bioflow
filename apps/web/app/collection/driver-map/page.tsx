@@ -23,7 +23,7 @@ export default function DriverRoutePage() {
   }, []);
   return (
     <QueryClientProvider client={client}>
-      <main className="collection-driver-route">
+      <main className="collection-app collection-driver-route">
         <p className="eyebrow">COLLECTION DRIVER</p>
         <h1>Мой маршрут</h1>
         {token ? (

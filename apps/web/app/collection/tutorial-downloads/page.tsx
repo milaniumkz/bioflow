@@ -9,7 +9,7 @@ const roles: Record<string, string> = {
 };
 export default function Downloads() {
   return (
-    <main className="collection-driver-route">
+    <main className="collection-app collection-driver-route">
       <p className="eyebrow">COLLECTION · УЧЕБНЫЕ МАТЕРИАЛЫ</p>
       <h1>Скачать видеоинструкции</h1>
       <p>

@@ -842,6 +842,7 @@
 }
 
 .collection-driver-route {
+  color-scheme: light;
   max-width: 1100px;
   margin: auto;
   padding: 24px 16px;
@@ -863,4 +864,9 @@
 }
 .c-tutorial-grid h3 {
   min-height: 48px;
+}
+
+body:has(.collection-driver-route) {
+  background: #f4f6f2;
+  color-scheme: light;
 }
