@@ -1,3 +1,8 @@
+const {
+  phoneCredentials,
+  configureAccounts,
+  verifyPhones,
+} = require("./configure-work-role-logins.cjs");
 const test = require("node:test"),
   assert = require("node:assert/strict");
 const { randomBytes, randomUUID, createHash } = require("node:crypto");
@@ -144,6 +149,153 @@ test(
           result,
           process.env.WORK_ACCOUNTS_VERIFY_API,
         );
+      const phoneSnapshot = await prisma.user.findMany({
+        where: { organizationId: org.id },
+        orderBy: { id: "asc" },
+        select: {
+          id: true,
+          passwordHash: true,
+          phone: true,
+          warehouseScopeIds: true,
+          accessAllObjects: true,
+        },
+      });
+      let phoneStart = 2000;
+      while (
+        await prisma.user.count({
+          where: {
+            phone: {
+              in: Array.from(
+                { length: 6 },
+                (_, i) => "+7000000" + String(phoneStart + i).padStart(4, "0"),
+              ),
+            },
+          },
+        })
+      )
+        phoneStart += 10;
+      const phoneRequest = {
+        purpose: "configure-six-work-logins-v1",
+        id: randomUUID(),
+        start: phoneStart,
+        temporaryPassword: "654321",
+        suffix: request.suffix,
+      };
+      const assignments = phoneCredentials(phoneRequest);
+      const collision = await prisma.user.create({
+        data: {
+          organizationId: org.id,
+          fullName: "Существующий номер",
+          phone: "8" + assignments[0].phone.slice(2),
+          passwordHash: "unrelated-synthetic-hash",
+        },
+      });
+      await assert.rejects(
+        configureAccounts(prisma, phoneRequest, owner.email),
+        /Phone collision/,
+      );
+      assert.deepEqual(
+        await prisma.user.findMany({
+          where: { id: { in: phoneSnapshot.map((a) => a.id) } },
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            passwordHash: true,
+            phone: true,
+            warehouseScopeIds: true,
+            accessAllObjects: true,
+          },
+        }),
+        phoneSnapshot,
+      );
+      await prisma.user.update({
+        where: { id: collision.id },
+        data: { phone: null },
+      });
+      const expiresAt = new Date(Date.now() + 3600000);
+      const ownerSession = await prisma.refreshToken.create({
+        data: {
+          userId: owner.id,
+          tokenHash: randomBytes(32).toString("hex"),
+          expiresAt,
+        },
+      });
+      const workerSession = await prisma.refreshToken.create({
+        data: {
+          userId: packer.id,
+          tokenHash: randomBytes(32).toString("hex"),
+          expiresAt,
+        },
+      });
+      const configured = await configureAccounts(
+        prisma,
+        phoneRequest,
+        owner.email,
+      );
+      assert.equal(configured.changed, 6);
+      assert.equal(
+        (
+          await prisma.refreshToken.findUniqueOrThrow({
+            where: { id: ownerSession.id },
+          })
+        ).revokedAt,
+        null,
+      );
+      assert(
+        (
+          await prisma.refreshToken.findUniqueOrThrow({
+            where: { id: workerSession.id },
+          })
+        ).revokedAt,
+      );
+      for (const entry of assignments) {
+        const account = await prisma.user.findUniqueOrThrow({
+          where: { email: entry.email },
+        });
+        assert.equal(account.phone, entry.phone);
+        assert(account.mustChangePassword);
+        assert(await argon2.verify(account.passwordHash, entry.password));
+        const original = phoneSnapshot.find((a) => a.id === account.id);
+        assert.deepEqual(account.warehouseScopeIds, original.warehouseScopeIds);
+        assert.equal(account.accessAllObjects, original.accessAllObjects);
+      }
+      const hashesAfter = await prisma.user.findMany({
+        where: { id: { in: configured.accounts.map((a) => a.id) } },
+        orderBy: { id: "asc" },
+        select: { id: true, passwordHash: true },
+      });
+      assert.equal(
+        (await configureAccounts(prisma, phoneRequest, owner.email)).changed,
+        0,
+      );
+      assert.deepEqual(
+        await prisma.user.findMany({
+          where: { id: { in: configured.accounts.map((a) => a.id) } },
+          orderBy: { id: "asc" },
+          select: { id: true, passwordHash: true },
+        }),
+        hashesAfter,
+      );
+      await assert.rejects(
+        configureAccounts(
+          prisma,
+          { ...phoneRequest, temporaryPassword: "another-test-password" },
+          owner.email,
+        ),
+        /Account changed/,
+      );
+      if (process.env.WORK_ACCOUNTS_VERIFY_API)
+        await verifyPhones(
+          prisma,
+          phoneRequest,
+          configured,
+          process.env.WORK_ACCOUNTS_VERIFY_API,
+        );
+      assert.deepEqual(
+        await prisma.user.findUniqueOrThrow({ where: { id: owner.id } }),
+        before,
+      );
+      assert.equal(await snapshot(), stock);
       const entry = credentials(request)[0];
       const user = result.accounts.find((a) => a.code === entry.code);
       await prisma.user.update({
@@ -160,3 +312,19 @@ test(
     }
   },
 );
+
+test("service phone requests cannot replace arbitrary real phone numbers", () => {
+  const request = {
+    purpose: "configure-six-work-logins-v1",
+    id: randomUUID(),
+    start: 201,
+    temporaryPassword: "654321",
+  };
+  const rows = phoneCredentials(request);
+  assert.equal(rows[0].phone, "+70000000201");
+  assert.equal(rows[5].phone, "+70000000206");
+  assert.throws(() => phoneCredentials({ ...request, start: 100 }));
+  assert.throws(() =>
+    phoneCredentials({ ...request, purpose: "reset-owner-password" }),
+  );
+});
