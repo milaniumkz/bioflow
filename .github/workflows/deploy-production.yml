@@ -152,6 +152,7 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
       - name: Require CI for this exact Collection commit
+        if: inputs.mobile_only != true
         uses: actions/github-script@v7
         with:
           script: |
@@ -214,7 +215,7 @@ jobs:
           values={**data,'keyAlias':data['alias'],'storeFile':str(root/'collection-release.jks')}
           Path('apps/mobile/android/key.properties').write_text('\n'.join(k+'='+values[k] for k in ['storeFile','storePassword','keyPassword','keyAlias'])+'\n')
           PYCODE
-      - name: Build and publish signed Collection APKs
+      - name: Build signed Collection APKs
         env:
           GH_TOKEN: ${{ github.token }}
           ASSET_TAG: ${{ inputs.asset_tag }}
@@ -235,6 +236,28 @@ jobs:
           sha256sum Collection.apk Collection-Driver.apk > SHA256SUMS
           tar -czf collection-apks.tar.gz Collection.apk Collection-Driver.apk
           split -b 24M -d -a 3 collection-apks.tar.gz collection-apks.part-
+      - name: Require CI before publishing mobile-only updates
+        if: inputs.mobile_only == true
+        timeout-minutes: 15
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const sha = require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], {encoding:'utf8'}).trim();
+            for (let attempt=0; attempt<24; attempt++) {
+              const {data}=await github.rest.actions.listWorkflowRuns({owner:context.repo.owner,repo:context.repo.repo,workflow_id:'ci.yml',head_sha:sha,per_page:30});
+              if (data.workflow_runs.some(run=>run.conclusion==='success')) return;
+              if (!data.workflow_runs.some(run=>['queued','in_progress','waiting','pending'].includes(run.status))) return core.setFailed('Mobile application commit did not pass CI');
+              await new Promise(resolve=>setTimeout(resolve,30000));
+            }
+            core.setFailed('CI must finish successfully before publishing APK updates');
+      - name: Publish signed APKs and replace download files atomically
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET_TAG: ${{ inputs.asset_tag }}
+        run: |
+          set -euo pipefail
+          [[ "$ASSET_TAG" =~ ^collection-live-[A-Za-z0-9._-]+$ ]]
+          cd "$RUNNER_TEMP/collection-apks"
           gh release upload "$ASSET_TAG" --repo "$GITHUB_REPOSITORY" collection-apks.part-* SHA256SUMS --clobber
           cd "$GITHUB_WORKSPACE"
           source infrastructure/ci-ssh.sh
