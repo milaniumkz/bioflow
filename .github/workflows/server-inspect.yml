@@ -47,3 +47,11 @@ jobs:
           echo 'First-connection host fingerprint; verify against the provider console before deployment:'
           ssh-keygen -lf "$ssh_dir/known_hosts"
           cat "$ssh_dir/known_hosts"
+      - name: Verify isolated Collection stock and push configuration
+        run: |
+          source infrastructure/ci-ssh.sh
+          if bioflow_ssh "docker inspect collection-live-backend-1 >/dev/null 2>&1"; then
+            bioflow_ssh "docker exec -i collection-live-backend-1 node" < infrastructure/verify-collection-live.cjs
+          else
+            echo 'Collection backend is not deployed yet; no new database queried.'
+          fi
