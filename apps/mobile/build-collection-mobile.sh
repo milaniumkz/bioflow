@@ -16,6 +16,12 @@ python3 scripts/firebase-config.py --role "$role" --platform "$platform" --fireb
 flutter pub get
 flutter analyze
 flutter test
+# Flutter tests register the debug-only integration_test plugin. Regenerate the
+# plugin registry before a release so that it cannot reference that debug code.
+if [[ "$mode" == release ]]; then
+  flutter clean
+  flutter pub get
+fi
 if [[ "$platform" == android ]]; then
   if [[ "$mode" == release ]]; then test -f android/key.properties || { echo 'Provide the owner release signing key' >&2; exit 1; }; fi
   COLLECTION_DRIVER_BUILD=$([[ "$role" == driver ]] && echo true || echo false) \
