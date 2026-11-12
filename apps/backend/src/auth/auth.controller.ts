@@ -1,4 +1,20 @@
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import type { Request, Response } from "express";
+import {
+  assertBrowserOrigin,
+  readBrowserCookie,
+  setBrowserCookie,
+  clearBrowserCookie,
+} from "./browser-session";
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Req,
+  Res,
+} from "@nestjs/common";
 import { ApiBearerAuth, ApiBody, ApiTags } from "@nestjs/swagger";
 import {
   CurrentUser as CurrentUserDecorator,
@@ -25,14 +41,59 @@ export class AuthController {
 
   @Public()
   @Post("login")
-  login(@Body() dto: LoginDto) {
-    return this.auth.login(dto);
+  async login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (dto.platform === "web") assertBrowserOrigin(req);
+    const tokens = await this.auth.login(dto);
+    if (dto.platform === "web") {
+      setBrowserCookie(req, res, tokens.refreshToken);
+      return { ...tokens, browserSession: true };
+    }
+    return tokens;
   }
 
   @Public()
   @Post("refresh")
-  refresh(@Body() dto: RefreshDto) {
-    return this.auth.refresh(dto.refreshToken, dto.deviceId);
+  async refresh(
+    @Body() dto: RefreshDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const browser = readBrowserCookie(req) === dto.refreshToken;
+    if (browser) assertBrowserOrigin(req);
+    const tokens = await this.auth.refresh(dto.refreshToken, dto.deviceId);
+    if (browser) {
+      setBrowserCookie(req, res, tokens.refreshToken);
+      return { ...tokens, browserSession: true };
+    }
+    return tokens;
+  }
+  @Public()
+  @Post("browser-session")
+  @HttpCode(200)
+  browserSession(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    assertBrowserOrigin(req);
+    res.setHeader("Cache-Control", "no-store");
+    return this.auth.browserSession(readBrowserCookie(req));
+  }
+  @Public()
+  @Post("browser-logout")
+  @HttpCode(200)
+  async browserLogout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    assertBrowserOrigin(req);
+    const token = readBrowserCookie(req);
+    if (token) await this.auth.endBrowserSession(token);
+    clearBrowserCookie(req, res);
+    return { ok: true };
   }
 
   @Public()

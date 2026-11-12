@@ -97,6 +97,40 @@ export class AuthService {
     );
   }
 
+  async browserSession(refreshToken: string) {
+    if (!refreshToken) throw new UnauthorizedException("No browser session");
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash: await this.hashToken(refreshToken) },
+      include: { user: true },
+    });
+    if (
+      !stored ||
+      stored.revokedAt ||
+      stored.expiresAt < new Date() ||
+      stored.user.isBlocked
+    )
+      throw new UnauthorizedException("Browser session expired");
+    // A stable HttpOnly credential lets multiple tabs reload without racing token rotation.
+    const accessToken = await this.jwt.signAsync(
+      {
+        sub: stored.userId,
+        organizationId: stored.user.organizationId,
+        deviceId: stored.deviceId ?? undefined,
+        sessionId: stored.id,
+      },
+      {
+        secret: process.env.JWT_ACCESS_SECRET ?? "dev-access",
+        expiresIn: "15m",
+      },
+    );
+    return { accessToken, browserSession: true };
+  }
+  async endBrowserSession(refreshToken: string) {
+    await this.prisma.refreshToken.updateMany({
+      where: { tokenHash: await this.hashToken(refreshToken), revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
   async logoutAll(userId: string) {
     await this.prisma.$transaction([
       this.prisma.refreshToken.updateMany({

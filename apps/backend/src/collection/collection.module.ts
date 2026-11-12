@@ -1,3 +1,5 @@
+import { CollectionAdminController } from "./collection-admin.controller";
+import { CollectionAdminService } from "./collection-admin.service";
 import {
   CollectionTestCleanupController,
   CollectionTestCleanupService,
@@ -183,6 +185,7 @@ class CollectionDriverController {
     CollectionDriverController,
     CollectionRegistrationController,
     CollectionTestCleanupController,
+    CollectionAdminController,
   ],
   providers: [
     CollectionService,
@@ -190,6 +193,7 @@ class CollectionDriverController {
     CollectionTutorialsService,
     CollectionRegistrationService,
     CollectionTestCleanupService,
+    CollectionAdminService,
   ],
   exports: [CollectionService, CollectionDriverService],
 })

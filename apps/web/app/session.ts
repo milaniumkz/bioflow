@@ -4,33 +4,58 @@ let epoch = 0;
 let access = "",
   refresh = "";
 let pending: Promise<boolean> | undefined;
+let browserSession = false;
+let restoring: Promise<string> | undefined;
+const logoutMarker = "collection-web-signed-out";
+const markedOut = () => {
+  try {
+    return window.localStorage.getItem(logoutMarker) === "1";
+  } catch {
+    return false;
+  }
+};
 export function setSession(
   tokens: {
     accessToken: string;
     refreshToken?: string;
+    browserSession?: boolean;
   },
   preserveIdentity = false,
 ) {
   if (!preserveIdentity) epoch++;
   access = tokens.accessToken;
   refresh = tokens.refreshToken ?? "";
+  browserSession =
+    tokens.browserSession ?? (preserveIdentity ? browserSession : false);
+  if (browserSession) {
+    try {
+      window.localStorage.removeItem(logoutMarker);
+    } catch {
+      /* Optional sign-out flag only; tokens are never stored here. */
+    }
+  }
   mobileNotify({ action: "session", sessionId: currentSessionId() });
 }
 export function clearSession() {
   epoch++;
   access = "";
   refresh = "";
+  browserSession = false;
   mobileNotify({ action: "sessionEnded" });
 }
 async function renew() {
-  if (!refresh) return false;
+  if (!refresh && !browserSession) return false;
   const generation = epoch;
   try {
-    const response = await fetch(base + "/auth/refresh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken: refresh }),
-    });
+    const response = await fetch(
+      base + (browserSession ? "/auth/browser-session" : "/auth/refresh"),
+      {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(browserSession ? {} : { refreshToken: refresh }),
+      },
+    );
     if (!response.ok) return false;
     const tokens = await response.json();
     if (generation !== epoch) return false;
@@ -45,11 +70,54 @@ export async function networkFetch(
   init?: RequestInit,
 ) {
   try {
-    return await fetch(input, init);
+    return await fetch(input, { credentials: "include", ...init });
   } catch {
     throw Error(
       "Нет связи с сервером. Проверьте подключение и повторите попытку.",
     );
+  }
+}
+export function restoreBrowserSession(): Promise<string> {
+  if (access) return Promise.resolve(access);
+  if (typeof window === "undefined" || markedOut()) return Promise.resolve("");
+  if (restoring) return restoring;
+  const generation = epoch;
+  restoring = (async () => {
+    try {
+      const r = await networkFetch(base + "/auth/browser-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+        cache: "no-store",
+      });
+      if (!r.ok || generation !== epoch) return "";
+      const tokens = await r.json();
+      if (generation !== epoch) return "";
+      setSession(tokens);
+      return tokens.accessToken as string;
+    } catch {
+      return "";
+    } finally {
+      restoring = undefined;
+    }
+  })();
+  return restoring;
+}
+export async function endBrowserSession() {
+  try {
+    window.localStorage.setItem(logoutMarker, "1");
+  } catch {
+    /* No credentials are stored in browser storage. */
+  }
+  try {
+    await networkFetch(base + "/auth/browser-logout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+      keepalive: true,
+    });
+  } finally {
+    clearSession();
   }
 }
 export async function webRequest<T>(

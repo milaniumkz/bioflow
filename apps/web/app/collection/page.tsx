@@ -15,7 +15,13 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { webRequest, setSession, clearSession } from "../session";
+import {
+  webRequest,
+  setSession,
+  clearSession,
+  restoreBrowserSession,
+  endBrowserSession,
+} from "../session";
 import { createCommandId } from "../command-id.mjs";
 import { mobileNotify, printQr, saveBlob } from "../mobile-bridge";
 import "./collection.css";
@@ -24,6 +30,18 @@ import { RegistrationForm } from "./registration-form";
 import { TutorialPanel } from "./tutorial-panel";
 type Row = Record<string, any>;
 const labels: Record<string, string> = {
+  CANCELLED: "Отменено",
+  AVAILABLE: "Доступен",
+  DELIVERED: "Доставлен",
+  WRITTEN_OFF: "Списан",
+  STOCK_ADJUSTMENT: "Корректировка остатка",
+  BAGS_ADJUSTMENT: "Корректировка бигбегов",
+  BAG_WRITE_OFF: "Списание бигбега",
+  BAG_RESTORE: "Восстановление бигбега",
+  OPERATION_REVERSED: "Отмена операции",
+  TRIP_CANCELLED: "Отмена рейса",
+  SHIPMENT_CANCELLED: "Отмена отправки",
+  ADMIN_TRIP_STAGE: "Изменение этапа рейса",
   RAW: "Немытое",
   WASHED: "Мытое",
   FINISHED: "Готовая продукция",
@@ -69,10 +87,31 @@ export default function CollectionPage() {
   );
 }
 function Portal() {
+  const [restoringLogin, setRestoringLogin] = useState(true);
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
   const client = useQueryClient();
   const [token, setToken] = useState("");
+  useEffect(() => {
+    if (
+      new URLSearchParams(location.search).get("mobile") === "1" ||
+      "BioflowMobile" in window
+    ) {
+      setRestoringLogin(false);
+      return;
+    }
+    let active = true;
+    void restoreBrowserSession()
+      .then((value) => {
+        if (active && value) setToken(value);
+      })
+      .finally(() => {
+        if (active) setRestoringLogin(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
   const [registering, setRegistering] = useState(false);
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
@@ -364,6 +403,12 @@ function Portal() {
             .length,
         0,
       );
+  if (!token && restoringLogin)
+    return (
+      <main className="collection-login">
+        <p role="status">Восстанавливаем вход…</p>
+      </main>
+    );
   if (!token)
     return (
       <main className="collection-login">
@@ -489,10 +534,11 @@ function Portal() {
         <div className="c-account">
           <strong>{profile?.fullName}</strong>
           <small>{roles.map((role) => labels[role] ?? role).join(" · ")}</small>
+          {owner && <a href="/collection/admin">Администрирование ↗</a>}
           <button
             onClick={async () => {
               await call("/auth/logout-all", {}).catch(() => {});
-              clearSession();
+              await endBrowserSession().catch(() => clearSession());
               client.clear();
               setToken("");
               mobileNotify({ action: "signedOut" });
@@ -1710,7 +1756,7 @@ function TripList({
             )}
             {trip.driver ? <TripMap id={trip.id} token={token} /> : null}
             <div className="c-actions">
-              {canQr?.(trip) && onQr ? (
+              {trip.status !== "CANCELLED" && canQr?.(trip) && onQr ? (
                 <button className="secondary" onClick={() => onQr(trip.id)}>
                   Открыть QR
                 </button>

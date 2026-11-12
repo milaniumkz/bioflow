@@ -5,6 +5,7 @@ import {
   Controller,
   Get,
   Injectable,
+  ForbiddenException,
   Post,
 } from "@nestjs/common";
 import {
@@ -29,8 +30,6 @@ import {
   assertCollectionDatabase,
 } from "./collection.service";
 
-const factories = ["FACTORY-ZHANA_AUL", "FACTORY-SEZ"];
-const warehouses = ["HELIOS", "ZHANA_AUL", "EKIBASTUZ", "TEC3"];
 class AccountDto {
   @IsString()
   @MinLength(2)
@@ -59,18 +58,35 @@ export class CollectionRegistrationService {
       where: {
         organizationId: this.organization(),
         active: true,
-        OR: [
-          { kind: "WAREHOUSE", code: { in: warehouses } },
-          { kind: "FACTORY", code: { in: factories } },
-        ],
+        OR: [{ kind: "WAREHOUSE" }, { kind: "FACTORY" }],
       },
       select: { id: true, name: true, kind: true },
       orderBy: { name: "asc" },
     });
-    return { locations };
+    const settings = await this.collection.db.systemSetting.findUnique({
+      where: {
+        organizationId_key: {
+          organizationId: this.organization(),
+          key: "collection.registration.enabled",
+        },
+      },
+    });
+    return { locations, registrationEnabled: settings?.value !== false };
   }
   async register(dto: RegistrationDto) {
     const org = this.organization();
+    const settings = await this.collection.db.systemSetting.findUnique({
+      where: {
+        organizationId_key: {
+          organizationId: org,
+          key: "collection.registration.enabled",
+        },
+      },
+    });
+    if (settings?.value === false)
+      throw new BadRequestException(
+        "Самостоятельная регистрация закрыта. Обратитесь к администратору.",
+      );
     if (
       !["COLLECTOR", "WAREHOUSE_MANAGER", "FACTORY_MANAGER"].includes(dto.role)
     )
@@ -92,7 +108,6 @@ export class CollectionRegistrationService {
                 organizationId: org,
                 active: true,
                 kind: factory ? "FACTORY" : "WAREHOUSE",
-                code: { in: factory ? factories : warehouses },
               },
             }));
           if (!location)
@@ -132,6 +147,8 @@ export class CollectionRegistrationService {
   }
   async owner(dto: AccountDto, actor: CurrentUser) {
     this.collection.require(actor);
+    if (!actor.roles?.includes("OWNER"))
+      throw new ForbiddenException("Создавать владельца может только владелец");
     const passwordHash = await argon2.hash(dto.password);
     return this.collection.db.$transaction(async (tx) => {
       const old = await tx.user.findUnique({
