@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'client.dart';
 import 'collection_registration.dart';
+import 'driver_web_page.dart';
 import 'full_workspace.dart';
 import 'push.dart';
 import 'role_access.dart';
@@ -197,6 +198,15 @@ class _CollectionLoginState extends State<CollectionLogin> {
                                         }
                                       },
                                 child: const Text('Создать аккаунт')),
+                            TextButton(
+                                onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) => const DriverWebPage(
+                                            path: '/collection/privacy',
+                                            title: 'Конфиденциальность'))),
+                                child:
+                                    const Text('Политика конфиденциальности')),
                             if (error.isNotEmpty)
                               Padding(
                                   padding: const EdgeInsets.only(top: 18),
