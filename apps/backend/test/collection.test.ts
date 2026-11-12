@@ -63,7 +63,82 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
   const locations = await db.collectionLocation.findMany({
     where: { organizationId: org.id },
   });
-  assert.equal(locations.length, 4);
+  assert.equal(locations.filter((l) => l.kind === "WAREHOUSE").length, 4);
+  assert.deepEqual(
+    locations
+      .filter((l) => l.kind === "FACTORY")
+      .map((l) => l.name)
+      .sort(),
+    ["Жана-аул", "СЭЗ"],
+  );
+  const { CollectionRegistrationService } =
+    await import("../src/collection/collection-registration");
+  const registration = new CollectionRegistrationService(
+    new CollectionService(db),
+  );
+  const opts = await registration.options();
+  assert.equal(opts.locations.length, 6);
+  const signup = await registration.register({
+    fullName: "Новый сборщик",
+    phone: "+799" + Date.now().toString().slice(-8),
+    password: "123456",
+    role: "COLLECTOR",
+  });
+  const signupUser = await db.user.findUniqueOrThrow({
+    where: { id: signup.id },
+    include: { userRoles: { include: { role: true } } },
+  });
+  assert.equal(signupUser.mustChangePassword, false);
+  assert.equal(signupUser.accessAllObjects, false);
+  assert.ok(await argon2.verify(signupUser.passwordHash, "123456"));
+  assert.deepEqual(
+    signupUser.userRoles.map((r) => r.role.code),
+    ["COLLECTOR"],
+  );
+  await assert.rejects(
+    registration.register({
+      fullName: "Повтор",
+      phone: signup.phone!,
+      password: "123456",
+      role: "COLLECTOR",
+    }),
+  );
+  await assert.rejects(
+    registration.register({
+      fullName: "Недопустимая роль",
+      phone: "+79900000009",
+      password: "123456",
+      role: "OWNER",
+    }),
+  );
+  await assert.rejects(
+    registration.register({
+      fullName: "Чужой объект",
+      phone: "+79900000008",
+      password: "123456",
+      role: "FACTORY_MANAGER",
+      locationId: locations.find((l) => l.kind === "WAREHOUSE")!.id,
+    }),
+  );
+  for (const kind of ["WAREHOUSE", "FACTORY"]) {
+    const site = locations.find((l) => l.kind === kind)!;
+    const account = await registration.register({
+      fullName: "Ответственный",
+      phone:
+        "+798" +
+        (kind === "FACTORY" ? "1" : "2") +
+        Date.now().toString().slice(-7),
+      password: "123456",
+      role: kind === "FACTORY" ? "FACTORY_MANAGER" : "WAREHOUSE_MANAGER",
+      locationId: site.id,
+    });
+    assert.equal(
+      await db.collectionMembership.count({
+        where: { userId: account.id, locationId: site.id },
+      }),
+      1,
+    );
+  }
   const helios = locations.find((l) => l.code === "HELIOS")!;
   const zhana = locations.find((l) => l.code === "ZHANA_AUL")!;
   const opening = await db.collectionBatch.groupBy({

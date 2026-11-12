@@ -24,6 +24,16 @@ export async function bootstrapCollection(db: PrismaClient) {
       create: { organizationId: org.id, code, name, kind: "WAREHOUSE" },
     });
   }
+  for (const [code, name] of [
+    ["FACTORY-ZHANA_AUL", "Жана-аул"],
+    ["FACTORY-SEZ", "СЭЗ"],
+  ]) {
+    await db.collectionLocation.upsert({
+      where: { organizationId_code: { organizationId: org.id, code } },
+      update: {},
+      create: { organizationId: org.id, code, name, kind: "FACTORY" },
+    });
+  }
   const permission = await db.permission.upsert({
     where: { code: "notifications.read" },
     update: {},

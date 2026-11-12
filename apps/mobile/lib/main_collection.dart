@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'client.dart';
+import 'collection_registration.dart';
 import 'full_workspace.dart';
 import 'push.dart';
 import 'role_access.dart';
@@ -180,6 +181,21 @@ class _CollectionLoginState extends State<CollectionLogin> {
                                     child: Text(busy
                                         ? 'Входим…'
                                         : 'Войти в Collection'))),
+                            TextButton(
+                                onPressed: busy
+                                    ? null
+                                    : () async {
+                                        final registered =
+                                            await Navigator.push<bool>(
+                                                context,
+                                                MaterialPageRoute(
+                                                    builder: (_) =>
+                                                        CollectionRegistration(
+                                                            client: client)));
+                                        if (registered == true && mounted)
+                                          await open();
+                                      },
+                                child: const Text('Создать аккаунт')),
                             if (error.isNotEmpty)
                               Padding(
                                   padding: const EdgeInsets.only(top: 18),

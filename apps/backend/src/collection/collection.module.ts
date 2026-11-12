@@ -1,3 +1,11 @@
+import {
+  CollectionTestCleanupController,
+  CollectionTestCleanupService,
+} from "./collection-test-cleanup";
+import {
+  CollectionRegistrationController,
+  CollectionRegistrationService,
+} from "./collection-registration";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { CollectionTutorialsService } from "./collection-tutorials.service";
 import {
@@ -170,11 +178,18 @@ class CollectionDriverController {
   }
 }
 @Module({
-  controllers: [CollectionController, CollectionDriverController],
+  controllers: [
+    CollectionController,
+    CollectionDriverController,
+    CollectionRegistrationController,
+    CollectionTestCleanupController,
+  ],
   providers: [
     CollectionService,
     CollectionDriverService,
     CollectionTutorialsService,
+    CollectionRegistrationService,
+    CollectionTestCleanupService,
   ],
   exports: [CollectionService, CollectionDriverService],
 })

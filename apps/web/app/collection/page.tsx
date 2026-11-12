@@ -19,6 +19,7 @@ import { createCommandId } from "../command-id.mjs";
 import { mobileNotify, printQr, saveBlob } from "../mobile-bridge";
 import "./collection.css";
 import { TripMap } from "./trip-map";
+import { RegistrationForm } from "./registration-form";
 import { TutorialPanel } from "./tutorial-panel";
 type Row = Record<string, any>;
 const labels: Record<string, string> = {
@@ -71,6 +72,7 @@ function Portal() {
   useEffect(() => setHydrated(true), []);
   const client = useQueryClient();
   const [token, setToken] = useState("");
+  const [registering, setRegistering] = useState(false);
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [tab, setTab] = useState("");
@@ -174,6 +176,15 @@ function Portal() {
   useEffect(() => {
     if (qr && !dialog.current?.open) dialog.current?.showModal();
   }, [qr]);
+  async function registered(phone: string, newPassword: string) {
+    const data = await webRequest<Row>("/auth/login", undefined, {
+      method: "POST",
+      body: JSON.stringify({ phone, password: newPassword, platform: "web" }),
+    });
+    setSession(data as { accessToken: string; refreshToken: string });
+    setToken(data.accessToken);
+    setRegistering(false);
+  }
   async function authenticate(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
@@ -358,58 +369,72 @@ function Portal() {
         <div className="collection-wordmark">
           collection<span>операционный учёт</span>
         </div>
-        <form onSubmit={authenticate}>
-          <p className="eyebrow">РАБОЧИЙ КОНТУР</p>
-          <h1>
-            Всё движение.
-            <br />В одном месте.
-          </h1>
-          <p>
-            Сбор, склады, производство и доставка — с подтверждением каждого
-            этапа.
-          </p>
-          <label>
-            Телефон или email
-            <input
-              autoComplete="username"
-              disabled={!hydrated}
-              value={login}
-              onChange={(event) => setLogin(event.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Пароль
-            <input
-              type="password"
-              autoComplete="current-password"
-              disabled={!hydrated}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-          </label>
-          <button disabled={busy || !hydrated}>
-            {busy ? "Входим…" : "Войти в Collection →"}
-          </button>
-          {error ? (
-            <p role="alert" className="c-error">
-              {error}
+        {registering ? (
+          <RegistrationForm
+            onRegistered={registered}
+            onCancel={() => setRegistering(false)}
+          />
+        ) : (
+          <form onSubmit={authenticate}>
+            <p className="eyebrow">РАБОЧИЙ КОНТУР</p>
+            <h1>
+              Всё движение.
+              <br />В одном месте.
+            </h1>
+            <p>
+              Сбор, склады, производство и доставка — с подтверждением каждого
+              этапа.
             </p>
-          ) : null}
-          <small>
-            Для водителя — отдельное приложение Collection Driver. Здесь входят
-            сборщики, ответственные складов, заводы и владелец.
-          </small>
-          <div className="c-downloads">
-            <a href="/downloads/Collection.apk">
-              Скачать Collection для Android
-            </a>
-            <a href="/downloads/Collection-Driver.apk">
-              Скачать Collection Driver
-            </a>
-          </div>
-        </form>
+            <label>
+              Телефон или email
+              <input
+                autoComplete="username"
+                disabled={!hydrated}
+                value={login}
+                onChange={(event) => setLogin(event.target.value)}
+                required
+              />
+            </label>
+            <label>
+              Пароль
+              <input
+                type="password"
+                autoComplete="current-password"
+                disabled={!hydrated}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+              />
+            </label>
+            <button disabled={busy || !hydrated}>
+              {busy ? "Входим…" : "Войти в Collection →"}
+            </button>
+            {error ? (
+              <p role="alert" className="c-error">
+                {error}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              disabled={busy || !hydrated}
+              onClick={() => setRegistering(true)}
+            >
+              Создать аккаунт
+            </button>
+            <small>
+              Для водителя — отдельное приложение Collection Driver. Здесь
+              входят сборщики, ответственные складов, заводы и владелец.
+            </small>
+            <div className="c-downloads">
+              <a href="/downloads/Collection.apk">
+                Скачать Collection для Android
+              </a>
+              <a href="/downloads/Collection-Driver.apk">
+                Скачать Collection Driver
+              </a>
+            </div>
+          </form>
+        )}
       </main>
     );
   if (me.isPending)
