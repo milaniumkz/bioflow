@@ -119,6 +119,10 @@ export class CollectionDriverService implements OnModuleInit, OnModuleDestroy {
         token: dto.clientToken,
         expiresAt: session.expiresAt,
         waybillNumber: trip.number,
+        weightKg: trip.weightKg,
+        bagCount: trip.bagCount,
+        phone: session.driverPhone,
+        serverTime: new Date().toISOString(),
         warehouse:
           warehouse?.name ?? `${trip.recipientName}, ${trip.recipientAddress}`,
         plateNumber: session.driverPlate,

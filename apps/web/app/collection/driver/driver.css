@@ -1,0 +1,257 @@
+.dw-page {
+  padding: 24px 16px 70px;
+}
+.dw-wrap {
+  max-width: 740px;
+  margin: 0 auto;
+}
+.dw-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 22px;
+  gap: 12px;
+}
+.dw-header > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.dw-header img {
+  border-radius: 12px;
+}
+.dw-header span {
+  font-size: 20px;
+  color: #17684f;
+  letter-spacing: -0.7px;
+}
+.dw-header small {
+  display: block;
+  font-size: 11px;
+  color: #71817b;
+  letter-spacing: 0;
+  margin-top: 3px;
+}
+.dw-header b {
+  font-size: 10px;
+  border-radius: 20px;
+  padding: 5px 9px;
+  white-space: nowrap;
+}
+.dw-online {
+  background: #e0efe5;
+  color: #1b7650;
+}
+.dw-offline {
+  background: #fff0d3;
+  color: #8e6c21;
+}
+.dw-browser-note {
+  padding: 14px 16px;
+  border: 1px solid #d8e4dc;
+  border-radius: 12px;
+  background: #eaf1e8;
+  font-size: 12px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+  color: #385b4c;
+}
+.dw-card {
+  background: #fff;
+  border: 1px solid #e0e8e2;
+  padding: 26px;
+  border-radius: 18px;
+  margin-bottom: 18px;
+}
+.collection-app .dw-card h1 {
+  font-size: 32px;
+  overflow-wrap: anywhere;
+}
+.dw-scan-buttons {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin: 22px 0 8px;
+}
+.collection-app .dw-scan-buttons button {
+  font-size: 13px;
+  flex: 1;
+  white-space: nowrap;
+}
+.dw-page textarea {
+  width: 100%;
+  display: block;
+  border: 1px solid #ccd9d1;
+  border-radius: 8px;
+  padding: 12px;
+  font: inherit;
+  font-size: 12px;
+  color: #18372f;
+  background: white;
+  resize: vertical;
+  margin-top: 7px;
+}
+.dw-page .dw-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-weight: 400;
+  font-size: 12px;
+  margin: 22px 0;
+  color: #526b5f;
+}
+.dw-page .dw-consent input {
+  width: 18px;
+  min-height: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin: 0;
+  accent-color: #17684f;
+  padding: 0;
+}
+.collection-app .dw-main-button {
+  width: 100%;
+  margin-top: 6px;
+  min-height: 50px;
+}
+.dw-message {
+  background: #e5f2e8;
+  color: #246a47;
+  padding: 12px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.dw-trip-meta {
+  display: flex;
+  gap: 9px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #657d70;
+}
+.dw-trip-meta span {
+  background: #f1f5ef;
+  padding: 6px 9px;
+  border-radius: 8px;
+}
+.dw-destination {
+  font-size: 18px;
+  line-height: 1.4;
+}
+.collection-app .dw-stage {
+  margin: 26px 0 18px;
+  padding-top: 20px;
+  border-top: 1px solid #e2eae3;
+  font-size: 23px;
+}
+.dw-step-buttons button {
+  width: 100%;
+  min-height: 56px;
+  font-size: 19px;
+}
+.collection-app .dw-gps {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #607a6b;
+  margin-top: 20px;
+}
+.collection-app .dw-stop {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #9c4c40;
+  background: #faf3ee;
+}
+.dw-sync {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+.dw-sync > span {
+  font-size: 11px;
+  color: #71817b;
+}
+.dw-sync strong {
+  display: block;
+  font-size: 30px;
+  color: #1e4e3c;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-top: 8px;
+}
+.dw-card > .c-muted {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.dw-map-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.collection-app .dw-map-buttons button {
+  font-size: 12px;
+}
+.dw-footer {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  font-size: 12px;
+  margin-top: 25px;
+}
+.dw-scanner {
+  position: fixed;
+  inset: 0;
+  background: #0d241edb;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.dw-scanner > div {
+  width: min(540px, 100%);
+  background: white;
+  padding: 20px;
+  border-radius: 16px;
+  max-height: 95vh;
+  overflow: auto;
+}
+.dw-scanner video {
+  width: 100%;
+  max-height: 62vh;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #122b22;
+  margin: 10px 0;
+}
+.dw-scanner p {
+  color: #9c4238;
+  font-size: 13px;
+}
+.dw-scanner button {
+  width: 100%;
+}
+@media (max-width: 500px) {
+  .dw-page {
+    padding: 18px 12px 65px;
+  }
+  .dw-card {
+    padding: 22px 18px;
+  }
+  .collection-app .dw-card h1 {
+    font-size: 29px;
+  }
+  .dw-header span {
+    font-size: 18px;
+  }
+  .collection-app .dw-scan-buttons button {
+    font-size: 12px;
+    padding: 11px 10px;
+  }
+  .dw-browser-note {
+    font-size: 11px;
+  }
+}
+
+.dw-scan-buttons input[type="file"] {
+  display: none;
+}

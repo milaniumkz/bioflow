@@ -18,6 +18,7 @@ export function InstallPrompt() {
   const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
+    if (location.pathname.startsWith("/collection/admin")) return;
     if (
       new URLSearchParams(location.search).get("mobile") === "1" ||
       "BioflowMobile" in window

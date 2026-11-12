@@ -4,13 +4,17 @@ export async function bootstrapCollection(db: PrismaClient) {
   assertCollectionDatabase();
   const organizationId =
     process.env.COLLECTION_ORGANIZATION_ID ?? "collection-live";
-  const org = await db.organization.upsert({
+  await db.organization.createMany({
+    data: [
+      {
+        id: organizationId,
+        name: process.env.COLLECTION_ORGANIZATION_NAME ?? "Collection",
+      },
+    ],
+    skipDuplicates: true,
+  });
+  const org = await db.organization.findUniqueOrThrow({
     where: { id: organizationId },
-    update: {},
-    create: {
-      id: organizationId,
-      name: process.env.COLLECTION_ORGANIZATION_NAME ?? "Collection",
-    },
   });
   for (const [code, name] of [
     ["HELIOS", "Гелиос"],
@@ -18,29 +22,30 @@ export async function bootstrapCollection(db: PrismaClient) {
     ["EKIBASTUZ", "Экибастуз"],
     ["TEC3", "ТЭЦ-3"],
   ]) {
-    await db.collectionLocation.upsert({
-      where: { organizationId_code: { organizationId: org.id, code } },
-      update: {},
-      create: { organizationId: org.id, code, name, kind: "WAREHOUSE" },
+    await db.collectionLocation.createMany({
+      data: [{ organizationId: org.id, code, name, kind: "WAREHOUSE" }],
+      skipDuplicates: true,
     });
   }
   for (const [code, name] of [
     ["FACTORY-ZHANA_AUL", "Жана-аул"],
     ["FACTORY-SEZ", "СЭЗ"],
   ]) {
-    await db.collectionLocation.upsert({
-      where: { organizationId_code: { organizationId: org.id, code } },
-      update: {},
-      create: { organizationId: org.id, code, name, kind: "FACTORY" },
+    await db.collectionLocation.createMany({
+      data: [{ organizationId: org.id, code, name, kind: "FACTORY" }],
+      skipDuplicates: true,
     });
   }
-  const permission = await db.permission.upsert({
+  await db.permission.createMany({
+    data: [{ code: "notifications.read", name: "Уведомления" }],
+    skipDuplicates: true,
+  });
+  const permission = await db.permission.findUniqueOrThrow({
     where: { code: "notifications.read" },
-    update: {},
-    create: { code: "notifications.read", name: "Уведомления" },
   });
   for (const [code, name] of [
     ["OWNER", "Владелец"],
+    ["ADMIN", "Администратор"],
     ["COLLECTOR", "Сборщик"],
     ["WAREHOUSE_MANAGER", "Ответственный склада"],
     ["FACTORY_MANAGER", "Ответственный завода"],
@@ -50,12 +55,9 @@ export async function bootstrapCollection(db: PrismaClient) {
       update: { name },
       create: { code, name },
     });
-    await db.rolePermission.upsert({
-      where: {
-        roleId_permissionId: { roleId: role.id, permissionId: permission.id },
-      },
-      update: {},
-      create: { roleId: role.id, permissionId: permission.id },
+    await db.rolePermission.createMany({
+      data: [{ roleId: role.id, permissionId: permission.id }],
+      skipDuplicates: true,
     });
   }
   // User accounts and passwords are intentionally not created.
