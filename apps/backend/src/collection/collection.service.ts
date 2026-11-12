@@ -809,14 +809,27 @@ export class CollectionService {
       },
     });
     if (!trip) throw new NotFoundException();
-    const saved = await this.db.collectionCommand.findFirst({
+    const responses = await this.db.collectionCommand.findMany({
       where: {
         organizationId: user.organizationId,
         response: { path: ["id"], equals: id },
       },
     });
+    const saved = responses.find(
+      ({ response }) =>
+        response &&
+        typeof response === "object" &&
+        !Array.isArray(response) &&
+        typeof response.qrToken === "string" &&
+        typeof response.qrImage === "string",
+    );
     if (!saved) throw new NotFoundException("QR не найден");
-    return saved.response;
+    return {
+      ...(saved.response as Record<string, Prisma.JsonValue>),
+      weightKg: trip.weightKg.toString(),
+      bagCount: trip.bagCount,
+      status: trip.status,
+    };
   }
   factory(dto: CollectionFactoryDto, user: CurrentUser) {
     this.require(user);

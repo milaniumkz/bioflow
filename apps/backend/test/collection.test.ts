@@ -865,6 +865,14 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
     { ...correction, idempotencyKey: key() },
     owner.token,
   );
+  const correctedQr = await request(
+    "/collection/trips/" + mistaken.id + "/qr",
+    200,
+    undefined,
+    collector.token,
+  );
+  assert.equal(correctedQr.weightKg, "20000");
+  assert.equal(correctedQr.qrToken, mistaken.qrToken);
   const correctedBatch = await db.collectionBatch.findFirstOrThrow({
     where: { sourceType: "TRIP", sourceId: mistaken.id, state: "RAW" },
   });
