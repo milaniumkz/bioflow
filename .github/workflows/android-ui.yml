@@ -10,6 +10,10 @@ on:
         description: "Record each Driver instruction on a disposable emulator with synthetic data"
         type: boolean
         default: false
+      apk_release_tag:
+        description: "Release containing checksums of the published Collection APKs"
+        type: string
+        default: "collection-live-20261112-onboarding"
       apk_install_only:
         description: "Install and upgrade the published Collection APKs on disposable emulators"
         type: boolean
@@ -142,17 +146,19 @@ jobs:
       - name: Download published APKs and original signed release
         env:
           GH_TOKEN: ${{ github.token }}
+          APK_RELEASE_TAG: ${{ inputs.apk_release_tag }}
         run: |
           set -euo pipefail
+          [[ "$APK_RELEASE_TAG" =~ ^collection-live-[A-Za-z0-9._-]+$ ]]
           mkdir -p "$COLLECTION_APK_TEST_DIR/old" "$COLLECTION_APK_TEST_DIR/new"
           gh release download collection-live-8fe9f33 --repo "$GITHUB_REPOSITORY" --pattern 'collection-apks.part-*' --pattern SHA256SUMS --dir "$COLLECTION_APK_TEST_DIR/old"
           cat "$COLLECTION_APK_TEST_DIR/old"/collection-apks.part-* > "$COLLECTION_APK_TEST_DIR/old/bundle.tar.gz"
           tar -xzf "$COLLECTION_APK_TEST_DIR/old/bundle.tar.gz" -C "$COLLECTION_APK_TEST_DIR/old" Collection.apk Collection-Driver.apk
           (cd "$COLLECTION_APK_TEST_DIR/old" && sha256sum -c SHA256SUMS)
           for name in Collection Collection-Driver; do
-            curl --fail --location --retry 3 "https://release.109.235.118.171.sslip.io/downloads/$name.apk" -o "$COLLECTION_APK_TEST_DIR/new/$name.apk"
+            curl --fail --location --retry 3 "https://release.109.235.118.171.sslip.io/downloads/$name.apk?verify=${{ github.run_id }}" -o "$COLLECTION_APK_TEST_DIR/new/$name.apk"
           done
-          gh release download collection-live-maps-51828f9 --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --dir "$COLLECTION_APK_TEST_DIR/new"
+          gh release download "$APK_RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --dir "$COLLECTION_APK_TEST_DIR/new"
           (cd "$COLLECTION_APK_TEST_DIR/new" && sha256sum -c SHA256SUMS)
       - name: Enable disposable emulator acceleration
         run: |
