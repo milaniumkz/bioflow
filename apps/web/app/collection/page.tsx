@@ -585,6 +585,48 @@ function Portal() {
         ) : null}
         {selected === "overview" || selected === "stock" ? (
           <>
+            {factory && !owner && editable("FACTORY").length > 0 ? (
+              <>
+                {editable("FACTORY").some(
+                  (site) =>
+                    !(data?.factoryOpenings ?? []).some(
+                      (row: Row) => row.locationId === site.id,
+                    ),
+                ) ? (
+                  <ProductionForm
+                    key={editable("FACTORY")
+                      .filter(
+                        (site) =>
+                          !(data.factoryOpenings ?? []).some(
+                            (row: Row) => row.locationId === site.id,
+                          ),
+                      )
+                      .map((site) => site.id)
+                      .join(",")}
+                    opening
+                    locations={editable("FACTORY").filter(
+                      (site) =>
+                        !(data?.factoryOpenings ?? []).some(
+                          (row: Row) => row.locationId === site.id,
+                        ),
+                    )}
+                    busy={busy}
+                    onSubmit={(values) =>
+                      void submit(
+                        "/collection/factory-opening",
+                        values,
+                        "Начальные остатки сохранены. Повторный ввод закрыт.",
+                      )
+                    }
+                  />
+                ) : (
+                  <p className="c-note" role="status">
+                    Начальные остатки сохранены. Повторный ввод закрыт. Для
+                    исправления обратитесь к владельцу.
+                  </p>
+                )}
+              </>
+            ) : null}
             <div className="c-stats">
               {[
                 ["RAW", "Немытое сырьё"],
@@ -1491,12 +1533,18 @@ function ProductionForm({
   locations,
   busy,
   onSubmit,
+  opening = false,
 }: {
+  opening?: boolean;
   locations: Row[];
   busy: boolean;
   onSubmit: (values: Row) => void;
 }) {
-  const [locationId, setLocation] = useState("");
+  const [locationId, setLocation] = useState(
+    locations.length === 1 ? locations[0].id : "",
+  );
+  const [washed, setWashed] = useState("0");
+  const [confirmed, setConfirmed] = useState(false);
   const [finished, setFinished] = useState<string[]>([]);
   const [rejected, setRejected] = useState<string[]>([]);
   const total = [...finished, ...rejected].reduce(
@@ -1510,12 +1558,36 @@ function ProductionForm({
         event.preventDefault();
         onSubmit({
           locationId,
+          ...(opening ? { washedKg: tonnesToKg(washed) } : {}),
           finished: finished.map((value) => ({ weightKg: tonnesToKg(value) })),
           rejected: rejected.map((value) => ({ weightKg: tonnesToKg(value) })),
         });
       }}
     >
-      <h2>Создать ГП и некондицию</h2>
+      <h2>
+        {opening
+          ? "Внести начальные остатки завода"
+          : "Создать ГП и некондицию"}
+      </h2>
+      {opening ? (
+        <>
+          <p>
+            Введите все позиции сразу. Остатки добавятся к уже учтённым
+            поступлениям. Сохранить можно только один раз для завода.
+          </p>
+          <label>
+            Мытое сырьё, тонн
+            <input
+              type="number"
+              min="0"
+              step="0.000001"
+              required
+              value={washed}
+              onChange={(e) => setWashed(e.target.value)}
+            />
+          </label>
+        </>
+      ) : null}
       <Select
         label="Завод"
         items={locations}
@@ -1535,11 +1607,27 @@ function ProductionForm({
           onChange={setRejected}
         />
       </div>
-      <p>
-        Из мытого сырья будет списано: <b>{formatTonnes(total)} т</b>. Вес
-        выпуска и некондиции должен укладываться в доступное сырьё.
-      </p>
-      <button disabled={busy || total <= 0}>Подтвердить выпуск</button>
+      {opening ? (
+        <label className="c-check">
+          <input
+            type="checkbox"
+            checked={confirmed}
+            onChange={(e) => setConfirmed(e.target.checked)}
+            required
+          />
+          Все остатки проверены. После сохранения повторный ввод будет закрыт.
+        </label>
+      ) : (
+        <p>
+          Из мытого сырья будет списано: <b>{formatTonnes(total)} т</b>. Вес
+          выпуска и некондиции должен укладываться в доступное сырьё.
+        </p>
+      )}
+      <button disabled={busy || (opening ? !confirmed : total <= 0)}>
+        {opening
+          ? "Сохранить начальные остатки один раз"
+          : "Подтвердить выпуск"}
+      </button>
     </form>
   );
 }

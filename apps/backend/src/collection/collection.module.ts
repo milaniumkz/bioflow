@@ -1,3 +1,4 @@
+import { CollectionOpeningService } from "./collection-opening.service";
 import { CollectionAdminController } from "./collection-admin.controller";
 import { CollectionAdminService } from "./collection-admin.service";
 import {
@@ -31,6 +32,7 @@ import { ClaimDriverDto, DriverPointsDto } from "./collection-driver.dto";
 import { CollectionService } from "./collection.service";
 import { CollectionDriverService } from "./collection-driver.service";
 import {
+  CollectionOpeningDto,
   CollectionGpTripDto,
   CollectionWeightCorrectionDto,
   CollectionCommandDto,
@@ -45,6 +47,7 @@ import {
 class CollectionController {
   constructor(
     private readonly service: CollectionService,
+    private readonly opening: CollectionOpeningService,
     private readonly tutorials: CollectionTutorialsService,
   ) {}
   @Get("tutorials") videos(@User() user: CurrentUser) {
@@ -72,6 +75,12 @@ class CollectionController {
       },
       file?.buffer ?? Buffer.alloc(0),
     );
+  }
+  @Post("factory-opening") openingStock(
+    @Body() dto: CollectionOpeningDto,
+    @User() user: CurrentUser,
+  ) {
+    return this.opening.save(dto, user);
   }
   @Get("state") state(@User() user: CurrentUser) {
     return this.service.state(user);
@@ -189,6 +198,7 @@ class CollectionDriverController {
   ],
   providers: [
     CollectionService,
+    CollectionOpeningService,
     CollectionDriverService,
     CollectionTutorialsService,
     CollectionRegistrationService,

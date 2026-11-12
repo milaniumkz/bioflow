@@ -994,7 +994,16 @@ export class CollectionService {
           },
         }),
       ]);
+    const factoryOpenings = await this.db.systemSetting.findMany({
+      where: {
+        organizationId: user.organizationId,
+        key: { startsWith: "collection.factory-opening." },
+      },
+    });
     return {
+      factoryOpenings: factoryOpenings
+        .map((row) => row.value)
+        .filter((row: any) => owner || assigned.includes(row.locationId)),
       locations: locations.filter(
         (l) =>
           owner ||

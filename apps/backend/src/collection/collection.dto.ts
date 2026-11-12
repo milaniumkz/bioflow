@@ -71,3 +71,7 @@ export class CollectionWeightCorrectionDto extends CollectionCommandDto {
   @IsString() @Matches(/^\d{1,10}(\.\d{1,3})?$/) expectedWeightKg!: string;
   @IsString() @Length(10, 500) reason!: string;
 }
+
+export class CollectionOpeningDto extends CollectionProductionDto {
+  @IsString() @Matches(/^\d{1,10}(\.\d{1,3})?$/) washedKg!: string;
+}
