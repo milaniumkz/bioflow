@@ -261,6 +261,17 @@ jobs:
           gh release upload "$ASSET_TAG" --repo "$GITHUB_REPOSITORY" collection-apks.part-* SHA256SUMS --clobber
           cd "$GITHUB_WORKSPACE"
           source infrastructure/ci-ssh.sh
+      - name: Publish versioned APK files before updating web links
+        if: inputs.web_only != true
+        run: |
+          set -euo pipefail
+          source infrastructure/ci-ssh.sh
+          sha=$(git rev-parse HEAD)
+          apk_version=$(sed -n 's/^version: \([0-9.]*\)+.*/\1/p' apps/mobile/pubspec.yaml)
+          [[ "$apk_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          bioflow_ssh "mkdir -p /opt/collection-live/incoming/mobile-$sha"
+          bioflow_scp "$RUNNER_TEMP/collection-apks/Collection.apk" "$RUNNER_TEMP/collection-apks/Collection-Driver.apk" "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/incoming/mobile-$sha/"
+          bioflow_ssh "chmod 0644 /opt/collection-live/incoming/mobile-$sha/*.apk && cp /opt/collection-live/incoming/mobile-$sha/Collection.apk /opt/collection-live/shared/downloads/Collection-$apk_version.apk.tmp && cp /opt/collection-live/incoming/mobile-$sha/Collection-Driver.apk /opt/collection-live/shared/downloads/Collection-Driver-$apk_version.apk.tmp && mv -f /opt/collection-live/shared/downloads/Collection-$apk_version.apk.tmp /opt/collection-live/shared/downloads/Collection-$apk_version.apk && mv -f /opt/collection-live/shared/downloads/Collection-Driver-$apk_version.apk.tmp /opt/collection-live/shared/downloads/Collection-Driver-$apk_version.apk"
       - name: Remove temporary signing credentials
         if: always()
         run: rm -rf "$RUNNER_TEMP/collection-mobile" apps/mobile/android/key.properties
@@ -277,11 +288,7 @@ jobs:
           set -euo pipefail
           source infrastructure/ci-ssh.sh
           sha=$(git rev-parse HEAD)
-          bioflow_ssh "mkdir -p /opt/collection-live/incoming/mobile-$sha"
-          bioflow_scp "$RUNNER_TEMP/collection-apks/Collection.apk" "$RUNNER_TEMP/collection-apks/Collection-Driver.apk" "$PROD_SSH_USER@$PROD_SSH_HOST:/opt/collection-live/incoming/mobile-$sha/"
-          apk_version=$(sed -n 's/^version: \([0-9.]*\)+.*/\1/p' apps/mobile/pubspec.yaml)
-          [[ "$apk_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          bioflow_ssh "chmod 0644 /opt/collection-live/incoming/mobile-$sha/*.apk && cp /opt/collection-live/incoming/mobile-$sha/Collection.apk /opt/collection-live/shared/downloads/Collection-$apk_version.apk.tmp && cp /opt/collection-live/incoming/mobile-$sha/Collection-Driver.apk /opt/collection-live/shared/downloads/Collection-Driver-$apk_version.apk.tmp && mv -f /opt/collection-live/shared/downloads/Collection-$apk_version.apk.tmp /opt/collection-live/shared/downloads/Collection-$apk_version.apk && mv -f /opt/collection-live/shared/downloads/Collection-Driver-$apk_version.apk.tmp /opt/collection-live/shared/downloads/Collection-Driver-$apk_version.apk && mv -f /opt/collection-live/incoming/mobile-$sha/Collection.apk /opt/collection-live/shared/downloads/Collection.apk && mv -f /opt/collection-live/incoming/mobile-$sha/Collection-Driver.apk /opt/collection-live/shared/downloads/Collection-Driver.apk"
+          bioflow_ssh "mv -f /opt/collection-live/incoming/mobile-$sha/Collection.apk /opt/collection-live/shared/downloads/Collection.apk && mv -f /opt/collection-live/incoming/mobile-$sha/Collection-Driver.apk /opt/collection-live/shared/downloads/Collection-Driver.apk"
       - name: Verify new public link and old contour
         run: |
           curl --fail --retry 8 --retry-delay 5 https://release.109.235.118.171.sslip.io/api/v1/health
