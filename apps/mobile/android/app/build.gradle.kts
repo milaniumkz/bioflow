@@ -55,6 +55,13 @@ android {
             }
         }
     }
+    packaging {
+        jniLibs {
+            // Extract native libraries at installation instead of mmap from the APK.
+            // Compatible with Android installers that cannot handle in-place native libraries.
+            useLegacyPackaging = true
+        }
+    }
     buildTypes {
         debug { manifestPlaceholders["allowCleartext"] = "true" }
         release {

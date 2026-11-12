@@ -1,4 +1,5 @@
 "use client";
+import { collectionApk, driverApk } from "./apk-downloads";
 import { tonnesToKg, kgAsTonnes, formatTonnes } from "./weight-units";
 import {
   useEffect,
@@ -426,12 +427,8 @@ function Portal() {
               входят сборщики, ответственные складов, заводы и владелец.
             </small>
             <div className="c-downloads">
-              <a href="/downloads/Collection.apk">
-                Скачать Collection для Android
-              </a>
-              <a href="/downloads/Collection-Driver.apk">
-                Скачать Collection Driver
-              </a>
+              <a href={collectionApk}>Скачать Collection для Android</a>
+              <a href={driverApk}>Скачать Collection Driver</a>
             </div>
           </form>
         )}

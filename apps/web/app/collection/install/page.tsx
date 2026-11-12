@@ -1,3 +1,4 @@
+import { collectionApk, driverApk } from "../apk-downloads";
 export default function InstallGuide() {
   return (
     <main
@@ -12,11 +13,8 @@ export default function InstallGuide() {
       <h2>Android</h2>
       <p>
         Скачайте приложение:{" "}
-        <a href="/downloads/Collection.apk">Collection — для сотрудников</a> или{" "}
-        <a href="/downloads/Collection-Driver.apk">
-          Collection Driver — для водителя
-        </a>
-        .
+        <a href={collectionApk}>Collection — для сотрудников</a> или{" "}
+        <a href={driverApk}>Collection Driver — для водителя</a>.
       </p>
       <ol>
         <li>Откройте скачанный APK в «Загрузках».</li>

@@ -1,5 +1,6 @@
 "use client";
 
+import { collectionApk, driverApk } from "./apk-downloads";
 import { useEffect, useRef, useState } from "react";
 
 type InstallEvent = Event & {
@@ -141,13 +142,22 @@ export function InstallPrompt() {
         )}
         {canInstall && (
           <button type="button" onClick={() => void install()}>
-            Установить приложение
+            Добавить веб-версию на главный экран
           </button>
         )}
         {error && <p role="status">{error}</p>}
-        <p>
-          <a href="/collection/install">Инструкция и APK для Android →</a>
-        </p>
+        {!ios && (
+          <div>
+            <p>
+              <a href={collectionApk}>Скачать Collection APK</a> ·{" "}
+              <a href={driverApk}>Скачать Collection Driver APK</a>
+            </p>
+            <p>
+              Откройте скачанный файл в «Загрузках» → разрешите установку, если
+              телефон спросит → «Установить».
+            </p>
+          </div>
+        )}
         <button type="button" onClick={close}>
           Понятно
         </button>
