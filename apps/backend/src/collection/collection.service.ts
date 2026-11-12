@@ -1,3 +1,4 @@
+import { displayTonnes } from "./collection-weights";
 import {
   BadRequestException,
   ConflictException,
@@ -12,6 +13,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CurrentUser } from "../common/current-user.decorator";
 import {
   CollectionGpTripDto,
+  CollectionWeightCorrectionDto,
   CollectionFactoryDto,
   CollectionProductionDto,
   CollectionShipmentDto,
@@ -39,9 +41,7 @@ export function assertCollectionDatabase() {
 }
 export function kg(value: string) {
   if (!/^\d{1,10}(\.\d{1,3})?$/.test(value))
-    throw new BadRequestException(
-      "Вес укажите в кг, до 3 знаков после запятой",
-    );
+    throw new BadRequestException("Некорректный вес");
   const result = new Prisma.Decimal(value);
   if (result.lte(0))
     throw new BadRequestException("Вес должен быть больше нуля");
@@ -120,6 +120,103 @@ export class CollectionService {
         return result;
       },
       { timeout: 15000 },
+    );
+  }
+  async correctTripWeight(
+    id: string,
+    dto: CollectionWeightCorrectionDto,
+    user: CurrentUser,
+  ) {
+    this.require(user);
+    const revised = kg(dto.weightKg);
+    const expected = kg(dto.expectedWeightKg);
+    return this.command(
+      user,
+      dto.idempotencyKey,
+      "trip.weight.correct",
+      { id, ...dto },
+      async (tx) => {
+        const trip = await tx.collectionTrip.findFirst({
+          where: { id, organizationId: user.organizationId, kind: "RAW" },
+        });
+        if (!trip || trip.status === "CANCELLED")
+          throw new NotFoundException("Отправка не найдена");
+        await this.location(tx, trip.warehouseId!, user, "WAREHOUSE");
+        await tx.$queryRaw`SELECT id FROM "CollectionTrip" WHERE id = ${id} FOR UPDATE`;
+        const current = await tx.collectionTrip.findUniqueOrThrow({
+          where: { id },
+        });
+        if (!current.weightKg.eq(expected))
+          throw new ConflictException("Вес уже изменён; обновите отправку");
+        const delta = revised.minus(current.weightKg);
+        if (delta.isZero()) throw new BadRequestException("Укажите новый вес");
+        const batch = await tx.collectionBatch.findUnique({
+          where: {
+            organizationId_sourceType_sourceId_state: {
+              organizationId: user.organizationId,
+              sourceType: "TRIP",
+              sourceId: id,
+              state: "RAW",
+            },
+          },
+        });
+        if (batch) {
+          const remaining =
+            batch.status === "ACTIVE"
+              ? batch.remainingKg.plus(delta)
+              : batch.remainingKg;
+          if (remaining.lt(0))
+            throw new ConflictException(
+              "Нельзя уменьшить вес ниже уже использованного сырья",
+            );
+          await tx.collectionBatch.update({
+            where: { id: batch.id },
+            data: { totalKg: revised, remainingKg: remaining },
+          });
+        }
+        const result = await tx.collectionTrip.update({
+          where: { id },
+          data: { weightKg: revised },
+        });
+        const details = {
+          tripId: id,
+          previousWeightKg: current.weightKg.toString(),
+          weightKg: revised.toString(),
+          reason: dto.reason,
+        };
+        await tx.collectionAction.create({
+          data: {
+            organizationId: user.organizationId,
+            locationId: trip.warehouseId!,
+            kind: "WEIGHT_CORRECTION",
+            quantityKg:
+              current.status === "ACCEPTED" ? delta : new Prisma.Decimal(0),
+            createdById: user.id,
+            details,
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            organizationId: user.organizationId,
+            userId: user.id,
+            action: "collection.trip.weight.correct",
+            entity: "CollectionTrip",
+            entityId: id,
+            newValue: details,
+            reason: dto.reason,
+          },
+        });
+        await this.notify(
+          tx,
+          user.organizationId,
+          [trip.createdById, ...(await this.managers(tx, trip.warehouseId!))],
+          "Исправлен вес отправки",
+          `${trip.number}: вес исправлен с ${displayTonnes(current.weightKg)} т на ${displayTonnes(revised)} т. ${dto.reason}`,
+          "COLLECTION_WEIGHT_CORRECTED",
+          { section: "inbound", entityId: id, locationId: trip.warehouseId! },
+        );
+        return result;
+      },
     );
   }
   async notify(
@@ -202,7 +299,7 @@ export class CollectionService {
     );
     if (available.lt(quantity))
       throw new ConflictException(
-        `Недостаточно сырья: доступно ${available.toString()} кг`,
+        `Недостаточно сырья: доступно ${displayTonnes(available.toString())} т`,
       );
     let remaining = quantity;
     const consumed: { batchId: string; weightKg: string }[] = [];
@@ -254,7 +351,7 @@ export class CollectionService {
           user.organizationId,
           [user.id, ...(await this.managers(tx, warehouse.id))],
           "Сборщик создал отправку",
-          `${trip.number}: на ${warehouse.name}, ${trip.bagCount} мешков, общий вес ${weightKg} кг. QR готов.`,
+          `${trip.number}: на ${warehouse.name}, ${trip.bagCount} мешков, общий вес ${displayTonnes(weightKg)} т. QR готов.`,
           "COLLECTION_TRIP_CREATED",
           { section: "inbound", entityId: trip.id, locationId: warehouse.id },
         );
@@ -328,7 +425,7 @@ export class CollectionService {
         user.organizationId,
         [trip.createdById, ...(await this.managers(tx, trip.warehouseId))],
         "Склад подтвердил приход",
-        `${trip.number}: принято ${trip.weightKg} кг немытого сырья, ${trip.bagCount} мешков.`,
+        `${trip.number}: принято ${displayTonnes(trip.weightKg)} т немытого сырья, ${trip.bagCount} мешков.`,
         "COLLECTION_RAW_ACCEPTED",
         { section: "inbound", entityId: trip.id, locationId: trip.warehouseId },
       );
@@ -374,7 +471,7 @@ export class CollectionService {
         user.organizationId,
         [user.id, ...(await this.managers(tx, dto.locationId))],
         "Мойка перевела сырьё в мытое",
-        `${weightKg} кг переведено из немытого в мытое сырьё.`,
+        `${displayTonnes(weightKg)} т переведено из немытого в мытое сырьё.`,
         "COLLECTION_WASH",
         {
           section: "stock",
@@ -442,7 +539,7 @@ export class CollectionService {
             ...(await this.managers(tx, dto.locationId)),
           ],
           "Отправлено мытое сырьё",
-          `${shipment.number}: ${shipment.bagCount} бигбегов, ${weightKg} кг. Средний вес бигбега ${shipment.averageBagKg} кг. Подтвердите приход после получения.`,
+          `${shipment.number}: ${shipment.bagCount} бигбегов, ${displayTonnes(weightKg)} т. Средний вес бигбега ${displayTonnes(shipment.averageBagKg)} т. Подтвердите приход после получения.`,
           "COLLECTION_FACTORY_SHIPMENT",
           {
             section: "factory-inbound",
@@ -508,7 +605,7 @@ export class CollectionService {
           ...(await this.managers(tx, shipment.toLocationId)),
         ],
         "Завод подтвердил приход",
-        `${shipment.number}: принято ${shipment.weightKg} кг, ${shipment.bagCount} бигбегов.`,
+        `${shipment.number}: принято ${displayTonnes(shipment.weightKg)} т, ${shipment.bagCount} бигбегов.`,
         "COLLECTION_FACTORY_ACCEPTED",
         {
           section: "factory-inbound",
@@ -598,7 +695,7 @@ export class CollectionService {
           user.organizationId,
           [user.id, ...(await this.managers(tx, dto.locationId))],
           "Завод выпустил ГП и некондицию",
-          `ГП: ${finished.length} бигбегов, ${finishedKg} кг. Некондиция: ${rejected.length} бигбегов, ${rejectedKg} кг. Из мытого сырья списано ${total} кг.`,
+          `ГП: ${finished.length} бигбегов, ${displayTonnes(finishedKg)} т. Некондиция: ${rejected.length} бигбегов, ${displayTonnes(rejectedKg)} т. Из мытого сырья списано ${displayTonnes(total)} т.`,
           "COLLECTION_PRODUCTION",
           {
             section: "production",
@@ -686,7 +783,7 @@ export class CollectionService {
           user.organizationId,
           [user.id, ...(await this.managers(tx, dto.locationId))],
           "Завод создал доставку ГП",
-          `${trip.number}: ${trip.bagCount} бигбегов, ${weightKg} кг → ${dto.recipientName}, ${dto.recipientAddress}. QR готов.`,
+          `${trip.number}: ${trip.bagCount} бигбегов, ${displayTonnes(weightKg)} т → ${dto.recipientName}, ${dto.recipientAddress}. QR готов.`,
           "COLLECTION_GP_SHIPMENT",
           { section: "gp", entityId: trip.id, locationId: dto.locationId },
         );

@@ -483,7 +483,7 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
   assert.equal(arrivedNotice.action.entityId, trip.id);
   assert.equal(arrivedNotice.action.section, "inbound");
   assert.match(arrivedNotice.body, /123 ABC 01/);
-  assert.match(arrivedNotice.body, /1234.56/);
+  assert.match(arrivedNotice.body, /1,23456 т/);
   await request(
     `/collection/trips/${trip.id}/confirm`,
     403,
@@ -803,6 +803,87 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
       .pushToken,
     null,
     "Logout must unregister push delivery",
+  );
+  // Repair an accepted receipt without replaying or rewriting prior stock movements.
+  const mistaken = await request(
+    "/collection/trips",
+    201,
+    {
+      idempotencyKey: key(),
+      warehouseId: helios.id,
+      bagCount: 50,
+      weightKg: "20",
+    },
+    collector.token,
+  );
+  const correctionDriver = await request("/collection-driver/claim", 201, {
+    token: mistaken.qrToken,
+    clientToken: key() + key(),
+    plateNumber: "020 TEST 01",
+    phone: "+77010000123",
+  });
+  for (const type of ["LOADED", "DEPARTED", "ARRIVED"])
+    await request(
+      "/collection-driver/events",
+      201,
+      { requestId: key(), type, recordedAt: new Date().toISOString() },
+      correctionDriver.token,
+    );
+  await request(
+    "/collection/trips/" + mistaken.id + "/confirm",
+    201,
+    { idempotencyKey: key() },
+    warehouse.token,
+  );
+  const correction = {
+    idempotencyKey: key(),
+    expectedWeightKg: "20",
+    weightKg: "20000",
+    reason: "Исправление ошибочных единиц: отправлено двадцать тонн",
+  };
+  await request(
+    "/collection/trips/" + mistaken.id + "/weight",
+    403,
+    correction,
+    warehouse.token,
+  );
+  await request(
+    "/collection/trips/" + mistaken.id + "/weight",
+    201,
+    correction,
+    owner.token,
+  );
+  await request(
+    "/collection/trips/" + mistaken.id + "/weight",
+    201,
+    correction,
+    owner.token,
+  );
+  await request(
+    "/collection/trips/" + mistaken.id + "/weight",
+    409,
+    { ...correction, idempotencyKey: key() },
+    owner.token,
+  );
+  const correctedBatch = await db.collectionBatch.findFirstOrThrow({
+    where: { sourceType: "TRIP", sourceId: mistaken.id, state: "RAW" },
+  });
+  assert.equal(correctedBatch.totalKg.toString(), "20000");
+  assert.equal(correctedBatch.remainingKg.toString(), "20000");
+  assert.equal(
+    await db.collectionAction.count({
+      where: { kind: "WEIGHT_CORRECTION", organizationId: org.id },
+    }),
+    1,
+  );
+  assert.equal(
+    await db.auditLog.count({
+      where: {
+        action: "collection.trip.weight.correct",
+        entityId: mistaken.id,
+      },
+    }),
+    1,
   );
   const before = process.env.DATABASE_URL;
   process.env.DATABASE_URL = "postgresql://example:example@localhost/bioflow";

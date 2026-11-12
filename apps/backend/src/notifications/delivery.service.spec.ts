@@ -7,6 +7,8 @@ describe("push delivery during a prolonged provider outage", () => {
   it("keeps retrying after more than ten failures and marks a recovered delivery sent", async () => {
     const directory = mkdtempSync(join(tmpdir(), "collection-push-spec-"));
     const previous = process.env.FCM_SERVICE_ACCOUNT_FILE;
+    const collectionBefore = process.env.COLLECTION_ENABLED;
+    process.env.COLLECTION_ENABLED = "true";
     const file = join(directory, "account.json");
     writeFileSync(
       file,
@@ -62,6 +64,10 @@ describe("push delivery during a prolonged provider outage", () => {
     try {
       await (service as any).deliver();
       expect(fetch).toHaveBeenCalledTimes(1);
+      expect(
+        JSON.parse((fetch.mock.calls[0][1] as RequestInit).body as string)
+          .message.android.priority,
+      ).toBe("HIGH");
       expect(update).toHaveBeenLastCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({ status: "PENDING" }),
@@ -76,9 +82,44 @@ describe("push delivery during a prolonged provider outage", () => {
       );
     } finally {
       fetch.mockRestore();
+      if (collectionBefore === undefined) delete process.env.COLLECTION_ENABLED;
+      else process.env.COLLECTION_ENABLED = collectionBefore;
       if (previous === undefined) delete process.env.FCM_SERVICE_ACCOUNT_FILE;
       else process.env.FCM_SERVICE_ACCOUNT_FILE = previous;
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+});
+
+describe("Collection notification latency", () => {
+  it("checks Collection delivery every second and stops polling after shutdown", async () => {
+    jest.useFakeTimers();
+    const previous = process.env.COLLECTION_ENABLED;
+    process.env.COLLECTION_ENABLED = "true";
+    const service = new DeliveryService({} as any);
+    const tick = jest.spyOn(service, "tick").mockResolvedValue();
+    try {
+      service.onModuleInit();
+      expect(tick).toHaveBeenCalledTimes(1);
+      await jest.advanceTimersByTimeAsync(1000);
+      expect(tick).toHaveBeenCalledTimes(2);
+      service.onModuleDestroy();
+      await jest.advanceTimersByTimeAsync(3000);
+      expect(tick).toHaveBeenCalledTimes(2);
+    } finally {
+      service.onModuleDestroy();
+      if (previous === undefined) delete process.env.COLLECTION_ENABLED;
+      else process.env.COLLECTION_ENABLED = previous;
+      jest.useRealTimers();
+    }
+  });
+  it("does not repeatedly scan reminders while sending urgent pushes", async () => {
+    const service = new DeliveryService({} as any);
+    const reminders = jest
+      .spyOn(service as any, "reminders")
+      .mockResolvedValue(undefined);
+    await service.tick();
+    await service.tick();
+    expect(reminders).toHaveBeenCalledTimes(1);
   });
 });

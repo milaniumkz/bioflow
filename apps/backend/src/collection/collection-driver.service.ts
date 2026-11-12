@@ -1,3 +1,4 @@
+import { displayTonnes } from "./collection-weights";
 import { readDriverRoute } from "./collection-route";
 import {
   BadRequestException,
@@ -108,7 +109,7 @@ export class CollectionDriverService implements OnModuleInit, OnModuleDestroy {
               )),
             ],
             "Водитель отсканировал QR",
-            `${trip.number}: ${session.driverPlate}, ${session.driverPhone}. ${trip.bagCount} мешков/бигбегов, ${trip.weightKg} кг.`,
+            `${trip.number}: ${session.driverPlate}, ${session.driverPhone}. ${trip.bagCount} мешков/бигбегов, ${displayTonnes(trip.weightKg)} т.`,
             "COLLECTION_DRIVER_CLAIM",
             tripLink,
           );
@@ -278,7 +279,7 @@ export class CollectionDriverService implements OnModuleInit, OnModuleDestroy {
               ...(await this.collection.managers(tx, trip.warehouseId)),
             ],
             "Водитель прибыл — подтвердите приход",
-            `${trip.number}: машина ${current.driverPlate}, ${trip.bagCount} мешков, общий вес ${trip.weightKg} кг. Подтвердите приход.`,
+            `${trip.number}: машина ${current.driverPlate}, ${trip.bagCount} мешков, общий вес ${displayTonnes(trip.weightKg)} т. Подтвердите приход.`,
             "COLLECTION_RAW_ARRIVED",
             {
               section: "inbound",
@@ -299,7 +300,7 @@ export class CollectionDriverService implements OnModuleInit, OnModuleDestroy {
               ...(await this.collection.managers(tx, trip.fromLocationId!)),
             ],
             "Готовая продукция доставлена",
-            `${trip.number}: машина ${current.driverPlate}, ${trip.bagCount} бигбегов, ${trip.weightKg} кг. Водитель отметил прибытие к ${trip.recipientName}.`,
+            `${trip.number}: машина ${current.driverPlate}, ${trip.bagCount} бигбегов, ${displayTonnes(trip.weightKg)} т. Водитель отметил прибытие к ${trip.recipientName}.`,
             "COLLECTION_GP_ARRIVED",
             {
               section: "gp",
@@ -322,7 +323,7 @@ export class CollectionDriverService implements OnModuleInit, OnModuleDestroy {
             )),
           ],
           dto.type === "LOADED" ? "Машина загрузилась" : "Машина выехала",
-          `${trip.number}: ${current.driverPlate}, ${trip.bagCount} мешков/бигбегов, ${trip.weightKg} кг.`,
+          `${trip.number}: ${current.driverPlate}, ${trip.bagCount} мешков/бигбегов, ${displayTonnes(trip.weightKg)} т.`,
           dto.type === "LOADED" ? "COLLECTION_LOADED" : "COLLECTION_DEPARTED",
           {
             section: trip.kind === "GP" ? "gp" : "inbound",

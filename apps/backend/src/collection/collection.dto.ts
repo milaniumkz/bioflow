@@ -65,3 +65,9 @@ export class CollectionGpTripDto extends CollectionCommandDto {
   @IsString({ each: true })
   bagIds!: string[];
 }
+
+export class CollectionWeightCorrectionDto extends CollectionCommandDto {
+  @IsString() @Matches(/^\d{1,10}(\.\d{1,3})?$/) weightKg!: string;
+  @IsString() @Matches(/^\d{1,10}(\.\d{1,3})?$/) expectedWeightKg!: string;
+  @IsString() @Length(10, 500) reason!: string;
+}

@@ -22,6 +22,7 @@ import { CollectionService } from "./collection.service";
 import { CollectionDriverService } from "./collection-driver.service";
 import {
   CollectionGpTripDto,
+  CollectionWeightCorrectionDto,
   CollectionCommandDto,
   CollectionDriverEventDto,
   CollectionFactoryDto,
@@ -64,6 +65,14 @@ class CollectionController {
   }
   @Get("state") state(@User() user: CurrentUser) {
     return this.service.state(user);
+  }
+  @Post("trips/:id/weight")
+  correctWeight(
+    @Param("id") id: string,
+    @Body() dto: CollectionWeightCorrectionDto,
+    @User() user: CurrentUser,
+  ) {
+    return this.service.correctTripWeight(id, dto, user);
   }
   @Get("trips/:id/qr") qr(@Param("id") id: string, @User() user: CurrentUser) {
     return this.service.qr(id, user);

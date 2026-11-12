@@ -33,7 +33,7 @@ async function call(path:string,body?:any,token?:string){const r=await fetch(api
   return {...row,driverToken:driver.token};
  }
  const routeTrip=await trip();const receiptTrip=await trip(false);
- const shipment=await call('/collection/shipments',{idempotencyKey:randomUUID(),locationId:helios.id,factoryId:factory.id,bagCount:5,weightKg:'500'},roles.warehouse.accessToken);
+ const shipment=await call('/collection/shipments',{idempotencyKey:randomUUID(),locationId:helios.id,factoryId:factory.id,bagCount:5,weightKg:'1500'},roles.warehouse.accessToken);
  await call('/collection/shipments/'+shipment.id+'/confirm',{idempotencyKey:randomUUID()},roles.factory.accessToken);
  const pendingShipment=await call('/collection/shipments',{idempotencyKey:randomUUID(),locationId:helios.id,factoryId:factory.id,bagCount:2,weightKg:'200'},roles.warehouse.accessToken);
  await call('/collection/production',{idempotencyKey:randomUUID(),locationId:factory.id,finished:[{weightKg:'100'},{weightKg:'100'}],rejected:[{weightKg:'20'}]},roles.factory.accessToken);

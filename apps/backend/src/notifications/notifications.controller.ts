@@ -1,3 +1,4 @@
+import { noticeInTonnes } from "../collection/collection-weights";
 import { readFileSync } from "fs";
 import { Controller, Get, Param, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
@@ -85,6 +86,7 @@ export class NotificationsController {
         process.env.COLLECTION_ENABLED === "true"
           ? data.map((notice) => ({
               ...notice,
+              body: noticeInTonnes(notice.body),
               action: byId.get(notice.id) ?? null,
             }))
           : data,

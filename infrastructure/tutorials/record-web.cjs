@@ -54,7 +54,7 @@ async function run(){
    }else if(item.role==='owner'&&slug==='factory'){
     await step(0,async()=>{await tab('Обзор');await page.getByLabel('Название завода',{exact:true}).scrollIntoViewIfNeeded();});await step(1,()=>fill('Название завода','Учебный завод 2'));await step(2,()=>tap(page.getByRole('button',{name:'Добавить завод',exact:true})));
    }else if(item.role==='collector'&&slug==='create'){
-    await step(0,async()=>{await tab('Мои отправки');await select('На какой склад',fixture.heliosId);});await step(1,async()=>{await fill('Количество мешков','10');await fill('Общий вес всех мешков, кг','500');});await step(2,()=>tap(page.getByRole('button',{name:'Создать отправку и QR',exact:true})));await step(3,()=>page.locator('dialog').waitFor({state:'visible'}));
+    await step(0,async()=>{await tab('Мои отправки');await select('На какой склад',fixture.heliosId);});await step(1,async()=>{await fill('Количество мешков','10');await fill('Общий вес всех мешков, тонн','0.5');});await step(2,()=>tap(page.getByRole('button',{name:'Создать отправку и QR',exact:true})));await step(3,()=>page.locator('dialog').waitFor({state:'visible'}));
    }else if(item.role==='collector'&&['save','print'].includes(slug)){
     await step(0,async()=>{await tab('Мои отправки');await tap(page.locator('#c-item-'+qrTrip.id).getByRole('button',{name:'Открыть QR',exact:true}));});
     if(slug==='save'){await step(1,()=>tap(page.getByRole('button',{name:'Сохранить PNG',exact:true})));await step(2,()=>tap(page.getByRole('button',{name:'Отправить как фото',exact:true})));}
@@ -64,7 +64,7 @@ async function run(){
    }else if(item.role==='warehouse'&&slug==='wash'){
     await step(0,()=>tab('Остатки и мойка'));await step(1,()=>fill('Создать мытое на Гелиос, тонн','0.2'));await step(2,()=>tap(page.getByLabel('Создать мытое на Гелиос, тонн',{exact:true}).locator('xpath=ancestor::form').getByRole('button',{name:'Перевести в мытое',exact:true})));
    }else if(item.role==='warehouse'&&slug==='shipment'){
-    await step(0,async()=>{await tab('На завод');await select('Со склада',fixture.heliosId);await select('На завод',fixture.factoryId);});await step(1,async()=>{await fill('Количество бигбегов','4');await fill('Общий вес, кг','240');});await step(2,()=>tap(page.locator('form.c-form').getByRole('button').last()));await step(3);
+    await step(0,async()=>{await tab('На завод');await select('Со склада',fixture.heliosId);await select('На завод',fixture.factoryId);});await step(1,async()=>{await fill('Количество бигбегов','4');await fill('Общий вес, тонн','0.24');});await step(2,()=>tap(page.locator('form.c-form').getByRole('button').last()));await step(3);
    }else if(item.role==='warehouse'&&slug==='stock'){
     await step(0,()=>tab('Остатки и мойка'));await step(1,()=>page.locator('.c-stats').first().scrollIntoViewIfNeeded());await step(2,()=>page.locator('.c-location-grid').first().scrollIntoViewIfNeeded());
    }else if(item.role==='factory'&&slug==='receipt'){
@@ -72,7 +72,7 @@ async function run(){
    }else if(item.role==='factory'&&slug==='production'){
     await step(0,async()=>{await tab('Производство');await select('Завод',fixture.factoryId);});
     const fieldset=name=>page.locator('fieldset').filter({has:page.locator('legend').getByText(name,{exact:true})});
-    await step(1,async()=>{const f=fieldset('Готовая продукция');await fill('Количество бигбегов','1',f);await fill('Бигбег 1, кг','80',f);});await step(2,async()=>{const f=fieldset('Некондиция');await fill('Количество бигбегов','1',f);await fill('Бигбег 1, кг','5',f);});await step(3,()=>tap(page.getByRole('button',{name:'Подтвердить выпуск',exact:true})));
+    await step(1,async()=>{const f=fieldset('Готовая продукция');await fill('Количество бигбегов','1',f);await select('Бигбег 1, вес','0.8');});await step(2,async()=>{const f=fieldset('Некондиция');await fill('Количество бигбегов','1',f);await fill('Бигбег 1, тонн','0.005',f);});await step(3,()=>tap(page.getByRole('button',{name:'Подтвердить выпуск',exact:true})));
    }else if(item.role==='factory'&&slug==='dispatch'){
     await step(0,async()=>{await tab('Доставка ГП');await select('С завода',fixture.factoryId);await fill('Получатель','Учебный получатель');await fill('Адрес доставки','Пример адреса доставки');});await step(1,()=>tap(page.getByRole('checkbox').first()));await step(2,()=>tap(page.getByRole('button',{name:'Создать доставку ГП и QR',exact:true})));await step(3,()=>page.locator('dialog').waitFor({state:'visible'}));
    }else if(item.role==='factory'&&slug==='stock'){

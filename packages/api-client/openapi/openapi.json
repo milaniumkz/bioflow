@@ -57,6 +57,20 @@
         ]
       }
     },
+    "/api/v1/collection/trips/{id}/weight": {
+      "post": {
+        "operationId": "CollectionController_correctWeight",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Collection"
+        ]
+      }
+    },
     "/api/v1/collection/trips/{id}/qr": {
       "get": {
         "operationId": "CollectionController_qr",

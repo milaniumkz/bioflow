@@ -1,3 +1,4 @@
+import { noticeInTonnes } from "../collection/collection-weights";
 import {
   Injectable,
   Logger,
@@ -17,11 +18,15 @@ type Credentials = {
 export class DeliveryService implements OnModuleInit, OnModuleDestroy {
   private timer?: NodeJS.Timeout;
   private running = false;
+  private nextReminderAt = 0;
   private access?: { token: string; until: number };
   private readonly logger = new Logger(DeliveryService.name);
   constructor(private readonly prisma: PrismaService) {}
   onModuleInit() {
-    this.timer = setInterval(() => void this.tick(), 30_000);
+    this.timer = setInterval(
+      () => void this.tick(),
+      process.env.COLLECTION_ENABLED === "true" ? 1000 : 30_000,
+    );
     void this.tick();
     this.timer.unref();
   }
@@ -32,7 +37,10 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
     if (this.running) return;
     this.running = true;
     try {
-      await this.reminders();
+      if (Date.now() >= this.nextReminderAt) {
+        this.nextReminderAt = Date.now() + 30_000;
+        await this.reminders();
+      }
       if (process.env.FCM_SERVICE_ACCOUNT_FILE) await this.deliver();
     } catch {
       this.logger.warn(
@@ -204,7 +212,22 @@ export class DeliveryService implements OnModuleInit, OnModuleDestroy {
             body: JSON.stringify({
               message: {
                 token: device.pushToken,
-                notification: { title: notice.title, body: notice.body },
+                notification: {
+                  title: notice.title,
+                  body:
+                    process.env.COLLECTION_ENABLED === "true"
+                      ? noticeInTonnes(notice.body)
+                      : notice.body,
+                },
+                ...(process.env.COLLECTION_ENABLED === "true"
+                  ? {
+                      android: { priority: "HIGH" },
+                      apns: {
+                        headers: { "apns-priority": "10" },
+                        payload: { aps: { sound: "default" } },
+                      },
+                    }
+                  : {}),
                 data: {
                   notificationId: notice.id,
                   recipientId: notice.userId ?? "",

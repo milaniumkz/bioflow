@@ -1,4 +1,5 @@
 "use client";
+import { tonnesToKg, kgAsTonnes, formatTonnes } from "./weight-units";
 import {
   useEffect,
   useId,
@@ -29,6 +30,7 @@ const labels: Record<string, string> = {
   LOADED: "Загрузился",
   IN_TRANSIT: "В пути",
   ARRIVED: "Прибыл",
+  WEIGHT_CORRECTION: "Исправление веса",
   ACCEPTED: "Подтверждено",
   PENDING: "Ожидает подтверждения",
   OWNER: "Владелец",
@@ -45,19 +47,10 @@ const labels: Record<string, string> = {
   OPENING: "Начальные остатки",
   DRIVER_CLAIM: "Водитель подключился",
 };
-const tonnes = (value: unknown) =>
-  (Number(value ?? 0) / 1000).toLocaleString("ru-RU", {
-    maximumFractionDigits: 3,
-  });
-const weight = (value: unknown) =>
-  Number(value ?? 0).toLocaleString("ru-RU", { maximumFractionDigits: 3 });
+const tonnes = kgAsTonnes;
+const weight = kgAsTonnes;
 const date = (value: string) => new Date(value).toLocaleString("ru-RU");
-const toneToKg = (value: string) => {
-  if (!/^\d+(\.\d{1,3})?$/.test(value))
-    throw Error("Укажите тонны, до трёх знаков после запятой");
-  const [whole, fraction = ""] = value.split(".");
-  return (BigInt(whole) * 1000n + BigInt(fraction.padEnd(3, "0"))).toString();
-};
+const toneToKg = tonnesToKg;
 export default function CollectionPage() {
   const [client] = useState(
     () =>
@@ -156,13 +149,13 @@ function Portal() {
     queryKey: ["collection-inbox", token, noticePage],
     queryFn: () => call<Row>(`/notifications?pageSize=100&page=${noticePage}`),
     enabled: !!me.data,
-    refetchInterval: 15000,
+    refetchInterval: 5000,
   });
   const unreadQuery = useQuery({
     queryKey: ["collection-unread", token],
     queryFn: () => call<{ unread: number }>("/notifications/unread-count"),
     enabled: !!me.data,
-    refetchInterval: 15000,
+    refetchInterval: 5000,
   });
   const delivery = useQuery({
     queryKey: ["collection-push", token],
@@ -788,7 +781,7 @@ function Portal() {
                       <b>{tonnes(shipment.weightKg)}</b> т всего
                     </span>
                     <span>
-                      <b>{weight(shipment.averageBagKg)}</b> кг в среднем
+                      <b>{weight(shipment.averageBagKg)}</b> т в среднем
                     </span>
                   </div>
                   {(selected === "factory-inbound" || owner) &&
@@ -1048,7 +1041,7 @@ function Portal() {
               />
               <p>
                 <b>{qr.bagCount}</b> мешков / бигбегов ·{" "}
-                <b>{weight(qr.weightKg)}</b> кг
+                <b>{weight(qr.weightKg)}</b> т
               </p>
               <small>Сканируйте в приложении Collection Driver</small>
             </div>
@@ -1152,7 +1145,11 @@ function TripForm({
       className="c-form"
       onSubmit={(event) => {
         event.preventDefault();
-        onSubmit({ warehouseId, bagCount: Number(bags), weightKg: total });
+        onSubmit({
+          warehouseId,
+          bagCount: Number(bags),
+          weightKg: tonnesToKg(total),
+        });
       }}
     >
       <p className="eyebrow">СБОРЩИК</p>
@@ -1176,16 +1173,17 @@ function TripForm({
         />
       </label>
       <label>
-        Общий вес всех мешков, кг
+        Общий вес всех мешков, тонн
         <input
           type="number"
-          min="0.001"
-          step="0.001"
+          min="0.000001"
+          step="0.000001"
           required
           value={total}
           onChange={(event) => setTotal(event.target.value)}
         />
       </label>
+      <p className="c-note">Вес указывается в тоннах: 20 означает 20 тонн.</p>
       <button disabled={busy}>
         {busy ? "Создаём…" : "Создать отправку и QR"}
       </button>
@@ -1215,8 +1213,8 @@ function WashForm({
         <input
           aria-label={`Создать мытое на ${location.name}, тонн`}
           type="number"
-          min="0.001"
-          step="0.001"
+          min="0.000001"
+          step="0.000001"
           required
           value={amount}
           onChange={(event) => setAmount(event.target.value)}
@@ -1283,7 +1281,7 @@ function ShipmentForm({
           locationId,
           factoryId,
           bagCount: Number(bags),
-          weightKg: total,
+          weightKg: tonnesToKg(total),
         });
       }}
     >
@@ -1316,11 +1314,11 @@ function ShipmentForm({
         />
       </label>
       <label>
-        Общий вес, кг
+        Общий вес, тонн
         <input
           type="number"
-          min="0.001"
-          step="0.001"
+          min="0.000001"
+          step="0.000001"
           required
           value={total}
           onChange={(event) => setTotal(event.target.value)}
@@ -1329,7 +1327,8 @@ function ShipmentForm({
       <div className="c-note">
         Средний вес одного бигбега:{" "}
         <b>
-          {Number(bags) > 0 ? weight(Number(total) / Number(bags)) : "—"} кг
+          {Number(bags) > 0 ? formatTonnes(Number(total) / Number(bags)) : "—"}{" "}
+          т
         </b>
       </div>
       <button disabled={busy || !factories.length}>Отправить на завод</button>
@@ -1340,11 +1339,14 @@ function BagInputs({
   title,
   values,
   onChange,
+  presets = false,
 }: {
   title: string;
   values: string[];
   onChange: (values: string[]) => void;
+  presets?: boolean;
 }) {
+  const [count, setCount] = useState(String(values.length));
   return (
     <fieldset>
       <legend>{title}</legend>
@@ -1355,40 +1357,62 @@ function BagInputs({
           min="0"
           max="1000"
           step="1"
-          value={values.length}
-          onChange={(event) =>
+          required
+          value={count}
+          onFocus={(event) => event.target.select()}
+          onChange={(event) => {
+            const raw = event.target.value;
+            setCount(raw);
+            if (raw === "") return;
+            const number = Number(raw);
+            if (!Number.isInteger(number) || number < 0 || number > 1000)
+              return;
             onChange(
               Array.from(
-                {
-                  length: Math.min(
-                    1000,
-                    Math.max(0, Number(event.target.value)),
-                  ),
-                },
-                (_, index) => values[index] ?? "",
+                { length: number },
+                (_, index) => values[index] ?? (presets ? "0.8" : ""),
               ),
-            )
-          }
+            );
+          }}
         />
       </label>
       <div className="c-bag-inputs">
         {values.map((value, index) => (
           <label key={index}>
-            Бигбег {index + 1}, кг
-            <input
-              type="number"
-              min="0.001"
-              step="0.001"
-              required
-              value={value}
-              onChange={(event) =>
-                onChange(
-                  values.map((entry, i) =>
-                    i === index ? event.target.value : entry,
-                  ),
-                )
-              }
-            />
+            Бигбег {index + 1}
+            {presets ? ", вес" : ", тонн"}
+            {presets ? (
+              <select
+                aria-label={`Бигбег ${index + 1}, вес`}
+                required
+                value={value || "0.8"}
+                onChange={(event) =>
+                  onChange(
+                    values.map((entry, i) =>
+                      i === index ? event.target.value : entry,
+                    ),
+                  )
+                }
+              >
+                <option value="0.8">0,8 т — 800 кг</option>
+                <option value="0.825">0,825 т — 825 кг</option>
+              </select>
+            ) : (
+              <input
+                type="number"
+                min="0.000001"
+                step="0.000001"
+                required
+                value={value}
+                onChange={(event) =>
+                  onChange(
+                    values.map((entry, i) =>
+                      i === index ? event.target.value : entry,
+                    ),
+                  )
+                }
+              />
+            )}
           </label>
         ))}
       </div>
@@ -1418,8 +1442,8 @@ function ProductionForm({
         event.preventDefault();
         onSubmit({
           locationId,
-          finished: finished.map((weightKg) => ({ weightKg })),
-          rejected: rejected.map((weightKg) => ({ weightKg })),
+          finished: finished.map((value) => ({ weightKg: tonnesToKg(value) })),
+          rejected: rejected.map((value) => ({ weightKg: tonnesToKg(value) })),
         });
       }}
     >
@@ -1433,6 +1457,7 @@ function ProductionForm({
       <div className="c-columns">
         <BagInputs
           title="Готовая продукция"
+          presets
           values={finished}
           onChange={setFinished}
         />
@@ -1443,8 +1468,8 @@ function ProductionForm({
         />
       </div>
       <p>
-        Из мытого сырья будет списано: <b>{weight(total)} кг</b>. Вес выпуска и
-        некондиции должен укладываться в доступное сырьё.
+        Из мытого сырья будет списано: <b>{formatTonnes(total)} т</b>. Вес
+        выпуска и некондиции должен укладываться в доступное сырьё.
       </p>
       <button disabled={busy || total <= 0}>Подтвердить выпуск</button>
     </form>
@@ -1536,7 +1561,7 @@ function GpForm({
                   )
                 }
               />
-              Бигбег {bag.index} · {weight(bag.weightKg)} кг
+              Бигбег {bag.index} · {weight(bag.weightKg)} т
             </label>
           ))}
         </div>
@@ -1553,7 +1578,7 @@ function GpForm({
               0,
             ),
           )}{" "}
-          кг
+          т
         </b>
       </p>
       <button disabled={busy || !chosen.length}>
@@ -1721,7 +1746,7 @@ function BatchList({ batches, names }: { batches: Row[]; names: Row }) {
                     <summary>Вес каждого</summary>
                     {batch.bagWeights.map((value: string, index: number) => (
                       <p key={index}>
-                        №{index + 1}: {weight(value)} кг
+                        №{index + 1}: {weight(value)} т
                       </p>
                     ))}
                   </details>
