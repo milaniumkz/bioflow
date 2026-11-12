@@ -11,7 +11,7 @@ async function api(path,body,role='owner'){const actor=fixture.roles[role];const
 async function rawArrival(){const t=await api('/collection/trips',{idempotencyKey:randomUUID(),warehouseId:fixture.heliosId,bagCount:8,weightKg:'400'},'collector');const c=await fetch(fixture.api+'/collection-driver/claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t.qrToken,clientToken:randomUUID()+randomUUID(),plateNumber:'003 ABC 01',phone:'+70000000102'})});const driver=await c.json();for(const type of ['LOADED','DEPARTED','ARRIVED']){const r=await fetch(fixture.api+'/collection-driver/events',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+driver.token},body:JSON.stringify({requestId:randomUUID(),type,recordedAt:new Date().toISOString()})});if(!r.ok)throw Error('Arrival fixture failed');}return t;}
 async function run(){
  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined,headless:true,args:['--no-sandbox']});
- try{for(const item of catalog.filter(x=>x.role!=='driver')){
+ try{for(const item of catalog.filter(x=>x.role!=='driver'&&!/--(register|install)$/.test(x.id))){
   if(fs.existsSync(`work/tutorial-final/${item.id}.mp4`)&&fs.statSync(`work/tutorial-final/${item.id}.mp4`).size>10000){console.log('Already rendered:',item.id);continue;}
   const videoDir=path.resolve('work/tutorial-raw',item.id);fs.mkdirSync(videoDir,{recursive:true});
   const context=await browser.newContext({viewport:{width:430,height:900},deviceScaleFactor:2,recordVideo:{dir:videoDir,size:{width:430,height:900}},permissions:['clipboard-read','clipboard-write'],acceptDownloads:true});

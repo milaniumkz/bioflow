@@ -192,8 +192,9 @@ class _CollectionLoginState extends State<CollectionLogin> {
                                                     builder: (_) =>
                                                         CollectionRegistration(
                                                             client: client)));
-                                        if (registered == true && mounted)
+                                        if (registered == true && mounted) {
                                           await open();
+                                        }
                                       },
                                 child: const Text('Создать аккаунт')),
                             if (error.isNotEmpty)

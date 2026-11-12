@@ -39,9 +39,10 @@ class _CollectionRegistrationState extends State<CollectionRegistration> {
         error = '';
       });
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => error =
             'Не удалось загрузить список. Проверьте интернет и повторите.');
+      }
     }
   }
 

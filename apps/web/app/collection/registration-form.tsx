@@ -66,6 +66,7 @@ export function RegistrationForm({
       <label>
         Ваша роль
         <select
+          aria-label="Ваша роль"
           value={role}
           onChange={(e) => {
             setRole(e.target.value);
@@ -81,6 +82,9 @@ export function RegistrationForm({
         <label>
           {role === "WAREHOUSE_MANAGER" ? "Выберите мойку" : "Выберите завод"}
           <select
+            aria-label={
+              role === "WAREHOUSE_MANAGER" ? "Выберите мойку" : "Выберите завод"
+            }
             required
             value={locationId}
             onChange={(e) => setLocationId(e.target.value)}
