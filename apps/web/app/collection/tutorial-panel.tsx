@@ -1,4 +1,5 @@
 "use client";
+import { tutorialMediaUrl } from "./tutorial-media";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import catalog from "./tutorial-catalog.json";
@@ -39,7 +40,7 @@ export function TutorialPanel({
     setSaving(id);
     setError("");
     try {
-      const response = await fetch(`/downloads/tutorials/${id}.mp4`);
+      const response = await fetch(tutorialMediaUrl(id, "mp4"));
       if (!response.ok) throw Error();
       await saveBlob(await response.blob(), `${id}.mp4`);
     } catch {
@@ -75,8 +76,8 @@ export function TutorialPanel({
                 }}
                 playsInline
                 preload="none"
-                poster={`/downloads/tutorials/${v.id}.jpg`}
-                src={`/downloads/tutorials/${v.id}.mp4`}
+                poster={tutorialMediaUrl(v.id, "jpg")}
+                src={tutorialMediaUrl(v.id, "mp4")}
                 aria-label={v.title}
               />
               <p>{v.steps[0]}</p>

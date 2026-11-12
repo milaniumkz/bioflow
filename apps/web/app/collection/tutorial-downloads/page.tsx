@@ -1,3 +1,4 @@
+import { tutorialMediaUrl, tutorialArchiveUrl } from "../tutorial-media";
 import catalog from "../tutorial-catalog.json";
 import "../collection.css";
 const roles: Record<string, string> = {
@@ -16,7 +17,7 @@ export default function Downloads() {
         Отдельные MP4 с озвучкой и подсветкой нажатий. Внутри приложения каждой
         роли показываются только её ролики.
       </p>
-      <a href="/downloads/tutorials/collection-tutorials.zip" download>
+      <a href={tutorialArchiveUrl} download>
         Скачать все видео одним ZIP
       </a>
       {Object.entries(roles).map(([role, title]) => (
@@ -29,7 +30,7 @@ export default function Downloads() {
                 <article className="c-card" key={v.id}>
                   <h3>{v.title}</h3>
                   <p>{v.steps[0]}</p>
-                  <a href={`/downloads/tutorials/${v.id}.mp4`} download>
+                  <a href={tutorialMediaUrl(v.id, "mp4")} download>
                     Скачать MP4
                   </a>
                 </article>
