@@ -207,6 +207,16 @@ class _CollectionLoginState extends State<CollectionLogin> {
                                             title: 'Конфиденциальность'))),
                                 child:
                                     const Text('Политика конфиденциальности')),
+                            TextButton(
+                                onPressed: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                        builder: (_) => const DriverWebPage(
+                                            path:
+                                                '/collection/account-deletion',
+                                            title: 'Удаление аккаунта'))),
+                                child:
+                                    const Text('Запросить удаление аккаунта')),
                             if (error.isNotEmpty)
                               Padding(
                                   padding: const EdgeInsets.only(top: 18),
