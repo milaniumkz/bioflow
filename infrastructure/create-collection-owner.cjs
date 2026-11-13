@@ -13,30 +13,34 @@ async function provision() {
     throw new Error('Wrong Collection environment');
   }
   const { email, password, review = false } = JSON.parse(readFileSync(0, 'utf8'));
-  if (typeof review !== 'boolean' ||
-      email !== (review ? 'google-play-review@collection.invalid' : 'milaniumkz@yandex.kz') ||
+  const apple = review === 'apple';
+  if ((typeof review !== 'boolean' && !apple) ||
+      email !== (apple ? 'apple-app-review@collection.invalid' : review ? 'google-play-review@collection.invalid' : 'milaniumkz@yandex.kz') ||
       !/^[a-f0-9]{48}$/.test(password)) {
     throw new Error('Unexpected owner input');
   }
   const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
-  const organizationId = review ? 'collection-google-play-review' : liveOrganizationId;
+  const organizationId = apple ? 'collection-apple-app-review' : review ? 'collection-google-play-review' : liveOrganizationId;
+  const roleCode = apple ? 'WAREHOUSE_MANAGER' : 'OWNER';
   await db.$transaction(async (tx) => {
+    let warehouse;
     if (review) {
-      await tx.organization.create({ data: { id: organizationId, name: 'Collection Google Play Review' } });
-      await tx.collectionLocation.create({
+      await tx.organization.create({ data: { id: organizationId, name: apple ? 'Collection Apple App Review' : 'Collection Google Play Review' } });
+      warehouse = await tx.collectionLocation.create({
         data: { organizationId, code: 'REVIEW-WAREHOUSE', name: 'Review warehouse', kind: 'WAREHOUSE' },
       });
     }
-    const role = await tx.role.findUniqueOrThrow({ where: { code: 'OWNER' } });
+    const role = await tx.role.findUniqueOrThrow({ where: { code: roleCode } });
     const user = await tx.user.create({
       data: {
         organizationId, email, passwordHash,
-        fullName: review ? 'Google Play Reviewer' : 'Dmitriy Shtrakhov',
+        fullName: apple ? 'Apple App Reviewer' : review ? 'Google Play Reviewer' : 'Dmitriy Shtrakhov',
         mustChangePassword: !review,
-        accessAllObjects: true,
+        accessAllObjects: !apple,
         userRoles: { create: { roleId: role.id } },
       },
     });
+    if (apple) await tx.collectionMembership.create({ data: { userId: user.id, locationId: warehouse.id } });
     await tx.auditLog.create({
       data: {
         organizationId, userId: user.id, entity: 'User',
@@ -53,8 +57,14 @@ async function provision() {
     });
     if (!login.ok) throw new Error('Review login failed');
     const { accessToken } = await login.json();
+    const headers = { Authorization: 'Bearer ' + accessToken };
+    if (apple) {
+      const profile = await fetch(base + '/auth/me', { headers, signal: AbortSignal.timeout(15000) });
+      const me = await profile.json();
+      if (!profile.ok || me.roles?.length !== 1 || me.roles[0] !== roleCode) throw new Error('Review role verification failed');
+    }
     const state = await fetch(base + '/collection/state', {
-      headers: { Authorization: 'Bearer ' + accessToken },
+      headers,
       signal: AbortSignal.timeout(15000),
     });
     if (!state.ok) throw new Error('Review workspace unavailable');
