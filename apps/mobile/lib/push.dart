@@ -57,6 +57,18 @@ Future<void> configurePush(BioflowClient api,
         queue: false);
   }
 
+  if (Platform.isIOS) {
+    // APNs registration is asynchronous, even after permission is granted.
+    for (var attempt = 0; ; attempt++) {
+      if (api.owner != identity || identity.isEmpty) return;
+      if (await messaging.getAPNSToken() != null) break;
+      if (attempt == 19) {
+        throw StateError('Не удалось получить токен APNs. Проверьте связь.');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+  }
+  if (api.owner != identity || identity.isEmpty) return;
   final token = await messaging.getToken();
   if (token == null) {
     throw StateError('Не удалось получить push-токен устройства.');
