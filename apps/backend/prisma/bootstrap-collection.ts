@@ -1,7 +1,15 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { assertCollectionDatabase } from "./collection-database";
 export async function bootstrapCollection(db: PrismaClient) {
   assertCollectionDatabase();
+  return db.$transaction(async (tx) => {
+    // Bootstrap also writes shared roles and permissions, so lock across organizations.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('collection:bootstrap', 0))`;
+    return initializeCollection(tx);
+  });
+}
+
+async function initializeCollection(db: Prisma.TransactionClient) {
   const organizationId =
     process.env.COLLECTION_ORGANIZATION_ID ?? "collection-live";
   const org = await db.organization.upsert({
