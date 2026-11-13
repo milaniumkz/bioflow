@@ -1,4 +1,5 @@
 const { readFileSync } = require('node:fs');
+const { createHash } = require('node:crypto');
 const { createRequire } = require('node:module');
 const backendRequire = createRequire('/app/apps/backend/package.json');
 const { PrismaClient } = backendRequire('@prisma/client');
@@ -12,7 +13,32 @@ async function provision() {
       process.env.COLLECTION_ORGANIZATION_ID !== liveOrganizationId) {
     throw new Error('Wrong Collection environment');
   }
-  const { email, password, review = false } = JSON.parse(readFileSync(0, 'utf8'));
+  const { email, password, review = false, trips } = JSON.parse(readFileSync(0, 'utf8'));
+  if (review === 'apple-driver') {
+    if (!Array.isArray(trips) || trips.length !== 2 || new Set(trips).size !== 2 ||
+        trips.some(token => typeof token !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(token))) {
+      throw new Error('Unexpected driver review input');
+    }
+    const organizationId = 'collection-apple-app-review';
+    await db.$transaction(async tx => {
+      const warehouse = await tx.collectionLocation.findUniqueOrThrow({
+        where: { organizationId_code: { organizationId, code: 'REVIEW-WAREHOUSE' } },
+      });
+      const reviewer = await tx.user.findUniqueOrThrow({ where: { email: 'apple-app-review@collection.invalid' } });
+      if (reviewer.organizationId !== organizationId || warehouse.kind !== 'WAREHOUSE' || !warehouse.active) {
+        throw new Error('Invalid review workspace');
+      }
+      for (const [index, token] of trips.entries()) {
+        await tx.collectionTrip.create({ data: {
+          organizationId, number: index ? 'APPLE-REVIEW-DRIVER' : 'APPLE-QA-DRIVER',
+          createdById: reviewer.id, warehouseId: warehouse.id, bagCount: 2, weightKg: 100,
+          qrTokenHash: createHash('sha256').update(token).digest('hex'),
+        } });
+      }
+    });
+    console.log('Isolated Apple Driver review trips created.');
+    return;
+  }
   const apple = review === 'apple';
   if ((typeof review !== 'boolean' && !apple) ||
       email !== (apple ? 'apple-app-review@collection.invalid' : review ? 'google-play-review@collection.invalid' : 'milaniumkz@yandex.kz') ||
