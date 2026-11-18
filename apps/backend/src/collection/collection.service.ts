@@ -1,3 +1,9 @@
+import {
+  assessDryingIntake,
+  assessDryingOutput,
+  calculateCollectionLaboratory,
+  type CollectionLabInput,
+} from "@bioflow/shared-types";
 import { displayTonnes } from "./collection-weights";
 import {
   BadRequestException,
@@ -12,6 +18,8 @@ import * as QRCode from "qrcode";
 import { PrismaService } from "../prisma/prisma.service";
 import { CurrentUser } from "../common/current-user.decorator";
 import {
+  CollectionDryingIntakeDto,
+  CollectionAcceptanceDto,
   CollectionGpTripDto,
   CollectionWeightCorrectionDto,
   CollectionFactoryDto,
@@ -149,6 +157,24 @@ export class CollectionService {
         if (!current.weightKg.eq(expected))
           throw new ConflictException("Вес уже изменён; обновите отправку");
         const delta = revised.minus(current.weightKg);
+        let revisedLab:
+          ReturnType<typeof calculateCollectionLaboratory> | undefined;
+        if (current.laboratory) {
+          try {
+            revisedLab = calculateCollectionLaboratory(
+              revised.toString(),
+              current.laboratory as unknown as CollectionLabInput,
+            );
+          } catch (e) {
+            throw new BadRequestException((e as Error).message);
+          }
+        }
+        const accepted = revisedLab
+          ? new Prisma.Decimal(revisedLab.acceptedWeightKg)
+          : revised;
+        const stockDelta = accepted.minus(
+          current.acceptedWeightKg ?? current.weightKg,
+        );
         if (delta.isZero()) throw new BadRequestException("Укажите новый вес");
         const batch = await tx.collectionBatch.findUnique({
           where: {
@@ -163,7 +189,7 @@ export class CollectionService {
         if (batch) {
           const remaining =
             batch.status === "ACTIVE"
-              ? batch.remainingKg.plus(delta)
+              ? batch.remainingKg.plus(stockDelta)
               : batch.remainingKg;
           if (remaining.lt(0))
             throw new ConflictException(
@@ -171,17 +197,41 @@ export class CollectionService {
             );
           await tx.collectionBatch.update({
             where: { id: batch.id },
-            data: { totalKg: revised, remainingKg: remaining },
+            data: {
+              totalKg: current.status === "ACCEPTED" ? accepted : revised,
+              remainingKg: remaining,
+            },
           });
         }
         const result = await tx.collectionTrip.update({
           where: { id },
-          data: { weightKg: revised },
+          data: {
+            weightKg: revised,
+            ...(current.status === "ACCEPTED"
+              ? { acceptedWeightKg: accepted }
+              : {}),
+            ...(revisedLab
+              ? {
+                  laboratory: {
+                    ...(current.laboratory as object),
+                    ...revisedLab,
+                  },
+                }
+              : {}),
+          },
         });
         const details = {
           tripId: id,
           previousWeightKg: current.weightKg.toString(),
           weightKg: revised.toString(),
+          ...(current.status === "ACCEPTED"
+            ? {
+                previousAcceptedWeightKg: (
+                  current.acceptedWeightKg ?? current.weightKg
+                ).toString(),
+                acceptedWeightKg: accepted.toString(),
+              }
+            : {}),
           reason: dto.reason,
         };
         await tx.collectionAction.create({
@@ -190,7 +240,9 @@ export class CollectionService {
             locationId: trip.warehouseId!,
             kind: "WEIGHT_CORRECTION",
             quantityKg:
-              current.status === "ACCEPTED" ? delta : new Prisma.Decimal(0),
+              current.status === "ACCEPTED"
+                ? stockDelta
+                : new Prisma.Decimal(0),
             createdById: user.id,
             details,
           },
@@ -211,7 +263,7 @@ export class CollectionService {
           user.organizationId,
           [trip.createdById, ...(await this.managers(tx, trip.warehouseId!))],
           "Исправлен вес отправки",
-          `${trip.number}: вес исправлен с ${displayTonnes(current.weightKg)} т на ${displayTonnes(revised)} т. ${dto.reason}`,
+          `${trip.number}: вес исправлен с ${displayTonnes(current.weightKg)} т на ${displayTonnes(revised)} т.${current.status === "ACCEPTED" ? ` Зачтено после вычетов ${displayTonnes(accepted)} т.` : ""} ${dto.reason}`,
           "COLLECTION_WEIGHT_CORRECTED",
           { section: "inbound", entityId: id, locationId: trip.warehouseId! },
         );
@@ -368,69 +420,111 @@ export class CollectionService {
       },
     );
   }
-  confirmTrip(id: string, key: string, user: CurrentUser) {
+  confirmTrip(id: string, dto: CollectionAcceptanceDto, user: CurrentUser) {
     this.require(user, ["WAREHOUSE_MANAGER"]);
-    return this.command(user, key, "trip.confirm", { id }, async (tx) => {
-      const trip = await tx.collectionTrip.findFirst({
-        where: { id, organizationId: user.organizationId },
-      });
-      if (!trip) throw new NotFoundException();
-      if (trip.kind !== "RAW" || !trip.warehouseId)
-        throw new BadRequestException(
-          "Эта доставка не является приходом сырья",
-        );
-      await this.location(tx, trip.warehouseId, user, "WAREHOUSE");
-      await tx.$queryRaw`SELECT id FROM "CollectionTrip" WHERE id = ${id} FOR UPDATE`;
-      const current = await tx.collectionTrip.findUniqueOrThrow({
-        where: { id },
-      });
-      if (current.status !== "ARRIVED")
-        throw new ConflictException(
-          "Приёмка доступна после отметки водителя «Прибыл»",
-        );
-      const pending = await tx.collectionBatch.findUniqueOrThrow({
-        where: {
-          organizationId_sourceType_sourceId_state: {
-            organizationId: user.organizationId,
-            sourceType: "TRIP",
-            sourceId: id,
-            state: "RAW",
+    return this.command(
+      user,
+      dto.idempotencyKey,
+      "trip.confirm",
+      { id, ...dto },
+      async (tx) => {
+        const trip = await tx.collectionTrip.findFirst({
+          where: { id, organizationId: user.organizationId },
+        });
+        if (!trip) throw new NotFoundException();
+        if (trip.kind !== "RAW" || !trip.warehouseId)
+          throw new BadRequestException(
+            "Эта доставка не является приходом сырья",
+          );
+        await this.location(tx, trip.warehouseId, user, "WAREHOUSE");
+        await tx.$queryRaw`SELECT id FROM "CollectionTrip" WHERE id = ${id} FOR UPDATE`;
+        const current = await tx.collectionTrip.findUniqueOrThrow({
+          where: { id },
+        });
+        if (current.status !== "ARRIVED")
+          throw new ConflictException(
+            "Приёмка доступна после отметки водителя «Прибыл»",
+          );
+        const pending = await tx.collectionBatch.findUniqueOrThrow({
+          where: {
+            organizationId_sourceType_sourceId_state: {
+              organizationId: user.organizationId,
+              sourceType: "TRIP",
+              sourceId: id,
+              state: "RAW",
+            },
           },
-        },
-      });
-      await tx.collectionBatch.update({
-        where: { id: pending.id },
-        data: { status: "ACTIVE", remainingKg: current.weightKg },
-      });
-      await tx.collectionTrip.update({
-        where: { id },
-        data: {
-          status: "ACCEPTED",
-          confirmedAt: new Date(),
-          confirmedById: user.id,
-        },
-      });
-      await tx.collectionAction.create({
-        data: {
-          organizationId: user.organizationId,
-          locationId: trip.warehouseId,
-          kind: "RAW_RECEIPT",
-          quantityKg: trip.weightKg,
-          createdById: user.id,
-          details: { tripId: id, batchId: pending.id },
-        },
-      });
-      await this.notify(
-        tx,
-        user.organizationId,
-        [trip.createdById, ...(await this.managers(tx, trip.warehouseId))],
-        "Склад подтвердил приход",
-        `${trip.number}: принято ${displayTonnes(trip.weightKg)} т немытого сырья, ${trip.bagCount} мешков.`,
-        "COLLECTION_RAW_ACCEPTED",
-        { section: "inbound", entityId: trip.id, locationId: trip.warehouseId },
-      );
-      return { confirmed: true, batchId: pending.id };
-    });
+        });
+        let laboratory;
+        try {
+          laboratory = calculateCollectionLaboratory(
+            current.weightKg.toString(),
+            dto,
+          );
+        } catch (e) {
+          throw new BadRequestException((e as Error).message);
+        }
+        const accepted = new Prisma.Decimal(laboratory.acceptedWeightKg);
+        const assessment = {
+          ...laboratory,
+          acceptedById: user.id,
+          acceptedAt: new Date().toISOString(),
+        };
+        await tx.collectionBatch.update({
+          where: { id: pending.id },
+          data: { status: "ACTIVE", totalKg: accepted, remainingKg: accepted },
+        });
+        await tx.collectionTrip.update({
+          where: { id },
+          data: {
+            status: "ACCEPTED",
+            acceptedWeightKg: accepted,
+            laboratory: assessment,
+            confirmedAt: new Date(),
+            confirmedById: user.id,
+          },
+        });
+        await tx.collectionAction.create({
+          data: {
+            organizationId: user.organizationId,
+            locationId: trip.warehouseId,
+            kind: "RAW_RECEIPT",
+            quantityKg: accepted,
+            createdById: user.id,
+            details: {
+              tripId: id,
+              batchId: pending.id,
+              laboratory: assessment,
+            },
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            organizationId: user.organizationId,
+            userId: user.id,
+            action: "collection.trip.laboratory.accept",
+            entity: "CollectionTrip",
+            entityId: id,
+            newValue: assessment,
+            reason: "Приёмка после лабораторного анализа",
+          },
+        });
+        await this.notify(
+          tx,
+          user.organizationId,
+          [trip.createdById, ...(await this.managers(tx, trip.warehouseId))],
+          "Склад подтвердил приход",
+          `${trip.number}: отправлено ${displayTonnes(current.weightKg)} т; принято после лаборатории ${displayTonnes(accepted)} т. Вычет ${laboratory.totalDeductionPercent}% (${displayTonnes(laboratory.deductionWeightKg)} т), ${trip.bagCount} мешков.`,
+          "COLLECTION_RAW_ACCEPTED",
+          {
+            section: "inbound",
+            entityId: trip.id,
+            locationId: trip.warehouseId,
+          },
+        );
+        return { confirmed: true, batchId: pending.id, ...laboratory };
+      },
+    );
   }
   wash(dto: CollectionWashDto, user: CurrentUser) {
     this.require(user, ["WAREHOUSE_MANAGER"]);
@@ -551,84 +645,137 @@ export class CollectionService {
       },
     );
   }
-  confirmShipment(id: string, key: string, user: CurrentUser) {
+  confirmShipment(
+    id: string,
+    dto: CollectionDryingIntakeDto,
+    user: CurrentUser,
+  ) {
     this.require(user, ["FACTORY_MANAGER"]);
-    return this.command(user, key, "shipment.confirm", { id }, async (tx) => {
-      const shipment = await tx.collectionShipment.findFirst({
-        where: { id, organizationId: user.organizationId },
-      });
-      if (!shipment) throw new NotFoundException();
-      await this.location(tx, shipment.toLocationId, user, "FACTORY");
-      await tx.$queryRaw`SELECT id FROM "CollectionShipment" WHERE id = ${id} FOR UPDATE`;
-      const current = await tx.collectionShipment.findUniqueOrThrow({
-        where: { id },
-      });
-      if (current.status !== "IN_TRANSIT")
-        throw new ConflictException("Приход уже подтверждён");
-      const batch = await tx.collectionBatch.create({
-        data: {
-          organizationId: user.organizationId,
-          locationId: shipment.toLocationId,
-          state: "WASHED",
-          totalKg: shipment.weightKg,
-          remainingKg: shipment.weightKg,
-          bagCount: shipment.bagCount,
-          sourceType: "SHIPMENT",
-          sourceId: id,
-          createdById: user.id,
-        },
-      });
-      await tx.collectionShipment.update({
-        where: { id },
-        data: {
-          status: "ACCEPTED",
-          confirmedById: user.id,
-          confirmedAt: new Date(),
-        },
-      });
-      await tx.collectionAction.create({
-        data: {
-          organizationId: user.organizationId,
-          locationId: shipment.toLocationId,
-          kind: "FACTORY_RECEIPT",
-          quantityKg: shipment.weightKg,
-          createdById: user.id,
-          details: { shipmentId: id, batchId: batch.id },
-        },
-      });
-      await this.notify(
-        tx,
-        user.organizationId,
-        [
-          shipment.createdById,
-          ...(await this.managers(tx, shipment.fromLocationId)),
-          ...(await this.managers(tx, shipment.toLocationId)),
-        ],
-        "Завод подтвердил приход",
-        `${shipment.number}: принято ${displayTonnes(shipment.weightKg)} т, ${shipment.bagCount} бигбегов.`,
-        "COLLECTION_FACTORY_ACCEPTED",
-        {
-          section: "factory-inbound",
-          entityId: shipment.id,
-          locationId: shipment.toLocationId,
-        },
-      );
-      return { confirmed: true, batchId: batch.id };
-    });
+    return this.command(
+      user,
+      dto.idempotencyKey,
+      "shipment.confirm",
+      { id, ...dto },
+      async (tx) => {
+        const shipment = await tx.collectionShipment.findFirst({
+          where: { id, organizationId: user.organizationId },
+        });
+        if (!shipment) throw new NotFoundException();
+        for (const locationId of [
+          shipment.fromLocationId,
+          shipment.toLocationId,
+        ].sort())
+          await tx.$queryRaw`SELECT id FROM "CollectionLocation" WHERE id=${locationId} FOR UPDATE`;
+        await this.location(tx, shipment.toLocationId, user, "FACTORY");
+        await tx.$queryRaw`SELECT id FROM "CollectionShipment" WHERE id=${id} FOR UPDATE`;
+        const current = await tx.collectionShipment.findUniqueOrThrow({
+          where: { id },
+        });
+        if (current.status !== "IN_TRANSIT")
+          throw new ConflictException("Приход уже обработан");
+        let laboratory;
+        try {
+          laboratory = assessDryingIntake(current.weightKg.toString(), dto);
+        } catch (e) {
+          throw new BadRequestException((e as Error).message);
+        }
+        const rework = laboratory.disposition === "REWORK",
+          locationId = rework ? current.fromLocationId : current.toLocationId;
+        const quantity = new Prisma.Decimal(
+          rework ? current.weightKg : laboratory.acceptedWeightKg,
+        );
+        const assessment = {
+          ...laboratory,
+          acceptedAt: new Date().toISOString(),
+          acceptedById: user.id,
+        };
+        const batch = await tx.collectionBatch.create({
+          data: {
+            organizationId: user.organizationId,
+            locationId,
+            state: rework ? "RAW" : "WASHED",
+            totalKg: quantity,
+            remainingKg: quantity,
+            bagCount: current.bagCount,
+            sourceType: rework ? "SHIPMENT_REWORK" : "SHIPMENT",
+            sourceId: id,
+            createdById: user.id,
+          },
+        });
+        await tx.collectionShipment.update({
+          where: { id },
+          data: {
+            status: rework ? "RETURNED_TO_WASH" : "ACCEPTED",
+            acceptedWeightKg: laboratory.acceptedWeightKg,
+            laboratory: assessment,
+            confirmedById: user.id,
+            confirmedAt: new Date(),
+          },
+        });
+        await tx.collectionAction.create({
+          data: {
+            organizationId: user.organizationId,
+            locationId,
+            kind: rework ? "FACTORY_REWORK" : "FACTORY_RECEIPT",
+            quantityKg: quantity,
+            createdById: user.id,
+            details: json({
+              shipmentId: id,
+              batchId: batch.id,
+              laboratory: assessment,
+            }),
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            organizationId: user.organizationId,
+            userId: user.id,
+            action: "collection.shipment.laboratory",
+            entity: "CollectionShipment",
+            entityId: id,
+            newValue: assessment,
+            reason: rework
+              ? "Возврат полного веса на повторную мойку"
+              : "Лаборатория перед сушкой",
+          },
+        });
+        await this.notify(
+          tx,
+          user.organizationId,
+          [
+            current.createdById,
+            ...(await this.managers(tx, current.fromLocationId)),
+            ...(await this.managers(tx, current.toLocationId)),
+          ],
+          rework
+            ? "Партия возвращена на повторную мойку"
+            : "Лаборатория перед сушкой пройдена",
+          rework
+            ? `${current.number}: полный вес ${displayTonnes(current.weightKg)} т возвращён на исходную мойку отдельной партией. ${laboratory.reasons.join("; ")}.`
+            : `${current.number}: отправлено ${displayTonnes(current.weightKg)} т; принято на сушку ${displayTonnes(laboratory.acceptedWeightKg)} т; вычет ${laboratory.totalDeductionPercent}%.`,
+          rework ? "COLLECTION_FACTORY_REWORK" : "COLLECTION_FACTORY_ACCEPTED",
+          {
+            section: "factory-inbound",
+            entityId: id,
+            locationId: current.toLocationId,
+          },
+        );
+        return { confirmed: true, batchId: batch.id, ...laboratory };
+      },
+    );
   }
   production(dto: CollectionProductionDto, user: CurrentUser) {
     this.require(user, ["FACTORY_MANAGER"]);
-    const finished = dto.finished.map((b) => kg(b.weightKg));
-    const rejected = dto.rejected.map((b) => kg(b.weightKg));
-    const sum = (items: Prisma.Decimal[]) =>
-      items.reduce((total, value) => total.plus(value), new Prisma.Decimal(0));
-    const finishedKg = sum(finished),
-      rejectedKg = sum(rejected),
-      total = finishedKg.plus(rejectedKg);
-    if (total.lte(0))
-      throw new BadRequestException(
-        "Добавьте хотя бы один бигбег ГП или некондиции",
-      );
+    let assessments: ReturnType<typeof assessDryingOutput>[];
+    try {
+      assessments = dto.bags.map((b) => assessDryingOutput(b.laboratory));
+    } catch (e) {
+      throw new BadRequestException((e as Error).message);
+    }
+    const total = dto.bags.reduce(
+      (sum, b) => sum.plus(kg(b.weightKg)),
+      new Prisma.Decimal(0),
+    );
     return this.command(
       user,
       dto.idempotencyKey,
@@ -636,13 +783,64 @@ export class CollectionService {
       dto,
       async (tx) => {
         await this.location(tx, dto.locationId, user, "FACTORY");
-        const consumed = await this.consume(
-          tx,
-          user,
-          dto.locationId,
-          "WASHED",
-          total,
-        );
+        let consumed: { batchId: string; weightKg: string }[],
+          redryConsumedBagIds: string[] = [];
+        if (dto.redryBatchId) {
+          const batch = await tx.collectionBatch.findFirst({
+            where: {
+              id: dto.redryBatchId,
+              organizationId: user.organizationId,
+              locationId: dto.locationId,
+              state: "REDRY",
+              status: "ACTIVE",
+            },
+          });
+          const ids = dto.bags.map((b) => b.redryBagId ?? "");
+          if (
+            !batch ||
+            ids.some((id) => !id) ||
+            new Set(ids).size !== ids.length
+          )
+            throw new BadRequestException(
+              "Выберите бигбеги из партии повторной сушки",
+            );
+          const originals = await tx.collectionBag.findMany({
+            where: { batchId: batch.id, id: { in: ids }, status: "AVAILABLE" },
+          });
+          if (originals.length !== ids.length || batch.remainingKg.lt(total))
+            throw new ConflictException(
+              "Бигбеги повторной сушки уже обработаны",
+            );
+          for (const bag of dto.bags)
+            if (
+              !originals
+                .find((b) => b.id === bag.redryBagId)!
+                .weightKg.eq(bag.weightKg)
+            )
+              throw new BadRequestException(
+                "Вес повторной сушки должен совпадать с выбранным бигбегом",
+              );
+          await tx.collectionBatch.update({
+            where: { id: batch.id },
+            data: { remainingKg: { decrement: total } },
+          });
+          await tx.collectionBag.updateMany({
+            where: { id: { in: ids } },
+            data: { status: "REDRIED" },
+          });
+          redryConsumedBagIds = ids;
+          consumed = [{ batchId: batch.id, weightKg: total.toString() }];
+        } else {
+          if (dto.bags.some((b) => b.redryBagId))
+            throw new BadRequestException("Выберите партию повторной сушки");
+          consumed = await this.consume(
+            tx,
+            user,
+            dto.locationId,
+            "WASHED",
+            total,
+          );
+        }
         const action = await tx.collectionAction.create({
           data: {
             organizationId: user.organizationId,
@@ -652,19 +850,27 @@ export class CollectionService {
             createdById: user.id,
             details: json({
               consumed,
-              finished,
-              rejected,
-              finishedKg,
-              rejectedKg,
+              redryConsumedBagIds,
+              bags: dto.bags.map((bag, i) => ({
+                ...bag,
+                laboratory: assessments[i],
+              })),
             }),
           },
         });
-        for (const [state, weights] of [
-          ["FINISHED", finished],
-          ["REJECT", rejected],
-        ] as const) {
-          if (!weights.length) continue;
-          const quantity = sum([...weights]);
+        const amounts: Record<string, string> = {};
+        const counts: Record<string, number> = {};
+        for (const state of ["FINISHED", "REJECT", "REDRY"]) {
+          const entries = dto.bags
+            .map((bag, i) => ({ bag, assessment: assessments[i] }))
+            .filter((e) => e.assessment.state === state);
+          const quantity = entries.reduce(
+            (sum, e) => sum.plus(e.bag.weightKg),
+            new Prisma.Decimal(0),
+          );
+          amounts[state] = quantity.toString();
+          counts[state] = entries.length;
+          if (!entries.length) continue;
           const batch = await tx.collectionBatch.create({
             data: {
               organizationId: user.organizationId,
@@ -672,38 +878,59 @@ export class CollectionService {
               state,
               totalKg: quantity,
               remainingKg: quantity,
-              bagCount: weights.length,
-              bagWeights: json(weights),
+              bagCount: entries.length,
+              bagWeights: entries.map((e) => e.bag.weightKg),
               sourceType: "PRODUCTION",
               sourceId: action.id,
               createdById: user.id,
             },
           });
           await tx.collectionBag.createMany({
-            data: weights.map((weight, index) => ({
+            data: entries.map((e, index) => ({
               batchId: batch.id,
               index: index + 1,
-              weightKg: weight,
+              weightKg: e.bag.weightKg,
+              laboratory: json({
+                ...e.assessment,
+                checkedById: user.id,
+                checkedAt: new Date().toISOString(),
+              }),
             })),
           });
         }
-        const firstBatch = await tx.collectionBatch.findFirstOrThrow({
-          where: { sourceType: "PRODUCTION", sourceId: action.id },
+        await tx.auditLog.create({
+          data: {
+            organizationId: user.organizationId,
+            userId: user.id,
+            action: "collection.production.laboratory",
+            entity: "CollectionAction",
+            entityId: action.id,
+            newValue: json({ amounts, counts }),
+            reason: dto.redryBatchId
+              ? "Лаборатория после повторной сушки"
+              : "Лаборатория каждого бигбега после сушки",
+          },
         });
         await this.notify(
           tx,
           user.organizationId,
           [user.id, ...(await this.managers(tx, dto.locationId))],
-          "Завод выпустил ГП и некондицию",
-          `ГП: ${finished.length} бигбегов, ${displayTonnes(finishedKg)} т. Некондиция: ${rejected.length} бигбегов, ${displayTonnes(rejectedKg)} т. Из мытого сырья списано ${displayTonnes(total)} т.`,
+          "Лаборатория после сушки",
+          `ГП: ${counts.FINISHED} бигбегов, ${displayTonnes(amounts.FINISHED)} т; некондиция: ${counts.REJECT}, ${displayTonnes(amounts.REJECT)} т; повторная сушка: ${counts.REDRY}, ${displayTonnes(amounts.REDRY)} т.`,
           "COLLECTION_PRODUCTION",
           {
             section: "production",
-            entityId: firstBatch.id,
+            entityId: action.id,
             locationId: dto.locationId,
           },
         );
-        return { id: action.id, finishedKg, rejectedKg, consumedKg: total };
+        return {
+          id: action.id,
+          finishedKg: amounts.FINISHED,
+          rejectedKg: amounts.REJECT,
+          redryKg: amounts.REDRY,
+          consumedKg: total.toString(),
+        };
       },
     );
   }
@@ -1029,7 +1256,16 @@ export class CollectionService {
             }
           : null,
       })),
-      totals: tripTotal,
+      totals: {
+        ...tripTotal,
+        acceptedWeightKg: trips
+          .filter((t) => t.kind === "RAW" && t.status === "ACCEPTED")
+          .reduce(
+            (sum, t) => sum.plus(t.acceptedWeightKg ?? t.weightKg),
+            new Prisma.Decimal(0),
+          )
+          .toString(),
+      },
     };
   }
 }

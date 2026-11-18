@@ -16,6 +16,25 @@ const url = process.env.DATABASE_URL ?? "";
 if (!new URL(url).pathname.endsWith("_spec"))
   throw Error("Collection tests require a separate *_spec database");
 const db = new PrismaClient();
+const intakeLab = {
+  sedimentPercent: "3",
+  moisturePercent: "35",
+  conductivity: "400",
+  waterTransparent: true,
+  colorCompliant: true,
+  packagingCompliant: true,
+};
+const dryBag = (weightKg: string, reject = false) => ({
+  weightKg,
+  laboratory: {
+    sedimentPercent: reject ? "6" : "5",
+    moisturePercent: "0.5",
+    conductivity: "400",
+    waterTransparent: true,
+    colorCompliant: true,
+    bulkDensity: "450",
+  },
+});
 const api = process.env.COLLECTION_TEST_API ?? "http://127.0.0.1:4198/api/v1";
 const key = () => randomUUID();
 async function request(
@@ -509,7 +528,12 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
   await request(
     `/collection/trips/${trip.id}/confirm`,
     409,
-    { idempotencyKey: key() },
+    {
+      idempotencyKey: key(),
+      sedimentPercent: "0",
+      moisturePercent: "0",
+      colorPercent: "0",
+    },
     warehouse.token,
   );
   await event(claim.token, "LOADED");
@@ -562,26 +586,46 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
   await request(
     `/collection/trips/${trip.id}/confirm`,
     403,
-    { idempotencyKey: key() },
+    {
+      idempotencyKey: key(),
+      sedimentPercent: "0",
+      moisturePercent: "0",
+      colorPercent: "0",
+    },
     otherWarehouse.token,
   );
   const receiptKey = key();
   await request(
     `/collection/trips/${trip.id}/confirm`,
     201,
-    { idempotencyKey: receiptKey },
+    {
+      idempotencyKey: receiptKey,
+      sedimentPercent: "0",
+      moisturePercent: "0",
+      colorPercent: "0",
+    },
     warehouse.token,
   );
   await request(
     `/collection/trips/${trip.id}/confirm`,
     201,
-    { idempotencyKey: receiptKey },
+    {
+      idempotencyKey: receiptKey,
+      sedimentPercent: "0",
+      moisturePercent: "0",
+      colorPercent: "0",
+    },
     warehouse.token,
   );
   await request(
     `/collection/trips/${trip.id}/confirm`,
     409,
-    { idempotencyKey: key() },
+    {
+      idempotencyKey: key(),
+      sedimentPercent: "0",
+      moisturePercent: "0",
+      colorPercent: "0",
+    },
     warehouse.token,
   );
   assert.equal(
@@ -593,13 +637,13 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
   await request(
     "/collection/wash",
     403,
-    { idempotencyKey: key(), locationId: helios.id, weightKg: "500" },
+    { idempotencyKey: key(), locationId: helios.id, weightKg: "2000" },
     otherWarehouse.token,
   );
   await request(
     "/collection/wash",
     201,
-    { idempotencyKey: key(), locationId: helios.id, weightKg: "500" },
+    { idempotencyKey: key(), locationId: helios.id, weightKg: "2000" },
     warehouse.token,
   );
   const shipment = await request(
@@ -610,27 +654,27 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
       locationId: helios.id,
       factoryId: factory.id,
       bagCount: 3,
-      weightKg: "450",
+      weightKg: "2000",
     },
     warehouse.token,
   );
-  assert.equal(shipment.averageBagKg, "150");
+  assert.equal(shipment.averageBagKg, "666.667");
   await request(
     `/collection/shipments/${shipment.id}/confirm`,
     403,
-    { idempotencyKey: key() },
+    { idempotencyKey: key(), ...intakeLab },
     otherFactory.token,
   );
   await request(
     `/collection/shipments/${shipment.id}/confirm`,
     201,
-    { idempotencyKey: key() },
+    { idempotencyKey: key(), ...intakeLab },
     factoryManager.token,
   );
   await request(
     `/collection/shipments/${shipment.id}/confirm`,
     409,
-    { idempotencyKey: key() },
+    { idempotencyKey: key(), ...intakeLab },
     factoryManager.token,
   );
   await request(
@@ -639,8 +683,7 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
     {
       idempotencyKey: key(),
       locationId: factory.id,
-      finished: [{ weightKg: "451" }],
-      rejected: [],
+      bags: Array.from({ length: 5 }, () => dryBag("500")),
     },
     factoryManager.token,
   );
@@ -650,12 +693,11 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
     {
       idempotencyKey: key(),
       locationId: factory.id,
-      finished: [{ weightKg: "100.25" }, { weightKg: "100.25" }],
-      rejected: [{ weightKg: "20" }],
+      bags: [dryBag("500"), dryBag("525"), dryBag("500", true)],
     },
     factoryManager.token,
   );
-  assert.equal(produced.consumedKg, "220.5");
+  assert.equal(produced.consumedKg, "1525");
   const finishedBatch = await db.collectionBatch.findFirstOrThrow({
     where: { sourceId: produced.id, state: "FINISHED" },
     include: { bags: true },
@@ -673,7 +715,7 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
     },
     factoryManager.token,
   );
-  assert.equal(gp.weightKg, "100.25");
+  assert.equal(gp.weightKg, "500");
   assert.equal(gp.bagCount, 1);
   await request(
     "/collection/gp-trips",
@@ -713,7 +755,7 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
   const gpRemaining = await db.collectionBatch.findUniqueOrThrow({
     where: { id: finishedBatch.id },
   });
-  assert.equal(gpRemaining.remainingKg.toString(), "100.25");
+  assert.equal(gpRemaining.remainingKg.toString(), "525");
   // Both concurrent washes try to consume the entire same stock; only one can commit.
   const beforeOwner = await db.notification.count({
     where: { userId: owner.id, type: "COLLECTION_WASH" },
@@ -754,7 +796,7 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
     ownerState.stock.find(
       (r: any) => r.locationId === factory.id && r.state === "WASHED",
     )._sum.remainingKg,
-    "229.5",
+    "475",
   );
   const ownState = await request(
     "/collection/state",
@@ -907,7 +949,12 @@ test("Collection: separate database, all roles, full material/GP delivery flow, 
   await request(
     "/collection/trips/" + mistaken.id + "/confirm",
     201,
-    { idempotencyKey: key() },
+    {
+      idempotencyKey: key(),
+      sedimentPercent: "0",
+      moisturePercent: "0",
+      colorPercent: "0",
+    },
     warehouse.token,
   );
   const correction = {

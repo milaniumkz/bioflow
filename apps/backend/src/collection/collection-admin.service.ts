@@ -1270,7 +1270,7 @@ export class CollectionAdminService {
               trip.kind === "GP"
                 ? trip.weightKg
                 : trip.status === "ACCEPTED"
-                  ? trip.weightKg.negated()
+                  ? (trip.acceptedWeightKg ?? trip.weightKg).negated()
                   : new Prisma.Decimal(0),
             createdById: actor.id,
             details: {
@@ -1359,7 +1359,7 @@ export class CollectionAdminService {
         const receipt = await tx.collectionBatch.findFirst({
           where: {
             organizationId: actor.organizationId,
-            sourceType: "SHIPMENT",
+            sourceType: { in: ["SHIPMENT", "SHIPMENT_REWORK"] },
             sourceId: id,
           },
         });
@@ -1488,8 +1488,18 @@ export class CollectionAdminService {
         }
         const details = action.details as {
           consumed?: { batchId: string; weightKg: string }[];
+          redryConsumedBagIds?: string[];
         };
         await this.restoreConsumed(tx, actor, details.consumed ?? []);
+        if (details.redryConsumedBagIds?.length)
+          await tx.collectionBag.updateMany({
+            where: {
+              id: { in: details.redryConsumedBagIds },
+              status: "REDRIED",
+              batch: { organizationId: actor.organizationId },
+            },
+            data: { status: "AVAILABLE" },
+          });
         const reversal = await tx.collectionAction.create({
           data: {
             organizationId: actor.organizationId,

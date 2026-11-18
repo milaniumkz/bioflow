@@ -1,4 +1,5 @@
 "use client";
+import { DryingProductionFields } from "../drying-laboratory";
 import { useState, type ReactNode } from "react";
 import { kgAsTonnes } from "../weight-units";
 import {
@@ -374,10 +375,10 @@ export function BagWeights({
               <select
                 aria-label={`Бигбег ${i + 1}, тонн · ${title}`}
                 name={name}
-                defaultValue="0.8"
+                defaultValue="0.5"
               >
-                <option value="0.8">0,8 т — 800 кг</option>
-                <option value="0.825">0,825 т — 825 кг</option>
+                <option value="0.5">0,5 т — 500 кг</option>
+                <option value="0.525">0,525 т — 525 кг</option>
               </select>
             ) : (
               <input
@@ -396,11 +397,12 @@ export function BagWeights({
 }
 export function ProductionForm({ data }: { data: Row }) {
   return (
-    <>
-      <SiteSelect data={data} kind="FACTORY" label="Завод" />
-      <BagWeights name="finished" title="Готовая продукция" presets />
-      <BagWeights name="rejected" title="Некондиция" initialCount="0" />
-    </>
+    <DryingProductionFields
+      locations={data.locations.filter(
+        (l: Row) => l.kind === "FACTORY" && l.active,
+      )}
+      batches={data.batches}
+    />
   );
 }
 export function AddBagsForm({ data }: { data: Row }) {

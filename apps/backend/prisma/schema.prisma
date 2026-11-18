@@ -730,6 +730,8 @@ model CollectionTrip {
   warehouseId String?
   bagCount Int
   weightKg Decimal @db.Decimal(18, 3)
+  acceptedWeightKg Decimal? @db.Decimal(18, 3)
+  laboratory Json?
   qrTokenHash String @unique
   status String @default("CREATED")
   createdAt DateTime @default(now())
@@ -804,6 +806,8 @@ model CollectionShipment {
   toLocationId String
   bagCount Int
   weightKg Decimal @db.Decimal(18, 3)
+  acceptedWeightKg Decimal? @db.Decimal(18, 3)
+  laboratory Json?
   averageBagKg Decimal @db.Decimal(18, 3)
   status String @default("IN_TRANSIT")
   createdById String
@@ -839,6 +843,7 @@ model CollectionBag {
   batch CollectionBatch @relation(fields: [batchId], references: [id])
   index Int
   weightKg Decimal @db.Decimal(18, 3)
+  laboratory Json?
   status String @default("AVAILABLE")
   tripId String?
   @@unique([batchId, index])

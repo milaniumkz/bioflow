@@ -3,6 +3,8 @@ import {
   ArrayMinSize,
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
+  IsDefined,
   IsIn,
   IsInt,
   IsISO8601,
@@ -33,18 +35,31 @@ export class CollectionShipmentDto extends CollectionWashDto {
 export class CollectionBagDto {
   @IsString() @Matches(/^\d{1,10}(\.\d{1,3})?$/) weightKg!: string;
 }
+export class CollectionDryingOutputDto {
+  @IsString() @Matches(/^\d{1,3}(\.\d{1,2})?$/) sedimentPercent!: string;
+  @IsString() @Matches(/^\d{1,3}(\.\d{1,2})?$/) moisturePercent!: string;
+  @IsString() @Matches(/^\d{1,8}(\.\d{1,3})?$/) conductivity!: string;
+  @IsBoolean() waterTransparent!: boolean;
+  @IsBoolean() colorCompliant!: boolean;
+  @IsString() @Matches(/^\d{1,8}(\.\d{1,3})?$/) bulkDensity!: string;
+}
+export class CollectionDryingBagDto {
+  @IsIn(["500", "525"]) weightKg!: string;
+  @IsOptional() @IsString() redryBagId?: string;
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => CollectionDryingOutputDto)
+  laboratory!: CollectionDryingOutputDto;
+}
 export class CollectionProductionDto extends CollectionCommandDto {
   @IsString() locationId!: string;
+  @IsOptional() @IsString() redryBatchId?: string;
   @IsArray()
+  @ArrayMinSize(1)
   @ArrayMaxSize(1000)
   @ValidateNested({ each: true })
-  @Type(() => CollectionBagDto)
-  finished!: CollectionBagDto[];
-  @IsArray()
-  @ArrayMaxSize(1000)
-  @ValidateNested({ each: true })
-  @Type(() => CollectionBagDto)
-  rejected!: CollectionBagDto[];
+  @Type(() => CollectionDryingBagDto)
+  bags!: CollectionDryingBagDto[];
 }
 export class CollectionFactoryDto extends CollectionCommandDto {
   @IsString() @Length(2, 100) name!: string;
@@ -72,6 +87,31 @@ export class CollectionWeightCorrectionDto extends CollectionCommandDto {
   @IsString() @Length(10, 500) reason!: string;
 }
 
-export class CollectionOpeningDto extends CollectionProductionDto {
+export class CollectionOpeningDto extends CollectionCommandDto {
+  @IsString() locationId!: string;
   @IsString() @Matches(/^\d{1,10}(\.\d{1,3})?$/) washedKg!: string;
+  @IsArray()
+  @ArrayMaxSize(1000)
+  @ValidateNested({ each: true })
+  @Type(() => CollectionBagDto)
+  finished!: CollectionBagDto[];
+  @IsArray()
+  @ArrayMaxSize(1000)
+  @ValidateNested({ each: true })
+  @Type(() => CollectionBagDto)
+  rejected!: CollectionBagDto[];
+}
+export class CollectionAcceptanceDto extends CollectionCommandDto {
+  @IsString() @Matches(/^\d{1,3}(\.\d{1,2})?$/) sedimentPercent!: string;
+  @IsString() @Matches(/^\d{1,3}(\.\d{1,2})?$/) moisturePercent!: string;
+  @IsString() @Matches(/^\d{1,3}(\.\d{1,2})?$/) colorPercent!: string;
+}
+
+export class CollectionDryingIntakeDto extends CollectionCommandDto {
+  @IsString() @Matches(/^\d{1,3}(\.\d{1,2})?$/) sedimentPercent!: string;
+  @IsString() @Matches(/^\d{1,3}(\.\d{1,2})?$/) moisturePercent!: string;
+  @IsString() @Matches(/^\d{1,8}(\.\d{1,3})?$/) conductivity!: string;
+  @IsBoolean() waterTransparent!: boolean;
+  @IsBoolean() colorCompliant!: boolean;
+  @IsBoolean() packagingCompliant!: boolean;
 }

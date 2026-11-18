@@ -7,6 +7,25 @@ import * as argon2 from "argon2";
 import { bootstrapCollection } from "../prisma/bootstrap-collection";
 import { CollectionService } from "../src/collection/collection.service";
 import { CollectionRegistrationService } from "../src/collection/collection-registration";
+const intakeLab = {
+  sedimentPercent: "3",
+  moisturePercent: "35",
+  conductivity: "400",
+  waterTransparent: true,
+  colorCompliant: true,
+  packagingCompliant: true,
+};
+const dryBag = (weightKg: string, reject = false) => ({
+  weightKg,
+  laboratory: {
+    sedimentPercent: reject ? "6" : "5",
+    moisturePercent: "0.5",
+    conductivity: "400",
+    waterTransparent: true,
+    colorCompliant: true,
+    bulkDensity: "450",
+  },
+});
 const api = process.env.COLLECTION_TEST_API ?? "http://127.0.0.1:4198/api/v1";
 const db = new PrismaClient();
 const key = () => randomUUID();
@@ -382,7 +401,7 @@ test("Collection administration: role isolation, account lifecycle, exact stock 
   await req(
     "/collection/shipments/" + shipment.id + "/confirm",
     201,
-    { idempotencyKey: key() },
+    { idempotencyKey: key(), ...intakeLab },
     owner.token,
   );
   const production = await req(
@@ -391,8 +410,7 @@ test("Collection administration: role isolation, account lifecycle, exact stock 
     {
       idempotencyKey: key(),
       locationId: factory.id,
-      finished: [{ weightKg: "800" }, { weightKg: "825" }],
-      rejected: [],
+      bags: [dryBag("500"), dryBag("525")],
     },
     owner.token,
   );
@@ -430,7 +448,7 @@ test("Collection administration: role isolation, account lifecycle, exact stock 
     body(),
     owner.token,
   );
-  assert.equal(await stock(factory.id, "FINISHED"), "1625");
+  assert.equal(await stock(factory.id, "FINISHED"), "1025");
   await req(
     "/collection/admin/operations/" + production.id + "/reverse",
     201,
@@ -491,7 +509,12 @@ test("Collection administration: role isolation, account lifecycle, exact stock 
   await req(
     "/collection/trips/" + raw.id + "/confirm",
     201,
-    { idempotencyKey: key() },
+    {
+      idempotencyKey: key(),
+      sedimentPercent: "0",
+      moisturePercent: "0",
+      colorPercent: "0",
+    },
     owner.token,
   );
   const rawWash = await req(

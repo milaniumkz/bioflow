@@ -32,6 +32,8 @@ import { ClaimDriverDto, DriverPointsDto } from "./collection-driver.dto";
 import { CollectionService } from "./collection.service";
 import { CollectionDriverService } from "./collection-driver.service";
 import {
+  CollectionDryingIntakeDto,
+  CollectionAcceptanceDto,
   CollectionOpeningDto,
   CollectionGpTripDto,
   CollectionWeightCorrectionDto,
@@ -117,10 +119,10 @@ class CollectionController {
   }
   @Post("trips/:id/confirm") confirmTrip(
     @Param("id") id: string,
-    @Body() dto: CollectionCommandDto,
+    @Body() dto: CollectionAcceptanceDto,
     @User() user: CurrentUser,
   ) {
-    return this.service.confirmTrip(id, dto.idempotencyKey, user);
+    return this.service.confirmTrip(id, dto, user);
   }
   @Post("wash") wash(
     @Body() dto: CollectionWashDto,
@@ -136,10 +138,10 @@ class CollectionController {
   }
   @Post("shipments/:id/confirm") confirmShipment(
     @Param("id") id: string,
-    @Body() dto: CollectionCommandDto,
+    @Body() dto: CollectionDryingIntakeDto,
     @User() user: CurrentUser,
   ) {
-    return this.service.confirmShipment(id, dto.idempotencyKey, user);
+    return this.service.confirmShipment(id, dto, user);
   }
   @Post("production") production(
     @Body() dto: CollectionProductionDto,

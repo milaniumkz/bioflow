@@ -11,6 +11,7 @@ export const stateLabels: Record<string, string> = {
   WASHED: "Мытое сырьё",
   FINISHED: "Готовая продукция",
   REJECT: "Некондиция",
+  REDRY: "Повторная сушка",
 };
 export const statusLabels: Record<string, string> = {
   CREATED: "QR создан",
@@ -18,6 +19,8 @@ export const statusLabels: Record<string, string> = {
   IN_TRANSIT: "В пути",
   ARRIVED: "Прибыл",
   ACCEPTED: "Принят",
+  RETURNED_TO_WASH: "Возвращено на мойку",
+  REDRIED: "Повторно высушен",
   CANCELLED: "Отменён",
   ACTIVE: "Доступно",
   PENDING: "Ожидает",
@@ -35,6 +38,7 @@ export const actionLabels: Record<string, string> = {
   RAW_RECEIPT: "Приход сырья",
   FACTORY_SHIPMENT: "Отправка на завод",
   FACTORY_RECEIPT: "Приход на завод",
+  FACTORY_REWORK: "Возврат на повторную мойку",
   GP_SHIPMENT: "Отправка ГП",
   WEIGHT_CORRECTION: "Исправление веса",
   STOCK_ADJUSTMENT: "Корректировка остатка",

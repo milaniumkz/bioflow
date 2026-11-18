@@ -12,10 +12,12 @@ RUN --mount=type=secret,id=proxy_ca,required=false sh -eu -c '\
     export SSL_CERT_FILE=/tmp/bioflow-ca.pem; \
   fi; \
   apk add --no-cache openssl; \
-  npm ci --workspace @bioflow/backend --include-workspace-root=false; \
+  npm ci --workspace @bioflow/backend --workspace @bioflow/shared-types --include-workspace-root=false; \
   npm run prisma:generate -w @bioflow/backend; \
+  npm run build -w @bioflow/shared-types; \
   npm run build -w @bioflow/backend; \
-  mkdir -p /runtime/apps/backend; \
+  mkdir -p /runtime/apps/backend /runtime/packages; \
+  cp -a packages/shared-types /runtime/packages/; \
   cp -a node_modules package.json package-lock.json /runtime/; \
   cp -a apps/backend/dist apps/backend/prisma apps/backend/package.json /runtime/apps/backend/; \
   if [ -d apps/backend/node_modules ]; then cp -a apps/backend/node_modules /runtime/apps/backend/; fi; \

@@ -1,5 +1,17 @@
 "use client";
 import {
+  DryingBagResult,
+  DryingIntakeFields,
+  DryingIntakeResult,
+  dryingIntakeValues,
+  dryingProductionValues,
+} from "../drying-laboratory";
+import {
+  LaboratoryFields,
+  LaboratoryResult,
+  laboratoryValues,
+} from "../laboratory";
+import {
   useCallback,
   useEffect,
   useRef,
@@ -510,9 +522,7 @@ function Console() {
         <ProductionForm data={s} />,
         (f) =>
           command("/collection/production", {
-            locationId: text(f, "locationId"),
-            finished: listWeights(f, "finished"),
-            rejected: listWeights(f, "rejected"),
+            ...dryingProductionValues(f),
           }),
         { button: "Создать продукцию" },
       );
@@ -1271,7 +1281,17 @@ function Console() {
                               </td>
                               <td>{siteName(batch.locationId)}</td>
                               <td>{stateLabels[batch.state]}</td>
-                              <td>{kgAsTonnes(bag.weightKg)}</td>
+                              <td>
+                                {kgAsTonnes(bag.weightKg)}
+                                {bag.laboratory ? (
+                                  <details>
+                                    <summary>Лаборатория</summary>
+                                    <DryingBagResult
+                                      laboratory={bag.laboratory}
+                                    />
+                                  </details>
+                                ) : null}
+                              </td>
                               <td>
                                 <Badge value={bag.status} />
                               </td>
@@ -1338,6 +1358,9 @@ function Console() {
                         ? `${siteName(trip.fromLocationId)} → ${trip.recipientName}`
                         : `${userName(trip.createdById)} → ${siteName(trip.warehouseId)}`}
                     </p>
+                    {trip.laboratory ? (
+                      <LaboratoryResult laboratory={trip.laboratory} />
+                    ) : null}
                     <div className="ca-trip-weight">
                       <strong>
                         {kgAsTonnes(trip.weightKg)}
@@ -1506,15 +1529,20 @@ function Console() {
                               onClick={() =>
                                 open(
                                   "Подтвердить приход",
-                                  <p>
-                                    {siteName(trip.warehouseId)} ·{" "}
-                                    {kgAsTonnes(trip.weightKg)} т ·{" "}
-                                    {trip.bagCount} мешков.
-                                  </p>,
-                                  () =>
+                                  <>
+                                    <p>
+                                      {siteName(trip.warehouseId)} ·{" "}
+                                      {kgAsTonnes(trip.weightKg)} т ·{" "}
+                                      {trip.bagCount} мешков.
+                                    </p>
+                                    <LaboratoryFields
+                                      grossWeightKg={String(trip.weightKg)}
+                                    />
+                                  </>,
+                                  (f) =>
                                     command(
                                       `/collection/trips/${idPath(trip.id)}/confirm`,
-                                      {},
+                                      laboratoryValues(f),
                                     ),
                                   { button: "Подтвердить приход" },
                                 )
@@ -1591,7 +1619,14 @@ function Console() {
                             {siteName(shipment.toLocationId)}
                           </td>
                           <td>{shipment.bagCount}</td>
-                          <td>{kgAsTonnes(shipment.weightKg)}</td>
+                          <td>
+                            {kgAsTonnes(shipment.weightKg)} т отправлено
+                            {shipment.laboratory ? (
+                              <DryingIntakeResult
+                                laboratory={shipment.laboratory}
+                              />
+                            ) : null}
+                          </td>
                           <td>{kgAsTonnes(shipment.averageBagKg)}</td>
                           <td>
                             <Badge value={shipment.status} />
@@ -1603,15 +1638,22 @@ function Console() {
                                   onClick={() =>
                                     open(
                                       "Подтвердить приход на завод",
-                                      <p>
-                                        {siteName(shipment.toLocationId)} ·{" "}
-                                        {shipment.bagCount} бигбегов ·{" "}
-                                        {kgAsTonnes(shipment.weightKg)} т.
-                                      </p>,
-                                      () =>
+                                      <>
+                                        <p>
+                                          {siteName(shipment.toLocationId)} ·{" "}
+                                          {shipment.bagCount} бигбегов ·{" "}
+                                          {kgAsTonnes(shipment.weightKg)} т.
+                                        </p>
+                                        <DryingIntakeFields
+                                          grossWeightKg={String(
+                                            shipment.weightKg,
+                                          )}
+                                        />
+                                      </>,
+                                      (f) =>
                                         command(
                                           `/collection/shipments/${idPath(shipment.id)}/confirm`,
-                                          {},
+                                          dryingIntakeValues(f),
                                         ),
                                       { button: "Подтвердить приход" },
                                     )

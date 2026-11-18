@@ -1,4 +1,11 @@
 "use client";
+import {
+  DryingIntakeForm,
+  DryingIntakeResult,
+  DryingProductionForm,
+  DryingBagResult,
+} from "./drying-laboratory";
+import { RawAcceptanceForm, LaboratoryResult } from "./laboratory";
 import { collectionApk, driverApk } from "./apk-downloads";
 import { tonnesToKg, kgAsTonnes, formatTonnes } from "./weight-units";
 import {
@@ -46,6 +53,10 @@ const labels: Record<string, string> = {
   WASHED: "Мытое",
   FINISHED: "Готовая продукция",
   REJECT: "Некондиция",
+  REDRY: "Повторная сушка",
+  REDRIED: "Повторно высушен",
+  RETURNED_TO_WASH: "Возвращено на мойку",
+  FACTORY_REWORK: "Возврат на повторную мойку",
   CREATED: "QR создан",
   LOADED: "Загрузился",
   IN_TRANSIT: "В пути",
@@ -633,6 +644,7 @@ function Portal() {
                 ["WASHED", "Мытое сырьё"],
                 ["FINISHED", "Готовая продукция"],
                 ["REJECT", "Некондиция"],
+                ...(owner || factory ? [["REDRY", "Повторная сушка"]] : []),
               ].map(([kind, title]) => (
                 <article key={kind}>
                   <span>{title}</span>
@@ -669,7 +681,7 @@ function Portal() {
                           {location.kind === "WAREHOUSE" ? "Склад" : "Завод"}
                         </span>
                       </div>
-                      {["RAW", "WASHED", "FINISHED", "REJECT"]
+                      {["RAW", "WASHED", "FINISHED", "REJECT", "REDRY"]
                         .filter((kind) =>
                           location.kind === "WAREHOUSE"
                             ? ["RAW", "WASHED"].includes(kind)
@@ -785,6 +797,20 @@ function Portal() {
         ) : null}
         {selected === "trips" ? (
           <>
+            {collector && !owner ? (
+              <p className="c-note">
+                Отправлено:{" "}
+                {tonnes(
+                  trips
+                    .filter((t) => t.kind === "RAW" && t.status !== "CANCELLED")
+                    .reduce((sum, t) => sum + Number(t.weightKg), 0),
+                )}{" "}
+                т. Зачтено по подтверждённым приёмкам:{" "}
+                <b>{tonnes(data.totals?.acceptedWeightKg ?? "0")} т</b>.
+                Отправленный вес и лабораторные вычеты показаны в каждой
+                перевозке.
+              </p>
+            ) : null}
             <div className="c-columns">
               {collector || owner ? (
                 <TripForm
@@ -830,10 +856,10 @@ function Portal() {
             names={names}
             usernames={usernames}
             busy={busy}
-            onConfirm={(id) =>
+            onConfirm={(id, laboratory) =>
               void submit(
                 `/collection/trips/${id}/confirm`,
-                {},
+                laboratory,
                 "Приход подтверждён. Сырьё добавлено в немытое",
               )
             }
@@ -894,20 +920,22 @@ function Portal() {
                       <b>{weight(shipment.averageBagKg)}</b> т в среднем
                     </span>
                   </div>
+                  {shipment.laboratory ? (
+                    <DryingIntakeResult laboratory={shipment.laboratory} />
+                  ) : null}
                   {(selected === "factory-inbound" || owner) &&
                   shipment.status === "IN_TRANSIT" ? (
-                    <button
-                      disabled={busy}
-                      onClick={() =>
+                    <DryingIntakeForm
+                      grossWeightKg={String(shipment.weightKg)}
+                      busy={busy}
+                      onConfirm={(values) =>
                         void submit(
                           `/collection/shipments/${shipment.id}/confirm`,
-                          {},
-                          "Приход на завод подтверждён",
+                          values,
+                          "Лаборатория сохранена. Партия принята на сушку либо возвращена на мойку по результатам анализа.",
                         )
                       }
-                    >
-                      Подтвердить приход
-                    </button>
+                    />
                   ) : null}
                 </article>
               ))}
@@ -919,14 +947,15 @@ function Portal() {
         ) : null}
         {selected === "production" ? (
           <>
-            <ProductionForm
+            <DryingProductionForm
               locations={editable("FACTORY")}
+              batches={batches}
               busy={busy}
               onSubmit={(values) =>
-                void submit(
+                submit(
                   "/collection/production",
                   values,
-                  "ГП и некондиция созданы; сырьё списано по весу",
+                  "Лаборатория сохранена. Бигбеги распределены в ГП, некондицию или на повторную сушку",
                 )
               }
             />
@@ -934,7 +963,7 @@ function Portal() {
               <h2>Выпущенные партии</h2>
               <BatchList
                 batches={batches.filter((batch) =>
-                  ["FINISHED", "REJECT"].includes(batch.state),
+                  ["FINISHED", "REJECT", "REDRY"].includes(batch.state),
                 )}
                 names={names}
               />
@@ -989,13 +1018,20 @@ function Portal() {
                         отправок ·{" "}
                         {tonnes(
                           trips
-                            .filter((trip) => trip.createdById === user.id)
+                            .filter(
+                              (trip) =>
+                                trip.createdById === user.id &&
+                                trip.kind === "RAW" &&
+                                trip.status === "ACCEPTED",
+                            )
                             .reduce(
-                              (sum, trip) => sum + Number(trip.weightKg),
+                              (sum, trip) =>
+                                sum +
+                                Number(trip.acceptedWeightKg ?? trip.weightKg),
                               0,
                             ),
                         )}{" "}
-                        т
+                        т зачтено по приёмке
                       </strong>
                     </article>
                   ))}
@@ -1480,7 +1516,7 @@ function BagInputs({
             onChange(
               Array.from(
                 { length: number },
-                (_, index) => values[index] ?? (presets ? "0.8" : ""),
+                (_, index) => values[index] ?? (presets ? "0.5" : ""),
               ),
             );
           }}
@@ -1495,7 +1531,7 @@ function BagInputs({
               <select
                 aria-label={`Бигбег ${index + 1}, вес`}
                 required
-                value={value || "0.8"}
+                value={value || "0.5"}
                 onChange={(event) =>
                   onChange(
                     values.map((entry, i) =>
@@ -1504,8 +1540,8 @@ function BagInputs({
                   )
                 }
               >
-                <option value="0.8">0,8 т — 800 кг</option>
-                <option value="0.825">0,825 т — 825 кг</option>
+                <option value="0.5">0,5 т — 500 кг</option>
+                <option value="0.525">0,525 т — 525 кг</option>
               </select>
             ) : (
               <input
@@ -1760,7 +1796,7 @@ function TripList({
   busy: boolean;
   canQr?: (trip: Row) => boolean;
   onQr?: (id: string) => void;
-  onConfirm?: (id: string) => void;
+  onConfirm?: (id: string, laboratory: Record<string, string>) => void;
 }) {
   return (
     <section className="c-section">
@@ -1798,11 +1834,21 @@ function TripList({
                 {trip.kind === "GP" ? "бигбегов" : "мешков"}
               </span>
               <span>
-                <b>{tonnes(trip.weightKg)}</b> т
+                <b>{tonnes(trip.weightKg)}</b> т{" "}
+                {trip.kind === "RAW" ? "отправлено" : ""}
               </span>
               <span>{usernames[trip.createdById] ?? "Сборщик"}</span>
               <span>{date(trip.createdAt)}</span>
             </div>
+            {trip.laboratory ? (
+              <LaboratoryResult laboratory={trip.laboratory} />
+            ) : trip.kind === "RAW" && trip.status === "ACCEPTED" ? (
+              <p>
+                Принято:{" "}
+                <b>{tonnes(trip.acceptedWeightKg ?? trip.weightKg)} т</b> ·
+                историческая приёмка без лабораторных показателей
+              </p>
+            ) : null}
             <div className="c-progress">
               {[
                 ["loadedAt", "Загрузился"],
@@ -1850,9 +1896,11 @@ function TripList({
                 </button>
               ) : null}
               {onConfirm && trip.status === "ARRIVED" ? (
-                <button disabled={busy} onClick={() => onConfirm(trip.id)}>
-                  Подтвердить приход
-                </button>
+                <RawAcceptanceForm
+                  grossWeightKg={String(trip.weightKg)}
+                  busy={busy}
+                  onConfirm={(values) => onConfirm(trip.id, values)}
+                />
               ) : null}
             </div>
           </article>
@@ -1897,6 +1945,22 @@ function BatchList({ batches, names }: { batches: Row[]; names: Row }) {
               <td>{tonnes(batch.remainingKg)} т</td>
               <td>
                 {batch.bagCount ?? "—"}
+                {batch.bags?.some((bag: Row) => bag.laboratory) ? (
+                  <details>
+                    <summary>Лаборатория каждого бигбега</summary>
+                    {batch.bags.map((bag: Row) => (
+                      <section key={bag.id}>
+                        <b>
+                          Бигбег {bag.index} · {weight(bag.weightKg)} т ·{" "}
+                          {labels[bag.status] ?? bag.status}
+                        </b>
+                        {bag.laboratory ? (
+                          <DryingBagResult laboratory={bag.laboratory} />
+                        ) : null}
+                      </section>
+                    ))}
+                  </details>
+                ) : null}
                 {batch.bagWeights ? (
                   <details>
                     <summary>Вес каждого</summary>

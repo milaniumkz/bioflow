@@ -33,3 +33,5 @@ export interface ApiPage<T> {
   page: number;
   pageSize: number;
 }
+
+export * from "./collection-laboratory";

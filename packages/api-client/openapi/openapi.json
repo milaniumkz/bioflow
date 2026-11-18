@@ -43,6 +43,20 @@
         ]
       }
     },
+    "/api/v1/collection/factory-opening": {
+      "post": {
+        "operationId": "CollectionController_openingStock",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Collection"
+        ]
+      }
+    },
     "/api/v1/collection/state": {
       "get": {
         "operationId": "CollectionController_state",
@@ -292,6 +306,382 @@
         },
         "tags": [
           "CollectionDriver"
+        ]
+      }
+    },
+    "/api/v1/collection/registration/options": {
+      "get": {
+        "operationId": "CollectionRegistrationController_options",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionRegistration"
+        ]
+      }
+    },
+    "/api/v1/collection/registration": {
+      "post": {
+        "operationId": "CollectionRegistrationController_register",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionRegistration"
+        ]
+      }
+    },
+    "/api/v1/collection/registration/owner": {
+      "post": {
+        "operationId": "CollectionRegistrationController_owner",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionRegistration"
+        ]
+      }
+    },
+    "/api/v1/collection/maintenance/test-chain": {
+      "post": {
+        "operationId": "CollectionTestCleanupController_cleanup",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionTestCleanup"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/state": {
+      "get": {
+        "operationId": "CollectionAdminController_state",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/operations": {
+      "get": {
+        "operationId": "CollectionAdminController_operations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/export": {
+      "get": {
+        "operationId": "CollectionAdminController_export",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/audit": {
+      "get": {
+        "operationId": "CollectionAdminController_history",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/notifications": {
+      "get": {
+        "operationId": "CollectionAdminController_notices",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      },
+      "post": {
+        "operationId": "CollectionAdminController_sendNotice",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/users": {
+      "post": {
+        "operationId": "CollectionAdminController_createUser",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/users/{id}": {
+      "post": {
+        "operationId": "CollectionAdminController_saveUser",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/users/{id}/block": {
+      "post": {
+        "operationId": "CollectionAdminController_block",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/users/{id}/password": {
+      "post": {
+        "operationId": "CollectionAdminController_password",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/locations": {
+      "post": {
+        "operationId": "CollectionAdminController_createLocation",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/locations/{id}": {
+      "post": {
+        "operationId": "CollectionAdminController_location",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/stock": {
+      "post": {
+        "operationId": "CollectionAdminController_stock",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/bags": {
+      "post": {
+        "operationId": "CollectionAdminController_bags",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/bags/{id}": {
+      "post": {
+        "operationId": "CollectionAdminController_bag",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/trips/{id}": {
+      "post": {
+        "operationId": "CollectionAdminController_trip",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/trips/{id}/stage": {
+      "post": {
+        "operationId": "CollectionAdminController_stage",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/trips/{id}/stop": {
+      "post": {
+        "operationId": "CollectionAdminController_stop",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/trips/{id}/cancel": {
+      "post": {
+        "operationId": "CollectionAdminController_cancelTrip",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/shipments/{id}/cancel": {
+      "post": {
+        "operationId": "CollectionAdminController_cancelShipment",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/operations/{id}/reverse": {
+      "post": {
+        "operationId": "CollectionAdminController_reverse",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/notifications/{id}/retry": {
+      "post": {
+        "operationId": "CollectionAdminController_retryNotice",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
+        ]
+      }
+    },
+    "/api/v1/collection/admin/settings": {
+      "post": {
+        "operationId": "CollectionAdminController_settings",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectionAdmin"
         ]
       }
     },
@@ -765,6 +1155,34 @@
         "parameters": [],
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/browser-session": {
+      "post": {
+        "operationId": "AuthController_browserSession",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/browser-logout": {
+      "post": {
+        "operationId": "AuthController_browserLogout",
+        "parameters": [],
+        "responses": {
+          "200": {
             "description": ""
           }
         },
