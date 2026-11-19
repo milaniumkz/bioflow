@@ -73,7 +73,7 @@ jobs:
           npm run test:collection -w @bioflow/backend
       - run: |
           npm audit --omit=dev --audit-level=high
-          node --test infrastructure/audit-development.test.mjs
+          node --test infrastructure/audit-development.test.mjs infrastructure/create-collection-owner.test.cjs
           node infrastructure/audit-development.mjs
       - run: docker compose config --quiet
       - run: cp .env.production.example .env.production && docker compose -f docker-compose.production.yml config --quiet

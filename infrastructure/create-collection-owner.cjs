@@ -40,9 +40,10 @@ async function provision() {
     console.log('Isolated Apple Driver review trips created.');
     return;
   }
-  const apple = review === 'apple';
+  const appleDeletion = review === 'apple-deletion';
+  const apple = review === 'apple' || appleDeletion;
   if ((typeof review !== 'boolean' && !apple) ||
-      email !== (apple ? 'apple-app-review@collection.invalid' : review ? 'google-play-review@collection.invalid' : 'milaniumkz@yandex.kz') ||
+      email !== (appleDeletion ? 'apple-deletion-review@collection.invalid' : apple ? 'apple-app-review@collection.invalid' : review ? 'google-play-review@collection.invalid' : 'milaniumkz@yandex.kz') ||
       !/^[a-f0-9]{48}$/.test(password)) {
     throw new Error('Unexpected owner input');
   }
@@ -51,7 +52,12 @@ async function provision() {
   const roleCode = apple ? 'WAREHOUSE_MANAGER' : 'OWNER';
   await db.$transaction(async (tx) => {
     let warehouse;
-    if (review) {
+    if (appleDeletion) {
+      warehouse = await tx.collectionLocation.findUniqueOrThrow({
+        where: { organizationId_code: { organizationId, code: 'REVIEW-WAREHOUSE' } },
+      });
+      if (warehouse.kind !== 'WAREHOUSE' || !warehouse.active) throw new Error('Invalid review workspace');
+    } else if (review) {
       await tx.organization.create({ data: { id: organizationId, name: apple ? 'Collection Apple App Review' : 'Collection Google Play Review' } });
       warehouse = await tx.collectionLocation.create({
         data: { organizationId, code: 'REVIEW-WAREHOUSE', name: 'Review warehouse', kind: 'WAREHOUSE' },
@@ -61,7 +67,7 @@ async function provision() {
     const user = await tx.user.create({
       data: {
         organizationId, email, passwordHash,
-        fullName: apple ? 'Apple App Reviewer' : review ? 'Google Play Reviewer' : 'Dmitriy Shtrakhov',
+        fullName: appleDeletion ? 'Apple Deletion Reviewer' : apple ? 'Apple App Reviewer' : review ? 'Google Play Reviewer' : 'Dmitriy Shtrakhov',
         mustChangePassword: !review,
         accessAllObjects: !apple,
         userRoles: { create: { roleId: role.id } },
