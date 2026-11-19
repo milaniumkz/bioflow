@@ -73,7 +73,7 @@ jobs:
           npm run test:collection -w @bioflow/backend
       - run: |
           npm audit --omit=dev --audit-level=high
-          node --test infrastructure/audit-development.test.mjs
+          node --test infrastructure/audit-development.test.mjs infrastructure/create-collection-owner.test.cjs
           node infrastructure/audit-development.mjs
       - run: docker compose config --quiet
       - run: cp .env.production.example .env.production && docker compose -f docker-compose.production.yml config --quiet
@@ -98,6 +98,8 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get && flutter analyze && flutter test && flutter build apk --debug --dart-define=API_URL=http://10.0.2.2:4000/api/v1
+        working-directory: apps/mobile
+      - run: cd android && ./gradlew testDebugUnitTest
         working-directory: apps/mobile
       - uses: actions/upload-artifact@v4
         with:
@@ -159,3 +161,4 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - run: flutter analyze
       - run: flutter test
+      - run: bash scripts/test-ios-driver-policy.sh

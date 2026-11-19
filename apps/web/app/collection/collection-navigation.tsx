@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Menu, X, Bell, LogOut } from "lucide-react";
+import { Menu, X, Bell, LogOut, UserRoundX } from "lucide-react";
 import "./collection-navigation.css";
 type Props = {
   items: string[][];
@@ -85,6 +85,10 @@ export function CollectionNavigation({
       </nav>
       <div className="c-menu-bottom">
         {owner ? <a href="/collection/admin">Администрирование</a> : null}
+        <button type="button" onClick={() => choose("account-deletion")}>
+          <UserRoundX size={17} />
+          Удалить аккаунт
+        </button>
         <button
           type="button"
           onClick={() => {

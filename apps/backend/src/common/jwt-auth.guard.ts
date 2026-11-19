@@ -61,7 +61,7 @@ export class JwtAuthGuard implements CanActivate {
         },
       },
     });
-    if (!user || user.isBlocked)
+    if (!user || user.isBlocked || user.deletedAt)
       throw new UnauthorizedException("User is blocked or missing");
     const path = request.originalUrl.split("?")[0].replace(/^\/api\/v1/, "");
     if (
@@ -71,6 +71,7 @@ export class JwtAuthGuard implements CanActivate {
         "/auth/change-password",
         "/auth/logout-all",
         "/auth/sessions",
+        "/auth/account",
       ].includes(path)
     )
       throw new ForbiddenException(

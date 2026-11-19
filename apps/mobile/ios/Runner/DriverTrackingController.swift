@@ -93,7 +93,7 @@ final class DriverTrackingController: NSObject, CLLocationManagerDelegate, URLSe
         }
         if self.current["active"] as? Bool == true { result(FlutterError(code: "active", message: "Сначала завершите текущий рейс", details: nil)); return }
         var stage = args["stage"] as? String ?? "CREATED"; if stage == "IN_TRANSIT" { stage = "DEPARTED" }
-        self.current = ["active": true, "token": token, "api": api, "expires": expires.doubleValue, "number": args["number"] as? String ?? "", "destination": args["destination"] as? String ?? "", "stage": stage, "sequence": 0, "sent": 0, "error": ""]
+        self.current = ["active": true, "token": token, "api": api, "expires": expires.doubleValue, "startedAt": Date().timeIntervalSince1970, "number": args["number"] as? String ?? "", "destination": args["destination"] as? String ?? "", "stage": stage, "sequence": 0, "sent": 0, "error": ""]
         self.persist(); self.manager.startUpdatingLocation(); self.pump(); result(true)
       case "event":
         guard self.current["active"] as? Bool == true, let type = args["type"] as? String else { result(FlutterError(code: "inactive", message: "Сначала начните рейс", details: nil)); return }
@@ -111,6 +111,7 @@ final class DriverTrackingController: NSObject, CLLocationManagerDelegate, URLSe
         var status = self.current
         status.removeValue(forKey: "token"); status.removeValue(forKey: "api")
         status["queued"] = self.points.count + self.events.count
+        status["rejectedPoints"] = (self.document["rejectedPoints"] as? [[String: Any]] ?? []).count
         result(status)
       default: result(FlutterMethodNotImplemented)
       }
@@ -178,7 +179,10 @@ final class DriverTrackingController: NSObject, CLLocationManagerDelegate, URLSe
   func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
     guard current["active"] as? Bool == true else { return }
     guard (current["expires"] as? Double ?? 0) > Date().timeIntervalSince1970 * 1000 else { stop(); return }
-    for location in locations where location.horizontalAccuracy >= 0 && location.timestamp > Date().addingTimeInterval(-120) {
+    let now = Date()
+    let startedAt = Date(timeIntervalSince1970: current["startedAt"] as? Double ?? now.timeIntervalSince1970)
+    let expiresAt = Date(timeIntervalSince1970: (current["expires"] as? Double ?? 0) / 1000)
+    for location in locations where location.horizontalAccuracy >= 0 && location.horizontalAccuracy <= 100_000 && DriverPointPolicy.accepts(recordedAt: location.timestamp, startedAt: startedAt, expiresAt: expiresAt, now: now) {
       let last = current["lastRecordedAt"] as? Double ?? 0
       if location.timestamp.timeIntervalSince1970 - last < 15 { continue }
       current["lastRecordedAt"] = location.timestamp.timeIntervalSince1970
@@ -199,7 +203,7 @@ final class DriverTrackingController: NSObject, CLLocationManagerDelegate, URLSe
     var kind = "", token = "", api = "", payload: [String: Any] = [:], ids: [String] = []
     if let first = points.first, let key = first["token"] as? String {
       kind = "points"; token = key; api = first["api"] as? String ?? ""
-      let rows = Array(points.filter { $0["token"] as? String == key }.prefix(100))
+      let rows = Array(points.filter { $0["token"] as? String == key }.prefix(document["singlePointUploads"] as? Bool == true ? 1 : 100))
       payload = ["points": rows.compactMap { $0["payload"] }]
       ids = rows.compactMap { ($0["payload"] as? [String: Any])?["sequence"] as? Int }.map(String.init)
     } else if let first = events.first {
@@ -227,6 +231,25 @@ final class DriverTrackingController: NSObject, CLLocationManagerDelegate, URLSe
         self.current["sent"] = Date().timeIntervalSince1970 * 1000; self.current["error"] = ""
         if let name = metadata["file"] as? String { try? FileManager.default.removeItem(at: self.directory.appendingPathComponent(name)) }
         self.persist(); self.pump()
+      } else if error == nil && kind == "points" && DriverPointPolicy.recovery(status: code, count: ids.count) != .retry {
+        if DriverPointPolicy.recovery(status: code, count: ids.count) == .split {
+          // Isolate a rejected point instead of quarantining valid neighbours.
+          self.document["singlePointUploads"] = true
+        } else {
+          var rejected = self.document["rejectedPoints"] as? [[String: Any]] ?? []
+          self.points = self.points.filter { row in
+            guard row["token"] as? String == token, let sequence = (row["payload"] as? [String: Any])?["sequence"] as? Int, ids.contains(String(sequence)) else { return true }
+            var saved = row
+            saved["httpStatus"] = code
+            saved["rejectedAt"] = Self.timestamp(Date())
+            rejected.append(saved)
+            return false
+          }
+          self.document["rejectedPoints"] = rejected
+        }
+        self.persist()
+        if let name = metadata["file"] as? String { try? FileManager.default.removeItem(at: self.directory.appendingPathComponent(name)) }
+        self.pump()
       } else { self.current["error"] = "Нет связи или сервер не принял пакет (\(code)). Данные сохранены на iPhone"; self.persist() }
     }
   }

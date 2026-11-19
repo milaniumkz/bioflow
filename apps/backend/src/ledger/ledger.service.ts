@@ -1933,7 +1933,7 @@ export class LedgerService {
     this.reason(dto.reason);
     return this.prisma.$transaction(async (tx) => {
       const target = await tx.user.findFirst({
-        where: { id, organizationId: user.organizationId },
+        where: { id, organizationId: user.organizationId, deletedAt: null },
       });
       if (!target) throw new NotFoundException("Пользователь не найден");
       for (const wid of dto.warehouseScopeIds)
@@ -1956,7 +1956,7 @@ export class LedgerService {
       )
         throw new BadRequestException("Контрагент недоступен");
       const updated = await tx.user.update({
-        where: { id },
+        where: { id, deletedAt: null },
         data: {
           accessAllObjects: dto.accessAllObjects,
           counterpartyScopeId: dto.counterpartyScopeId ?? null,

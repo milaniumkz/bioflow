@@ -333,7 +333,11 @@ export class CollectionAdminService {
           await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${actor.organizationId + ":admin-users"},0))`;
           const old = id
             ? await tx.user.findFirst({
-                where: { id, organizationId: actor.organizationId },
+                where: {
+                  id,
+                  organizationId: actor.organizationId,
+                  deletedAt: null,
+                },
                 select: safeUser,
               })
             : null;
@@ -389,7 +393,11 @@ export class CollectionAdminService {
             accessAllObjects: privileged,
           };
           const user = id
-            ? await tx.user.update({ where: { id }, data, select: safeUser })
+            ? await tx.user.update({
+                where: { id, deletedAt: null },
+                data,
+                select: safeUser,
+              })
             : await tx.user.create({
                 data: {
                   ...data,
@@ -483,7 +491,7 @@ export class CollectionAdminService {
       async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${actor.organizationId + ":admin-users"},0))`;
         const target = await tx.user.findFirst({
-          where: { id, organizationId: actor.organizationId },
+          where: { id, organizationId: actor.organizationId, deletedAt: null },
           select: safeUser,
         });
         if (!target) throw new NotFoundException("Пользователь не найден");
@@ -510,7 +518,7 @@ export class CollectionAdminService {
             );
         }
         await tx.user.update({
-          where: { id },
+          where: { id, deletedAt: null },
           data: { isBlocked: dto.blocked },
         });
         if (dto.blocked) {
@@ -562,7 +570,7 @@ export class CollectionAdminService {
       async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${actor.organizationId + ":admin-users"},0))`;
         const target = await tx.user.findFirst({
-          where: { id, organizationId: actor.organizationId },
+          where: { id, organizationId: actor.organizationId, deletedAt: null },
           select: safeUser,
         });
         if (!target) throw new NotFoundException("Пользователь не найден");
@@ -574,7 +582,7 @@ export class CollectionAdminService {
             "Управлять владельцем может только владелец",
           );
         await tx.user.update({
-          where: { id },
+          where: { id, deletedAt: null },
           data: { passwordHash, mustChangePassword: false },
         });
         await tx.refreshToken.updateMany({

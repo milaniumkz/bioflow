@@ -312,6 +312,13 @@ class _DriverHomeState extends State<DriverHome> with WidgetsBindingObserver {
                                       Text(
                                           'В очереди: ${status['queued'] ?? 0}'),
                                     ],
+                                    if ((status['rejectedPoints'] as int? ??
+                                            0) >
+                                        0) ...[
+                                      const SizedBox(height: 12),
+                                      Text(
+                                          'Сервер отклонил координаты: ${status['rejectedPoints']}. Они сохранены на устройстве для проверки.'),
+                                    ],
                                   ]))),
                       const SizedBox(height: 24),
                       if ((status['destination'] as String? ?? '').isNotEmpty)
@@ -387,6 +394,14 @@ class _DriverHomeState extends State<DriverHome> with WidgetsBindingObserver {
                                   builder: (_) => const DriverWebPage(
                                       path: '/collection/help/driver',
                                       title: 'Инструкции водителю')))),
+                      TextButton(
+                          onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) => const DriverWebPage(
+                                      path: '/collection/privacy',
+                                      title: 'Конфиденциальность'))),
+                          child: const Text('Политика конфиденциальности')),
                       if (error.isNotEmpty || serviceError.isNotEmpty)
                         Padding(
                             padding: const EdgeInsets.only(top: 20),

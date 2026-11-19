@@ -62,6 +62,9 @@ android {
             useLegacyPackaging = true
         }
     }
+    if (collectionBuild && !driverBuild) {
+        sourceSets.getByName("release").manifest.srcFile("src/collectionRelease/AndroidManifest.xml")
+    }
     buildTypes {
         debug { manifestPlaceholders["allowCleartext"] = "true" }
         release {
@@ -79,4 +82,8 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    testImplementation("junit:junit:4.13.2")
 }

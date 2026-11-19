@@ -6,7 +6,19 @@ import {
   IsString,
   Matches,
   MinLength,
+  Equals,
+  MaxLength,
 } from "class-validator";
+
+export class DeleteAccountDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  currentPassword!: string;
+
+  @Equals("DELETE")
+  confirmation!: string;
+}
 
 export class LoginDto {
   @IsOptional()

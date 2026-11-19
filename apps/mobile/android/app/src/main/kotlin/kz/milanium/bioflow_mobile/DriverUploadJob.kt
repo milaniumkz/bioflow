@@ -31,7 +31,8 @@ class DriverUploadJob : JobService() {
                         val ids = mutableListOf<Long>()
                         val points = JSONArray()
                         DriverLocationService.database(this).use { db ->
-                            db.query("queue", arrayOf("id", "payload"), "token = ?", arrayOf(token), null, null, "id ASC", "100").use { c ->
+                            val individual = getSharedPreferences("driver", MODE_PRIVATE).getBoolean("singlePointUploads", false)
+                            db.query("queue", arrayOf("id", "payload"), "token = ?", arrayOf(token), null, null, "id ASC", if (individual) "1" else "100").use { c ->
                                 while (c.moveToNext()) { ids.add(c.getLong(0)); points.put(JSONObject(c.getString(1))) }
                             }
                         }
@@ -39,6 +40,10 @@ class DriverUploadJob : JobService() {
                         val code = DriverLocationService.post(api + "/points", token, JSONObject().put("points", points).toString())
                         if (code in 200..299) {
                             DriverLocationService.database(this).use { it.delete("queue", "id IN (${ids.joinToString(",")})", null) }
+                        } else if (code == 400) {
+                            if (DriverPointPolicy.recovery(code, ids.size) == DriverPointPolicy.Recovery.SPLIT) {
+                                getSharedPreferences("driver", MODE_PRIVATE).edit().putBoolean("singlePointUploads", true).commit()
+                            } else DriverLocationService.quarantine(this, token, ids, code)
                         } else {
                             // Keep unsent locations on disk, including rejected uploads, for recovery.
                             getSharedPreferences("driver", MODE_PRIVATE).edit().putString("error", "Не отправленные координаты сохранены на телефоне. Ответ сервера: $code").apply()

@@ -72,6 +72,61 @@ test("a successful refresh retries the request for the same identity", async () 
   assert.deepEqual(await webRequest("/users"), { ok: true });
 });
 
+for (const path of ["/auth/me", "/auth/account"]) {
+  test(`expired credentials are renewed for ${path}`, async () => {
+    setSession({ accessToken: "expired", refreshToken: "refresh" });
+    const methods = [];
+    globalThis.fetch = async (url, init) => {
+      if (String(url).endsWith("/auth/refresh"))
+        return Response.json({ accessToken: "renewed", refreshToken: "next" });
+      methods.push(init?.method);
+      return init?.headers.Authorization === "Bearer renewed"
+        ? Response.json({ ok: true })
+        : Response.json({}, { status: 401 });
+    };
+    assert.deepEqual(
+      await webRequest(path, undefined, {
+        method: path === "/auth/account" ? "DELETE" : "GET",
+      }),
+      { ok: true },
+    );
+    assert.equal(methods.length, 2);
+    assert.equal(methods[0], methods[1]);
+  });
+}
+
+test("account deletion cannot be redirected to another current user", async () => {
+  const jwt = (sub) =>
+    `header.${Buffer.from(JSON.stringify({ sub })).toString("base64url")}.signature`;
+  setSession({ accessToken: jwt("new-user") });
+  let sent = false;
+  globalThis.fetch = async () => {
+    sent = true;
+    return Response.json({ deleted: true });
+  };
+  await assert.rejects(
+    webRequest("/auth/account", jwt("previous-user"), { method: "DELETE" }),
+    /Пользователь изменился/,
+  );
+  assert.equal(sent, false);
+});
+
+test("account deletion accepts a renewed token only for the original subject", async () => {
+  const jwt = (sub, exp) =>
+    `header.${Buffer.from(JSON.stringify({ sub, exp })).toString("base64url")}.signature`;
+  const original = jwt("same-user", 1),
+    renewed = jwt("same-user", 2);
+  setSession({ accessToken: renewed });
+  globalThis.fetch = async (_, init) => {
+    assert.equal(init.headers.Authorization, `Bearer ${renewed}`);
+    return Response.json({ deleted: true });
+  };
+  assert.deepEqual(
+    await webRequest("/auth/account", original, { method: "DELETE" }),
+    { deleted: true },
+  );
+});
+
 test("network and credential failures are readable in Russian", async () => {
   globalThis.fetch = async () => {
     throw new TypeError("Failed to fetch");
