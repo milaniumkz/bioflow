@@ -159,3 +159,4 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - run: flutter analyze
       - run: flutter test
+      - run: bash scripts/test-ios-driver-policy.sh
