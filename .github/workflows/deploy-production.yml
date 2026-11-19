@@ -27,6 +27,10 @@ on:
         description: "Update Collection web/backend and preserve the published APKs"
         type: boolean
         default: false
+      store_aab_only:
+        description: "Build signed Google Play bundles without deployment (requires mobile_only)"
+        type: boolean
+        default: false
       server_config_age:
         description: "Optional AGE envelope encrypted to the pinned server host key"
         required: false
@@ -152,6 +156,9 @@ jobs:
       SSHPASS: ${{ secrets.PROD_SSH_PASSWORD }}
       PROD_SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
     steps:
+      - name: Validate store bundle mode
+        if: inputs.store_aab_only
+        run: test '${{ inputs.mobile_only }}:${{ inputs.web_only }}' = 'true:false'
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
@@ -215,7 +222,7 @@ jobs:
           Path('apps/mobile/android/key.properties').write_text('\n'.join(k+'='+values[k] for k in ['storeFile','storePassword','keyPassword','keyAlias'])+'\n')
           PYCODE
       - name: Build signed Collection APKs
-        if: inputs.web_only != true
+        if: inputs.web_only != true && !inputs.store_aab_only
         env:
           GH_TOKEN: ${{ github.token }}
           ASSET_TAG: ${{ inputs.asset_tag }}
@@ -236,7 +243,28 @@ jobs:
           sha256sum Collection.apk Collection-Driver.apk > SHA256SUMS
           tar -czf collection-apks.tar.gz Collection.apk Collection-Driver.apk
           split -b 24M -d -a 3 collection-apks.tar.gz collection-apks.part-
+      - name: Build signed Google Play bundles
+        if: inputs.store_aab_only
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/collection-store"
+          cd apps/mobile
+          flutter pub get
+          for role in collection driver; do
+            python3 scripts/firebase-config.py --role "$role" --platform android --firebase-file "$RUNNER_TEMP/collection-mobile/google-services.json" --api-url https://release.109.235.118.171.sslip.io/api/v1 --web-url https://release.109.235.118.171.sslip.io --output "$RUNNER_TEMP/collection-mobile/$role.json"
+            COLLECTION_ROLE_BUILD=$([[ "$role" == collection ]] && echo true || echo false) COLLECTION_DRIVER_BUILD=$([[ "$role" == driver ]] && echo true || echo false) flutter build appbundle --release --target "lib/main_$role.dart" --dart-define-from-file="$RUNNER_TEMP/collection-mobile/$role.json"
+            cp build/app/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/collection-store/$role.aab"
+            jarsigner -verify "$RUNNER_TEMP/collection-store/$role.aab"
+          done
+      - name: Upload Google Play bundles
+        if: inputs.store_aab_only
+        uses: actions/upload-artifact@v4
+        with:
+          name: collection-google-play-bundles
+          path: ${{ runner.temp }}/collection-store/*.aab
+          if-no-files-found: error
       - name: Require CI before publishing Collection updates
+        if: '!inputs.store_aab_only'
         timeout-minutes: 15
         uses: actions/github-script@v7
         with:
@@ -250,7 +278,7 @@ jobs:
             }
             core.setFailed('CI must finish successfully before publishing APK updates');
       - name: Publish signed APKs and replace download files atomically
-        if: inputs.web_only != true
+        if: inputs.web_only != true && !inputs.store_aab_only
         env:
           GH_TOKEN: ${{ github.token }}
           ASSET_TAG: ${{ inputs.asset_tag }}
@@ -262,7 +290,7 @@ jobs:
           cd "$GITHUB_WORKSPACE"
           source infrastructure/ci-ssh.sh
       - name: Publish versioned APK files before updating web links
-        if: inputs.web_only != true
+        if: inputs.web_only != true && !inputs.store_aab_only
         run: |
           set -euo pipefail
           source infrastructure/ci-ssh.sh
@@ -283,13 +311,14 @@ jobs:
           source infrastructure/ci-ssh.sh
           bioflow_ssh "bash /opt/collection-live/releases/$sha/infrastructure/deploy-collection.sh /opt/collection-live/releases/$sha"
       - name: Replace signed APK download files atomically
-        if: inputs.web_only != true
+        if: inputs.web_only != true && !inputs.store_aab_only
         run: |
           set -euo pipefail
           source infrastructure/ci-ssh.sh
           sha=$(git rev-parse HEAD)
           bioflow_ssh "mv -f /opt/collection-live/incoming/mobile-$sha/Collection.apk /opt/collection-live/shared/downloads/Collection.apk && mv -f /opt/collection-live/incoming/mobile-$sha/Collection-Driver.apk /opt/collection-live/shared/downloads/Collection-Driver.apk"
       - name: Verify new public link and old contour
+        if: '!inputs.store_aab_only'
         run: |
           curl --fail --retry 8 --retry-delay 5 https://release.109.235.118.171.sslip.io/api/v1/health
           curl --fail --retry 8 --retry-delay 5 https://release.109.235.118.171.sslip.io/collection -o /dev/null
