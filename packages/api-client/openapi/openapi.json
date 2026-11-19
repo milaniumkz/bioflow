@@ -15,6 +15,48 @@
         ]
       }
     },
+    "/api/v1/collection/dashboard": {
+      "get": {
+        "operationId": "OwnerDashboardController_report",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OwnerDashboard"
+        ]
+      }
+    },
+    "/api/v1/collection/collectors": {
+      "get": {
+        "operationId": "CollectorReportsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectorReports"
+        ]
+      }
+    },
+    "/api/v1/collection/collectors/{id}": {
+      "get": {
+        "operationId": "CollectorReportsController_detail",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "CollectorReports"
+        ]
+      }
+    },
     "/api/v1/collection/tutorials": {
       "get": {
         "operationId": "CollectionController_videos",

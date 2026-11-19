@@ -1,4 +1,6 @@
 "use client";
+import { OwnerDashboard } from "./owner-dashboard";
+import { CollectorReports } from "./collector-reports";
 import {
   DryingIntakeForm,
   DryingIntakeResult,
@@ -594,7 +596,10 @@ function Portal() {
             появятся его операции.
           </div>
         ) : null}
-        {selected === "overview" || selected === "stock" ? (
+        {selected === "overview" && owner ? (
+          <OwnerDashboard token={token} />
+        ) : null}
+        {selected === "stock" || (selected === "overview" && !owner) ? (
           <>
             {factory && !owner && editable("FACTORY").length > 0 ? (
               <>
@@ -997,46 +1002,7 @@ function Portal() {
         ) : null}
         {selected === "people" ? (
           <>
-            <section className="c-section">
-              <h2>Сборщики</h2>
-              <div className="c-location-grid">
-                {users
-                  .filter((user) =>
-                    user.userRoles.some(
-                      (entry: Row) => entry.role.code === "COLLECTOR",
-                    ),
-                  )
-                  .map((user) => (
-                    <article className="c-card" key={user.id}>
-                      <h3>{user.fullName}</h3>
-                      <p>{user.phone ?? "Телефон не указан"}</p>
-                      <strong>
-                        {
-                          trips.filter((trip) => trip.createdById === user.id)
-                            .length
-                        }{" "}
-                        отправок ·{" "}
-                        {tonnes(
-                          trips
-                            .filter(
-                              (trip) =>
-                                trip.createdById === user.id &&
-                                trip.kind === "RAW" &&
-                                trip.status === "ACCEPTED",
-                            )
-                            .reduce(
-                              (sum, trip) =>
-                                sum +
-                                Number(trip.acceptedWeightKg ?? trip.weightKg),
-                              0,
-                            ),
-                        )}{" "}
-                        т зачтено по приёмке
-                      </strong>
-                    </article>
-                  ))}
-              </div>
-            </section>
+            <CollectorReports token={token} />
             <section className="c-section">
               <h2>Водители и доставки</h2>
               <TripList

@@ -1,4 +1,6 @@
 "use client";
+import { OwnerDashboard } from "../owner-dashboard";
+import { CollectorReports } from "../collector-reports";
 import {
   DryingBagResult,
   DryingIntakeFields,
@@ -83,6 +85,8 @@ import "./admin.css";
 const tabs = [
   ["overview", "Обзор", LayoutDashboard],
   ["users", "Пользователи и доступы", Users],
+  ["collectors", "Отчёты сборщиков", Users],
+  ["analytics", "Общий дашборд", LayoutDashboard],
   ["locations", "Склады и заводы", Warehouse],
   ["stock", "Остатки и бигбеги", Package],
   ["trips", "Рейсы и водители", Truck],
@@ -938,6 +942,8 @@ function Console() {
                 )}
               </div>
             )}
+            {tab === "analytics" ? <OwnerDashboard token={token} /> : null}
+            {tab === "collectors" ? <CollectorReports token={token} /> : null}
             {tab === "overview" && (
               <>
                 <section className="ca-hero">

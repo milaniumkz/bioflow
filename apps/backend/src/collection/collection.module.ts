@@ -1,3 +1,11 @@
+import {
+  OwnerDashboardController,
+  OwnerDashboardService,
+} from "./collection-owner-dashboard";
+import {
+  CollectorReportsController,
+  CollectorReportsService,
+} from "./collection-collector-reports";
 import { CollectionOpeningService } from "./collection-opening.service";
 import { CollectionAdminController } from "./collection-admin.controller";
 import { CollectionAdminService } from "./collection-admin.service";
@@ -192,6 +200,8 @@ class CollectionDriverController {
 }
 @Module({
   controllers: [
+    OwnerDashboardController,
+    CollectorReportsController,
     CollectionController,
     CollectionDriverController,
     CollectionRegistrationController,
@@ -199,6 +209,8 @@ class CollectionDriverController {
     CollectionAdminController,
   ],
   providers: [
+    OwnerDashboardService,
+    CollectorReportsService,
     CollectionService,
     CollectionOpeningService,
     CollectionDriverService,
