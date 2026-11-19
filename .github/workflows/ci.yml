@@ -98,6 +98,7 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get && flutter analyze && flutter test && flutter build apk --debug --dart-define=API_URL=http://10.0.2.2:4000/api/v1
+        working-directory: apps/mobile
       - run: cd android && ./gradlew testDebugUnitTest
         working-directory: apps/mobile
       - uses: actions/upload-artifact@v4
