@@ -11,6 +11,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { CurrentUser } from "../common/current-user.decorator";
 import {
   ChangePasswordDto,
+  DeleteAccountDto,
   ForgotPasswordDto,
   LoginDto,
   RegisterDeviceDto,
@@ -145,6 +146,93 @@ export class AuthService {
     return { ok: true };
   }
 
+  async deleteAccount(actor: CurrentUser, dto: DeleteAccountDto) {
+    const unusablePassword = await argon2.hash(randomUUID());
+    return this.prisma.$transaction(
+      async (tx) => {
+        // Use the same lock order as organization user administration.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${actor.organizationId + ":admin-users"},0))`;
+        await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${actor.id} FOR UPDATE`;
+        const user = await tx.user.findFirst({
+          where: {
+            id: actor.id,
+            organizationId: actor.organizationId,
+            deletedAt: null,
+            isBlocked: false,
+          },
+        });
+        if (
+          !user ||
+          dto.confirmation !== "DELETE" ||
+          !(await argon2.verify(user.passwordHash, dto.currentPassword))
+        )
+          throw new ForbiddenException(
+            "Подтвердите удаление действующим паролем",
+          );
+        const devices = await tx.device.findMany({
+          where: { userId: user.id },
+          select: { id: true },
+        });
+        const notices = await tx.notification.findMany({
+          where: { userId: user.id },
+          select: { id: true },
+        });
+        await tx.pushDelivery.deleteMany({
+          where: {
+            OR: [
+              { deviceId: { in: devices.map((d) => d.id) } },
+              { notificationId: { in: notices.map((n) => n.id) } },
+            ],
+          },
+        });
+        await tx.collectionNoticeLink.deleteMany({
+          where: { notificationId: { in: notices.map((n) => n.id) } },
+        });
+        await tx.notification.deleteMany({ where: { userId: user.id } });
+        await tx.refreshToken.deleteMany({ where: { userId: user.id } });
+        await tx.passwordResetToken.deleteMany({ where: { userId: user.id } });
+        await tx.device.deleteMany({ where: { userId: user.id } });
+        await tx.userRole.deleteMany({ where: { userId: user.id } });
+        await tx.collectionMembership.deleteMany({
+          where: { userId: user.id },
+        });
+        const deletedAt = new Date();
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            email: null,
+            phone: null,
+            fullName: "Deleted account",
+            passwordHash: unusablePassword,
+            isBlocked: true,
+            deletedAt,
+            mustChangePassword: false,
+            accessAllObjects: false,
+            counterpartyScopeId: null,
+            warehouseScopeIds: [],
+            extractionScopeIds: [],
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            organizationId: user.organizationId,
+            userId: user.id,
+            action: "auth.account-deleted",
+            entity: "User",
+            entityId: user.id,
+            newValue: {
+              deletedAt: deletedAt.toISOString(),
+              profileRemoved: true,
+              sessionsRemoved: true,
+            },
+          },
+        });
+        return { deleted: true, deletedAt: deletedAt.toISOString() };
+      },
+      { timeout: 15000 },
+    );
+  }
+
   // A separate session avoids sharing/rotating the native app's refresh token.
   // Actor identity comes only from the guarded bearer token, never request data.
   async mobileWebSession(user: CurrentUser, refreshToken: string) {
@@ -233,7 +321,7 @@ export class AuthService {
     }
     await this.prisma.$transaction([
       this.prisma.user.update({
-        where: { id: userId },
+        where: { id: userId, deletedAt: null },
         data: {
           passwordHash: await argon2.hash(dto.newPassword),
           mustChangePassword: false,
@@ -265,12 +353,16 @@ export class AuthService {
     if (!actor.permissions.includes("users.manage"))
       throw new ForbiddenException("Недостаточно прав");
     const target = await this.prisma.user.findFirst({
-      where: { id: userId, organizationId: actor.organizationId },
+      where: {
+        id: userId,
+        organizationId: actor.organizationId,
+        deletedAt: null,
+      },
     });
     if (!target) throw new NotFoundException("Пользователь не найден");
     await this.prisma.$transaction([
       this.prisma.user.update({
-        where: { id: userId },
+        where: { id: userId, deletedAt: null },
         data: {
           passwordHash: await argon2.hash(temporaryPassword),
           mustChangePassword: true,
@@ -314,15 +406,22 @@ export class AuthService {
     });
     if (!user || user.isBlocked) return { ok: true };
     const token = randomUUID();
-    await this.prisma.$transaction([
-      this.prisma.passwordResetToken.create({
+    const created = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
+      if (
+        !(await tx.user.findFirst({
+          where: { id: user.id, isBlocked: false, deletedAt: null },
+        }))
+      )
+        return false;
+      await tx.passwordResetToken.create({
         data: {
           userId: user.id,
           tokenHash: await this.hashToken(token),
           expiresAt: new Date(Date.now() + 60 * 60 * 1000),
         },
-      }),
-      this.prisma.auditLog.create({
+      });
+      await tx.auditLog.create({
         data: {
           organizationId: user.organizationId,
           userId: user.id,
@@ -330,9 +429,11 @@ export class AuthService {
           entity: "User",
           entityId: user.id,
         },
-      }),
-    ]);
-    return process.env.NODE_ENV === "test" &&
+      });
+      return true;
+    });
+    return created &&
+      process.env.NODE_ENV === "test" &&
       process.env.ALLOW_TEST_RESET_TOKEN === "true"
       ? { ok: true, resetToken: token }
       : { ok: true };
@@ -354,7 +455,7 @@ export class AuthService {
     }
     await this.prisma.$transaction([
       this.prisma.user.update({
-        where: { id: token.userId },
+        where: { id: token.userId, deletedAt: null },
         data: {
           passwordHash: await argon2.hash(dto.newPassword),
           mustChangePassword: false,
@@ -387,13 +488,20 @@ export class AuthService {
     deviceId?: string,
   ) {
     const refreshToken = randomUUID();
-    const session = await this.prisma.refreshToken.create({
-      data: {
-        userId,
-        deviceId,
-        tokenHash: await this.hashToken(refreshToken),
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      },
+    const session = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+      const user = await tx.user.findFirst({
+        where: { id: userId, isBlocked: false, deletedAt: null },
+      });
+      if (!user) throw new UnauthorizedException("User is blocked or deleted");
+      return tx.refreshToken.create({
+        data: {
+          userId,
+          deviceId,
+          tokenHash: await this.hashToken(refreshToken),
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        },
+      });
     });
     const accessToken = await this.jwt.signAsync(
       { sub: userId, organizationId, deviceId, sessionId: session.id },
@@ -417,6 +525,13 @@ export class AuthService {
   ) {
     if (!deviceId && !platform && !pushToken) return undefined;
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+      if (
+        !(await tx.user.findFirst({
+          where: { id: userId, isBlocked: false, deletedAt: null },
+        }))
+      )
+        throw new UnauthorizedException("User is blocked or deleted");
       if (pushToken) {
         // One installation token belongs to one current account/device record.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${"push:" + pushToken}, 0))`;

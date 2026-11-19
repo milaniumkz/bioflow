@@ -169,7 +169,11 @@ export class ReferenceService {
 
   async assignRoles(userId: string, roleCodes: string[], actor: CurrentUser) {
     const target = await this.prisma.user.findFirst({
-      where: { id: userId, organizationId: actor.organizationId },
+      where: {
+        id: userId,
+        organizationId: actor.organizationId,
+        deletedAt: null,
+      },
     });
     if (!target) throw new NotFoundException("User not found");
     const roles = await this.prisma.role.findMany({
@@ -177,12 +181,22 @@ export class ReferenceService {
     });
     if (roles.length !== roleCodes.length)
       throw new BadRequestException("One or more roles do not exist");
-    await this.prisma.$transaction([
-      this.prisma.userRole.deleteMany({ where: { userId } }),
-      ...roles.map((role) =>
-        this.prisma.userRole.create({ data: { userId, roleId: role.id } }),
-      ),
-      this.prisma.auditLog.create({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
+      if (
+        !(await tx.user.findFirst({
+          where: {
+            id: userId,
+            organizationId: actor.organizationId,
+            deletedAt: null,
+          },
+        }))
+      )
+        throw new NotFoundException("User not found");
+      await tx.userRole.deleteMany({ where: { userId } });
+      for (const role of roles)
+        await tx.userRole.create({ data: { userId, roleId: role.id } });
+      await tx.auditLog.create({
         data: {
           organizationId: actor.organizationId,
           userId: actor.id,
@@ -191,8 +205,8 @@ export class ReferenceService {
           entityId: userId,
           newValue: { roleCodes },
         },
-      }),
-    ]);
+      });
+    });
     return this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -213,12 +227,16 @@ export class ReferenceService {
   ) {
     if (!reason) throw new BadRequestException("Reason is required");
     const target = await this.prisma.user.findFirst({
-      where: { id: userId, organizationId: actor.organizationId },
+      where: {
+        id: userId,
+        organizationId: actor.organizationId,
+        deletedAt: null,
+      },
     });
     if (!target) throw new NotFoundException("User not found");
     const updated = await this.prisma.$transaction(async (tx) => {
       const next = await tx.user.update({
-        where: { id: userId },
+        where: { id: userId, deletedAt: null },
         data: { isBlocked: blocked },
       });
       if (blocked)

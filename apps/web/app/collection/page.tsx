@@ -1,5 +1,6 @@
 "use client";
 import { CollectionNavigation } from "./collection-navigation";
+import { AccountDeletion } from "./account-deletion/deletion-form";
 import { OwnerDashboard } from "./owner-dashboard";
 import { CollectorReports } from "./collector-reports";
 import {
@@ -365,9 +366,10 @@ function Portal() {
       : tab === "factory-inbound" && (owner || warehouse)
         ? "shipments"
         : tab;
-  const selected = tabs.some(([id]) => id === targetTab)
-    ? targetTab
-    : tabs[0][0];
+  const selected =
+    targetTab === "account-deletion" || tabs.some(([id]) => id === targetTab)
+      ? targetTab
+      : tabs[0][0];
   useEffect(() => {
     const back = (event: Event) => {
       if (event.defaultPrevented) return;
@@ -587,7 +589,11 @@ function Portal() {
             <p className="eyebrow">
               COLLECTION / {owner ? "ВСЯ СЕТЬ" : "МОЙ КАБИНЕТ"}
             </p>
-            <h1>{tabs.find(([id]) => id === selected)?.[1]}</h1>
+            <h1>
+              {selected === "account-deletion"
+                ? "Удаление аккаунта"
+                : tabs.find(([id]) => id === selected)?.[1]}
+            </h1>
           </div>
           <div className="c-live">
             <i />{" "}
@@ -610,6 +616,20 @@ function Portal() {
           </div>
         ) : null}
         {state.isPending ? <p role="status">Загрузка данных…</p> : null}
+        {selected === "account-deletion" && profile ? (
+          <AccountDeletion
+            key={token}
+            token={token}
+            accountName={`${profile.fullName} (${profile.email || profile.phone || ""})`}
+            onCancel={() => setTab("")}
+            onDeleted={() => {
+              clearSession();
+              client.clear();
+              setToken("");
+              mobileNotify({ action: "signedOut" });
+            }}
+          />
+        ) : null}
         {!owner && (warehouse || factory) && !assigned.length ? (
           <div className="c-note">
             Вам ещё не назначен склад или завод. После назначения объекта здесь

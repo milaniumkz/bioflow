@@ -8,6 +8,7 @@ import {
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -26,6 +27,7 @@ import { AdminResetDto } from "./admin-reset.dto";
 import { AuthService } from "./auth.service";
 import {
   ChangePasswordDto,
+  DeleteAccountDto,
   ForgotPasswordDto,
   LoginDto,
   MobileWebSessionDto,
@@ -186,6 +188,35 @@ export class AuthController {
     @CurrentUserDecorator() user: CurrentUser,
   ) {
     return this.auth.changePassword(user.id, dto);
+  }
+
+  @ApiBearerAuth()
+  @Delete("account")
+  @ApiBody({
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["currentPassword", "confirmation"],
+      properties: {
+        currentPassword: {
+          type: "string",
+          minLength: 1,
+          maxLength: 128,
+          writeOnly: true,
+        },
+        confirmation: { type: "string", enum: ["DELETE"] },
+      },
+    },
+  })
+  @HttpCode(200)
+  async deleteAccount(
+    @Body() dto: DeleteAccountDto,
+    @CurrentUserDecorator() user: CurrentUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.auth.deleteAccount(user, dto);
+    res.setHeader("Cache-Control", "no-store");
+    return result;
   }
 
   @ApiBearerAuth()
