@@ -149,7 +149,7 @@ class DriverLocationService : Service(), LocationListener {
                 try {
                     // Archive and remove from the active queue in the same local transaction.
                     val selected = "token = ? AND id IN (${ids.joinToString(",")})"
-                    db.execSQL("INSERT OR IGNORE INTO rejected_points SELECT id, token, payload, ?, ? FROM queue WHERE $selected", arrayOf(status, System.currentTimeMillis(), token))
+                    db.execSQL("INSERT OR IGNORE INTO rejected_points SELECT id, token, payload, ?, ? FROM queue WHERE $selected", arrayOf<Any>(status, System.currentTimeMillis(), token))
                     db.delete("queue", selected, arrayOf(token))
                     db.setTransactionSuccessful()
                 } finally { db.endTransaction() }
