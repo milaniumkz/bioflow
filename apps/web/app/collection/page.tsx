@@ -168,6 +168,7 @@ function Portal() {
       }
     };
     const expired = () => {
+      clearSession();
       setToken("");
       client.clear();
     };

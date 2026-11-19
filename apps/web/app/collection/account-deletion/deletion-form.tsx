@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { networkFetch } from "../../session";
+import { networkFetch, webRequest } from "../../session";
 import "./deletion.css";
 
 const base = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
@@ -90,12 +90,13 @@ export function AccountDeletion({
         }
         setReviewing(true);
       } else {
-        await request(
-          "/auth/account",
-          "DELETE",
-          { currentPassword: password, confirmation: "DELETE" },
-          token || verifiedToken,
-        );
+        const body = { currentPassword: password, confirmation: "DELETE" };
+        if (token)
+          await webRequest("/auth/account", token, {
+            method: "DELETE",
+            body: JSON.stringify(body),
+          });
+        else await request("/auth/account", "DELETE", body, verifiedToken);
         if (!active.current) return;
         setPassword("");
         setVerifiedToken("");

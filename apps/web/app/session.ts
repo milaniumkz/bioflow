@@ -130,6 +130,22 @@ export async function webRequest<T>(
       ? undefined
       : document.activeElement?.closest("form, .formGrid");
   const requestEpoch = epoch;
+  if (path === "/auth/account" && token && access && token !== access) {
+    const subject = (value: string) => {
+      try {
+        const sub = JSON.parse(
+          atob(value.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")),
+        ).sub;
+        return typeof sub === "string" ? sub : undefined;
+      } catch {
+        return undefined;
+      }
+    };
+    if (!subject(token) || subject(token) !== subject(access))
+      throw Error(
+        "Пользователь изменился. Повторите действие в текущей сессии.",
+      );
+  }
   const checkIdentity = () => {
     if (requestEpoch !== epoch)
       throw Error(
@@ -149,7 +165,10 @@ export async function webRequest<T>(
     });
   let response = await send();
   checkIdentity();
-  if (response.status === 401 && !path.startsWith("/auth/")) {
+  if (
+    response.status === 401 &&
+    (!path.startsWith("/auth/") || ["/auth/me", "/auth/account"].includes(path))
+  ) {
     pending ??= renew();
     const ok = await pending;
     pending = undefined;
