@@ -1,4 +1,5 @@
 "use client";
+import { CollectionNavigation } from "./collection-navigation";
 import { OwnerDashboard } from "./owner-dashboard";
 import { CollectorReports } from "./collector-reports";
 import {
@@ -367,6 +368,42 @@ function Portal() {
   const selected = tabs.some(([id]) => id === targetTab)
     ? targetTab
     : tabs[0][0];
+  useEffect(() => {
+    const back = (event: Event) => {
+      if (event.defaultPrevented) return;
+      if (dialog.current?.open) {
+        dialog.current.close();
+        setQr(null);
+        event.preventDefault();
+        return;
+      }
+      const filters = document.querySelector<HTMLDetailsElement>(
+        ".od-filter-panel[open], .cr-filter-panel[open]",
+      );
+      if (filters) {
+        filters.open = false;
+        event.preventDefault();
+        return;
+      }
+      const expanded =
+        document.querySelectorAll<HTMLDetailsElement>(".od-section[open]");
+      if (expanded.length) {
+        expanded[expanded.length - 1].open = false;
+        event.preventDefault();
+        window.scrollTo({ top: 0 });
+        return;
+      }
+      if (selected !== tabs[0][0]) {
+        setTab("");
+        event.preventDefault();
+        window.scrollTo({ top: 0 });
+        return;
+      }
+      mobileNotify({ action: "collectionRootBack" });
+    };
+    window.addEventListener("collection:back", back);
+    return () => window.removeEventListener("collection:back", back);
+  }, [selected, tabs[0][0]]);
   const data = state.data ?? {};
   const locations: Row[] = data.locations ?? [];
   const trips: Row[] = data.trips ?? [];
@@ -524,44 +561,27 @@ function Portal() {
     );
   return (
     <div className="collection-app">
-      <aside className="c-sidebar">
-        <div className="collection-wordmark">
-          collection<span>рабочий контур</span>
-        </div>
-        <nav>
-          {tabs.map(([id, title]) => (
-            <button
-              key={id}
-              className={selected === id ? "active" : ""}
-              onClick={() => {
-                setTab(id);
-                setError("");
-                setMessage("");
-              }}
-            >
-              <span>{title}</span>
-              {id === "notifications" && unread ? <b>{unread}</b> : null}
-            </button>
-          ))}
-        </nav>
-        <div className="c-account">
-          <strong>{profile?.fullName}</strong>
-          <small>{roles.map((role) => labels[role] ?? role).join(" · ")}</small>
-          {owner && <a href="/collection/admin">Администрирование ↗</a>}
-          <button
-            onClick={async () => {
-              await call("/auth/logout-all", {}).catch(() => {});
-              await endBrowserSession().catch(() => clearSession());
-              client.clear();
-              setToken("");
-              mobileNotify({ action: "signedOut" });
-            }}
-          >
-            Выйти ↗
-          </button>
-        </div>
-      </aside>
-      <main className="c-main">
+      <CollectionNavigation
+        items={tabs}
+        selected={selected}
+        unread={unread}
+        owner={owner}
+        onSelect={(id) => {
+          setTab(id);
+          setError("");
+          setMessage("");
+        }}
+        onSignOut={async () => {
+          await call("/auth/logout-all", {}).catch(() => {});
+          await endBrowserSession().catch(() => clearSession());
+          client.clear();
+          setToken("");
+          mobileNotify({ action: "signedOut" });
+        }}
+      />
+      <main
+        className={`c-main ${owner && selected === "overview" ? "c-main-dashboard" : ""}`}
+      >
         <header className="c-top">
           <div>
             <p className="eyebrow">

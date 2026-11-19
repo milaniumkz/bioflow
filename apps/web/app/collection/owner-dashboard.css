@@ -107,3 +107,216 @@
     grid-template-columns: 1fr;
   }
 }
+/* Phone-first overview: figures first, controls and long histories open on demand. */
+.od-dashboard .od-compact-heading {
+  margin: 0 0 15px;
+  align-items: center;
+}
+.od-dashboard .od-compact-heading h2 {
+  font-size: 26px;
+  margin: 0;
+}
+.od-dashboard .od-compact-heading p {
+  font-size: 11px;
+  margin: 5px 0 0;
+}
+.od-fast-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.od-fast-grid article {
+  background: #fff;
+  border: 1px solid #dfe8e2;
+  border-radius: 15px;
+  padding: 17px;
+  min-width: 0;
+}
+.od-fast-grid article > span {
+  display: block;
+  font-size: 12px;
+  color: #60786c;
+}
+.od-fast-grid strong {
+  display: block;
+  font-size: 27px;
+  line-height: 1.15;
+  margin: 9px 0 5px;
+  overflow-wrap: anywhere;
+  letter-spacing: -0.04em;
+}
+.od-fast-grid strong small {
+  font-size: 13px;
+  font-weight: 500;
+}
+.od-fast-grid article > small {
+  color: #8b9d92;
+  font-size: 10px;
+}
+.od-fast-grid article:nth-child(3) {
+  background: #17684f;
+  color: white;
+  border-color: #17684f;
+}
+.od-fast-grid article:nth-child(3) > span,
+.od-fast-grid article:nth-child(3) > small {
+  color: #daede2;
+}
+.od-fast-status {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: #60786c;
+  margin: 14px 0;
+}
+.od-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 16px 0;
+}
+.cr-report.od-dashboard .od-shortcuts button {
+  padding: 13px 6px;
+  background: #e8f1eb;
+  color: #17684f;
+  border: 1px solid #dae7df;
+  font-size: 12px;
+}
+.od-filter-panel,
+.cr-filter-panel {
+  background: #fff;
+  border: 1px solid #dfe8e2;
+  border-radius: 13px;
+  margin: 16px 0;
+}
+.od-filter-panel > summary,
+.cr-filter-panel > summary {
+  padding: 15px 17px;
+  cursor: pointer;
+  font-weight: 600;
+  list-style: none;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.od-filter-panel > summary::after,
+.cr-filter-panel > summary::after {
+  content: "+";
+  margin-left: auto;
+  font-size: 19px;
+  color: #17684f;
+}
+.od-filter-panel[open] > summary::after,
+.cr-filter-panel[open] > summary::after {
+  content: "−";
+}
+.od-filter-panel > summary > span {
+  font-size: 11px;
+  font-weight: 400;
+  color: #83968a;
+}
+.od-filter-panel > summary > b {
+  background: #e5f1e8;
+  padding: 0 7px;
+  border-radius: 6px;
+  color: #17684f;
+}
+.od-dashboard .od-filter,
+.cr-filter-panel .cr-filter {
+  border: 0;
+  margin: 0;
+  padding-top: 6px;
+}
+.od-section {
+  background: #fff;
+  border: 1px solid #e0e9e2;
+  border-radius: 13px;
+  margin: 12px 0;
+  padding: 0 16px;
+  scroll-margin-top: 76px;
+}
+.od-section > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 17px 0;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.od-section > summary::after {
+  content: "+";
+  margin-left: auto;
+  color: #17684f;
+}
+.od-section[open] > summary::after {
+  content: "−";
+}
+.od-section > summary::-webkit-details-marker,
+.od-filter-panel > summary::-webkit-details-marker,
+.cr-filter-panel > summary::-webkit-details-marker {
+  display: none;
+}
+.od-section .cr-metrics {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.od-section .cr-table-wrap {
+  margin: 6px 0 16px;
+}
+.od-section .cr-metrics article {
+  background: #f7faf7;
+}
+.od-section > .cr-shipments {
+  grid-template-columns: 1fr;
+}
+.od-dashboard .od-breakdown > .cr-presets {
+  padding-bottom: 10px;
+}
+.od-dashboard .cr-shipment .c-map {
+  margin-bottom: 12px;
+}
+@media (max-width: 700px) {
+  .od-dashboard .od-compact-heading h2 {
+    font-size: 23px;
+  }
+  .od-fast-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+  .od-fast-grid article {
+    padding: 14px;
+    min-height: 104px;
+  }
+  .od-fast-grid strong {
+    font-size: 27px;
+  }
+  .od-shortcuts {
+    gap: 6px;
+  }
+  .cr-report.od-dashboard .od-shortcuts button {
+    font-size: 11px;
+    padding: 13px 4px;
+  }
+  .od-section {
+    padding: 0 13px;
+  }
+  .od-section > summary {
+    font-size: 13px;
+  }
+  .od-filter-panel > summary > span {
+    font-size: 10px;
+  }
+  .od-section .cr-shipment {
+    padding: 14px;
+  }
+  .od-dashboard .od-counts {
+    font-size: 11px;
+  }
+  .od-dashboard .cr-range {
+    font-size: 11px;
+  }
+  .od-dashboard .cr-pagination {
+    margin-bottom: 14px;
+  }
+}

@@ -269,6 +269,12 @@ class FullWorkspaceState extends State<FullWorkspace> {
             pendingNotice = null;
             unawaited(openNotification(queuedNotice));
           }
+        case 'collectionRootBack':
+          if (widget.path == '/collection' &&
+              authenticated &&
+              controller.platform is AndroidWebViewController) {
+            await SystemNavigator.pop();
+          }
         case 'signedOut':
           await finish(true);
         case 'sessionEnded':
@@ -337,6 +343,15 @@ class FullWorkspaceState extends State<FullWorkspace> {
         canPop: leaving,
         onPopInvokedWithResult: (popped, _) async {
           if (popped) return;
+          if (widget.path == '/collection') {
+            if (authenticated) {
+              await controller.runJavaScript(
+                  'window.dispatchEvent(new Event("collection:back", {cancelable:true}));');
+            } else if (controller.platform is AndroidWebViewController) {
+              await SystemNavigator.pop();
+            }
+            return;
+          }
           if (authenticated && await controller.canGoBack()) {
             await controller.goBack();
           } else {
@@ -344,73 +359,82 @@ class FullWorkspaceState extends State<FullWorkspace> {
           }
         },
         child: Scaffold(
-          appBar: AppBar(
-            leading: IconButton(
-                onPressed: close,
-                tooltip: 'Назад',
-                icon: const Icon(Icons.arrow_back)),
-            title:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(widget.client.profile?['fullName'] ?? 'BIOFLOW',
-                  style: const TextStyle(fontSize: 16),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
-              Text(roleSummary(widget.client.profile),
-                  style: const TextStyle(fontSize: 11),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis),
-            ]),
-            actions: [
-              PopupMenuButton<String>(
-                  tooltip: 'Разделы моей роли',
-                  onSelected: (id) => controller.runJavaScript(
-                      'window.dispatchEvent(new CustomEvent("bioflow:mobile-section", {detail:${jsonEncode(id)}}));'),
-                  itemBuilder: (_) => (webSections ??
-                          roleSections.entries
-                              .where((e) =>
-                                  canOpenSection(e.key, widget.client.profile))
-                              .toList())
-                      .map((e) =>
-                          PopupMenuItem(value: e.key, child: Text(e.value)))
-                      .toList()),
-            ],
-          ),
-          body: Stack(children: [
-            if (controller.platform is AndroidWebViewController)
-              WebViewWidget.fromPlatformCreationParams(
-                  params: AndroidWebViewWidgetCreationParams(
-                      controller: controller.platform,
-                      displayWithHybridComposition: true))
-            else
-              WebViewWidget(controller: controller),
-            if (!authenticated || error != null)
-              Positioned.fill(
-                  child: ColoredBox(
-                      color: widget.path == '/collection'
-                          ? const Color(0xFFF4F6F2)
-                          : const Color(0xFF061225),
-                      child: Center(
-                          child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: error == null
-                                  ? const Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                          CircularProgressIndicator(),
-                                          SizedBox(height: 20),
-                                          Text('Открываем ваш кабинет…')
-                                        ])
-                                  : Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                          Text(error!,
-                                              textAlign: TextAlign.center),
-                                          FilledButton(
-                                              onPressed: () => controller
-                                                  .loadRequest(webUri),
-                                              child: const Text('Повторить'))
-                                        ]))))),
-          ]),
+          appBar: widget.path == '/collection'
+              ? null
+              : AppBar(
+                  leading: IconButton(
+                      onPressed: close,
+                      tooltip: 'Назад',
+                      icon: const Icon(Icons.arrow_back)),
+                  title: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(widget.client.profile?['fullName'] ?? 'BIOFLOW',
+                            style: const TextStyle(fontSize: 16),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                        Text(roleSummary(widget.client.profile),
+                            style: const TextStyle(fontSize: 11),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis),
+                      ]),
+                  actions: [
+                    PopupMenuButton<String>(
+                        tooltip: 'Разделы моей роли',
+                        onSelected: (id) => controller.runJavaScript(
+                            'window.dispatchEvent(new CustomEvent("bioflow:mobile-section", {detail:${jsonEncode(id)}}));'),
+                        itemBuilder: (_) => (webSections ??
+                                roleSections.entries
+                                    .where((e) => canOpenSection(
+                                        e.key, widget.client.profile))
+                                    .toList())
+                            .map((e) => PopupMenuItem(
+                                value: e.key, child: Text(e.value)))
+                            .toList()),
+                  ],
+                ),
+          body: SafeArea(
+              top: widget.path == '/collection',
+              bottom: widget.path == '/collection',
+              left: widget.path == '/collection',
+              right: widget.path == '/collection',
+              child: Stack(children: [
+                if (controller.platform is AndroidWebViewController)
+                  WebViewWidget.fromPlatformCreationParams(
+                      params: AndroidWebViewWidgetCreationParams(
+                          controller: controller.platform,
+                          displayWithHybridComposition: true))
+                else
+                  WebViewWidget(controller: controller),
+                if (!authenticated || error != null)
+                  Positioned.fill(
+                      child: ColoredBox(
+                          color: widget.path == '/collection'
+                              ? const Color(0xFFF4F6F2)
+                              : const Color(0xFF061225),
+                          child: Center(
+                              child: Padding(
+                                  padding: const EdgeInsets.all(24),
+                                  child: error == null
+                                      ? const Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                              CircularProgressIndicator(),
+                                              SizedBox(height: 20),
+                                              Text('Открываем ваш кабинет…')
+                                            ])
+                                      : Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                              Text(error!,
+                                                  textAlign: TextAlign.center),
+                                              FilledButton(
+                                                  onPressed: () => controller
+                                                      .loadRequest(webUri),
+                                                  child:
+                                                      const Text('Повторить'))
+                                            ]))))),
+              ])),
         ),
       );
 }

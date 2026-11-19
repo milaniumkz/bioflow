@@ -1,5 +1,5 @@
 "use client";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { webRequest } from "../session";
 import { kgAsTonnes } from "./weight-units";
@@ -84,6 +84,7 @@ export function CollectorReports({ token }: { token: string }) {
     [search, setSearch] = useState(""),
     [page, setPage] = useState(1),
     [formError, setFormError] = useState("");
+  const filterPanel = useRef<HTMLDetailsElement>(null);
   const directory = useQuery({
     queryKey: ["collector-directory", token, period],
     queryFn: () =>
@@ -110,6 +111,7 @@ export function CollectorReports({ token }: { token: string }) {
     setPeriod(values);
     setDraft(values);
     setPage(1);
+    if (filterPanel.current) filterPanel.current.open = false;
   }
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -167,60 +169,63 @@ export function CollectorReports({ token }: { token: string }) {
           </button>
         ) : null}
       </header>
-      <form className="cr-filter" onSubmit={submit}>
-        <label>
-          Дата с
-          <input
-            type="date"
-            value={draft.from}
-            onChange={(e) => setDraft({ ...draft, from: e.target.value })}
-          />
-        </label>
-        <label>
-          Дата по
-          <input
-            type="date"
-            value={draft.to}
-            onChange={(e) => setDraft({ ...draft, to: e.target.value })}
-          />
-        </label>
-        <label>
-          Дата для отчёта
-          <select
-            value={draft.basis}
-            onChange={(e) =>
-              setDraft({ ...draft, basis: e.target.value as Period["basis"] })
-            }
-          >
-            {Object.entries(bases).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
+      <details ref={filterPanel} className="cr-filter-panel">
+        <summary>Фильтры по датам</summary>
+        <form className="cr-filter" onSubmit={submit}>
+          <label>
+            Дата с
+            <input
+              type="date"
+              value={draft.from}
+              onChange={(e) => setDraft({ ...draft, from: e.target.value })}
+            />
+          </label>
+          <label>
+            Дата по
+            <input
+              type="date"
+              value={draft.to}
+              onChange={(e) => setDraft({ ...draft, to: e.target.value })}
+            />
+          </label>
+          <label>
+            Дата для отчёта
+            <select
+              value={draft.basis}
+              onChange={(e) =>
+                setDraft({ ...draft, basis: e.target.value as Period["basis"] })
+              }
+            >
+              {Object.entries(bases).map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button>Показать</button>
+          <div className="cr-presets">
+            {[
+              ["today", "Сегодня"],
+              ["yesterday", "Вчера"],
+              ["week", "7 дней"],
+              ["month", "Этот месяц"],
+              ["all", "Весь период"],
+            ].map(([key, title]) => (
+              <button key={key} type="button" onClick={() => preset(key)}>
+                {title}
+              </button>
             ))}
-          </select>
-        </label>
-        <button>Показать</button>
-        <div className="cr-presets">
-          {[
-            ["today", "Сегодня"],
-            ["yesterday", "Вчера"],
-            ["week", "7 дней"],
-            ["month", "Этот месяц"],
-            ["all", "Весь период"],
-          ].map(([key, title]) => (
-            <button key={key} type="button" onClick={() => preset(key)}>
-              {title}
-            </button>
-          ))}
-        </div>
-        <p className="cr-range">
-          {bases[period.basis]} ·{" "}
-          {period.from ? day(period.from) : "начало учёта"} —{" "}
-          {period.to ? day(period.to) : "всё время"}. Дни по местному времени
-          UTC+5, дата «по» включительно.
-        </p>
-        {formError ? <p role="alert">{formError}</p> : null}
-      </form>
+          </div>
+          <p className="cr-range">
+            {bases[period.basis]} ·{" "}
+            {period.from ? day(period.from) : "начало учёта"} —{" "}
+            {period.to ? day(period.to) : "всё время"}. Дни по местному времени
+            UTC+5, дата «по» включительно.
+          </p>
+          {formError ? <p role="alert">{formError}</p> : null}
+        </form>
+      </details>
       {error ? (
         <p role="alert" className="cr-error">
           {error.message}
