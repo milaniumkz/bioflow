@@ -29,10 +29,11 @@ async function provision() {
         throw new Error('Invalid review workspace');
       }
       for (const [index, token] of trips.entries()) {
+        const tokenHash = createHash('sha256').update(token).digest('hex');
         await tx.collectionTrip.create({ data: {
-          organizationId, number: index ? 'APPLE-REVIEW-DRIVER' : 'APPLE-QA-DRIVER',
+          organizationId, number: (index ? 'APPLE-REVIEW-DRIVER-' : 'APPLE-QA-DRIVER-') + tokenHash.slice(0, 12),
           createdById: reviewer.id, warehouseId: warehouse.id, bagCount: 2, weightKg: 100,
-          qrTokenHash: createHash('sha256').update(token).digest('hex'),
+          qrTokenHash: tokenHash,
         } });
       }
     });
