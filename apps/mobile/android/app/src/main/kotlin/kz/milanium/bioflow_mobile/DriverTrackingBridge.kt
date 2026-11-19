@@ -41,6 +41,7 @@ class DriverTrackingBridge(private val activity: Activity, messenger: BinaryMess
                             .putString("destination", call.argument<String>("destination"))
                             .putString("lastToken", token)
                             .putLong("expires", call.argument<Number>("expires")!!.toLong())
+                            .putLong("startedAt", System.currentTimeMillis())
                             .putBoolean("active", true).putString("error", "").putLong("sent", 0).putInt("sequence", 0).commit()
                         DriverEventOutbox.begin(activity, token, call.argument<String>("stage") ?: "CREATED")
                         val intent = Intent(activity, DriverLocationService::class.java)
@@ -90,7 +91,7 @@ class DriverTrackingBridge(private val activity: Activity, messenger: BinaryMess
                     }
                     "status" -> {
                         val p = activity.getSharedPreferences("driver", Context.MODE_PRIVATE)
-                        result.success(mapOf("active" to p.getBoolean("active", false), "number" to p.getString("number", ""), "sent" to p.getLong("sent", 0), "error" to p.getString("error", ""), "expires" to p.getLong("expires", 0), "queued" to (DriverLocationService.queueCount(activity) + DriverEventOutbox.count(activity)), "stage" to DriverEventOutbox.stage(activity, p.getString("lastToken", "")!!), "destination" to p.getString("destination", "")))
+                        result.success(mapOf("active" to p.getBoolean("active", false), "number" to p.getString("number", ""), "sent" to p.getLong("sent", 0), "error" to p.getString("error", ""), "expires" to p.getLong("expires", 0), "queued" to (DriverLocationService.queueCount(activity) + DriverEventOutbox.count(activity)), "rejectedPoints" to DriverLocationService.rejectedCount(activity), "stage" to DriverEventOutbox.stage(activity, p.getString("lastToken", "")!!), "destination" to p.getString("destination", "")))
                     }
                     else -> result.notImplemented()
                 }

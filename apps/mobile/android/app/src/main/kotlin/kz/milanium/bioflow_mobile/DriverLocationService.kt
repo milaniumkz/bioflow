@@ -67,7 +67,9 @@ class DriverLocationService : Service(), LocationListener {
     override fun onLocationChanged(location: Location) {
         if (!prefs.getBoolean("active", false)) return
         if (System.currentTimeMillis() >= prefs.getLong("expires", 0)) { finishTracking(); return }
-        if (!location.hasAccuracy() || location.time < System.currentTimeMillis() - 120_000) return
+        val now = System.currentTimeMillis()
+        if (!location.hasAccuracy() || location.accuracy < 0 || location.accuracy > 100_000 ||
+            !DriverPointPolicy.accepts(location.time, prefs.getLong("startedAt", now), prefs.getLong("expires", 0), now)) return
         synchronized(queueLock) {
             val seq = prefs.getInt("sequence", 0) + 1
             prefs.edit().putInt("sequence", seq).commit()
@@ -89,7 +91,7 @@ class DriverLocationService : Service(), LocationListener {
             val ids = mutableListOf<Long>()
             val points = JSONArray()
             database(this).use { db ->
-                db.query("queue", arrayOf("id", "payload"), "token = ?", arrayOf(sessionToken), null, null, "id ASC", "100").use { cursor ->
+                db.query("queue", arrayOf("id", "payload"), "token = ?", arrayOf(sessionToken), null, null, "id ASC", if (prefs.getBoolean("singlePointUploads", false)) "1" else "100").use { cursor ->
                     while (cursor.moveToNext()) { ids.add(cursor.getLong(0)); points.put(JSONObject(cursor.getString(1))) }
                 }
             }
@@ -99,6 +101,13 @@ class DriverLocationService : Service(), LocationListener {
                 database(this).use { db -> db.delete("queue", "id IN (${ids.joinToString(",")})", null) }
                 DriverEventOutbox.flush(this, sessionApi, sessionToken)
                 prefs.edit().putLong("sent", System.currentTimeMillis()).putString("error", "").apply()
+            } else if (code == 400) {
+                if (DriverPointPolicy.recovery(code, ids.size) == DriverPointPolicy.Recovery.SPLIT) {
+                    prefs.edit().putBoolean("singlePointUploads", true).commit()
+                } else {
+                    quarantine(this, sessionToken, ids, code)
+                    DriverEventOutbox.flush(this, sessionApi, sessionToken)
+                }
             } else if (code == 401 || code == 403) {
                 prefs.edit().putString("error", "Рейс завершён или доступ отозван").apply()
                 main.post { finishTracking() }
@@ -130,7 +139,24 @@ class DriverLocationService : Service(), LocationListener {
         fun database(context: Context): SQLiteDatabase {
             val db = context.openOrCreateDatabase("driver-locations.db", Context.MODE_PRIVATE, null)
             db.execSQL("CREATE TABLE IF NOT EXISTS queue (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT NOT NULL, payload TEXT NOT NULL)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS rejected_points (id INTEGER PRIMARY KEY, token TEXT NOT NULL, payload TEXT NOT NULL, http_status INTEGER NOT NULL, rejected_at INTEGER NOT NULL)")
             return db
+        }
+        fun quarantine(context: Context, token: String, ids: List<Long>, status: Int) {
+            if (ids.isEmpty()) return
+            database(context).use { db ->
+                db.beginTransaction()
+                try {
+                    // Archive and remove from the active queue in the same local transaction.
+                    val selected = "token = ? AND id IN (${ids.joinToString(",")})"
+                    db.execSQL("INSERT OR IGNORE INTO rejected_points SELECT id, token, payload, ?, ? FROM queue WHERE $selected", arrayOf(status, System.currentTimeMillis(), token))
+                    db.delete("queue", selected, arrayOf(token))
+                    db.setTransactionSuccessful()
+                } finally { db.endTransaction() }
+            }
+        }
+        fun rejectedCount(context: Context): Int = database(context).use { db ->
+            db.rawQuery("SELECT COUNT(*) FROM rejected_points", null).use { c -> c.moveToFirst(); c.getInt(0) }
         }
         fun queueCount(context: Context): Int = database(context).use { db ->
             db.rawQuery("SELECT COUNT(*) FROM queue", null).use { c -> c.moveToFirst(); c.getInt(0) }
