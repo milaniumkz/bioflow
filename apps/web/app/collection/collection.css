@@ -90,6 +90,15 @@
   border-color: #17684f;
   box-shadow: 0 0 0 3px #17684f17;
 }
+@media screen and (max-width: 900px) {
+  /* Prevent iOS focus zoom without disabling user-controlled zoom. */
+  .collection-app input,
+  .collection-app select,
+  .collection-app textarea,
+  .collection-login input {
+    font-size: 16px;
+  }
+}
 .collection-app a {
   color: var(--c-green);
 }
